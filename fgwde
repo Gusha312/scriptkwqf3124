@@ -1,4 +1,6 @@
 while true do
 wait(2)
 game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game:GetService("Workspace").Interactions.Nodes.CurrencyNodes.Spawned.MegaCoins.CFrame
+wait(0.33)
+game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game:GetService("Workspace").Interactions.Nodes.CurrencyNodes.Spawned.Coins.CFrame
 end 
