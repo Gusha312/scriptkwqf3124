@@ -1,0 +1,38 @@
+while true do 
+wait (0.1)
+local args = {
+[1] = "Breath",
+[2] = "Destructibles",
+[3] = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
+}
+
+game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+local args = {
+[1] = "Breath",
+[2] = "Destructibles",
+[3] = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
+}
+
+game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+local args = {
+[1] = "Breath",
+[2] = "Destructibles",
+[3] = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
+}
+
+game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+local args = {
+[1] = "Breath",
+[2] = "Destructibles",
+[3] = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
+}
+
+game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+local args = {
+[1] = "Breath",
+[2] = "Destructibles",
+[3] = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
+}
+
+game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+end 
