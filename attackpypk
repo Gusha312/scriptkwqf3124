@@ -1,5 +1,5 @@
 while true do 
-wait (0.1)
+wait (0.01)
 local args = {
 [1] = "Breath",
 [2] = "Destructibles",
@@ -7,6 +7,7 @@ local args = {
 }
 
 game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+wait (0.01)
 local args = {
 [1] = "Breath",
 [2] = "Destructibles",
@@ -14,6 +15,7 @@ local args = {
 }
 
 game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+wait (0.01)
 local args = {
 [1] = "Breath",
 [2] = "Destructibles",
@@ -21,6 +23,7 @@ local args = {
 }
 
 game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+wait (0.01)
 local args = {
 [1] = "Breath",
 [2] = "Destructibles",
@@ -28,6 +31,7 @@ local args = {
 }
 
 game:GetService("Players").LocalPlayer.Character.Dragons:FindFirstChild("6").Remotes.PlaySoundRemote:FireServer(unpack(args))
+wait (0.01)
 local args = {
 [1] = "Breath",
 [2] = "Destructibles",
