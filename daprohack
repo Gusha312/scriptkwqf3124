@@ -1,0 +1,17 @@
+local player = game:GetService("Players").LocalPlayer
+local spawnLocations = {
+    CFrame.new(287.326477, 576.58783, -636.840637, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+    CFrame.new(411.636444, 485.350189, -107.774689, 0.907613814, -0.0306994524, -0.418682098, 0.0186980497, 0.999289036, -0.0327384882, 0.419389486, 0.021885369, 0.907542586),
+    CFrame.new(-123.526733, 780.829651, -358.038574, -0.573599219, 0, 0.81913656, 0, 1, 0, -0.81913656, 0, -0.573599219),
+    CFrame.new(1009.58899, 579.483826, -951.616211, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228),
+    CFrame.new(841.261475, 339.6297, -1506.67322, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+}
+
+while true do
+    wait(30)
+    if player.Character then
+        local randomIndex = math.random(1, #spawnLocations)
+        local spawnLocation = spawnLocations[randomIndex]
+        player.Character:SetPrimaryPartCFrame(spawnLocation)
+    end
+end
