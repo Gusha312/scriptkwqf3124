@@ -298,7 +298,7 @@ do
         Type = Value
     end)
     Tabs.AutoFarm:AddButton({Title = "Notify",Description = "For The Auto Collect or AutoMob make sure your on a dragon and only have one dragon Equipped",Callback = function()end})
-    local Toggle = Tabs.AutoFarm:AddToggle("cOLL", {Title = "Auto Collect", Default = false})
+    local Toggle = Tabs.AutoFarm:AddToggle("cOLL", {Title = "Auto Collect", Default = true})
     Toggle:OnChanged(function()
         AutoCollect = Options.cOLL.Value
         RunService.Stepped:connect(function()
@@ -309,7 +309,7 @@ do
             end
         end)
         spawn(function()
-            while AutoCollect do wait(1)
+            while AutoCollect do wait(0.1)
                 pcall(function()
                     for _, v in next, Workspace.Interactions.Nodes[CollectionItem]:GetChildren() do
                         if v:IsA("Model") and v:FindFirstChild("Hitbox") and VG.GetHumanoid().SeatPart then
