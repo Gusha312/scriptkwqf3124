@@ -309,14 +309,14 @@ do
             end
         end)
         spawn(function()
-            while AutoCollect do wait(1)
+            while AutoCollect do wait(3)
                 pcall(function()
                     for _, v in next, Workspace.Interactions.Nodes[CollectionItem]:GetChildren() do
                         if v:IsA("Model") and v:FindFirstChild("Hitbox") and VG.GetHumanoid().SeatPart then
                             if v:FindFirstChild("BillboardPart", true) and v.BillboardPart.Health.Value ~= 0 then
                                 Player.Character:SetPrimaryPartCFrame(CFrame.new(v.Hitbox.Position) * CFrame.new(0, 10, 0))
-                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 1
-                                for i=1, 10 do wait(.1)
+                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 3
+                                for i=1, 10 do wait(1)
                                     VG.FireConnection(Player.PlayerGui.HUDGui.BottomFrame.CurrentDragonFrame.DragonControlsFrame.Other.Bite.MouseButton1Down)
                                 end
                                 for _,v in next, Workspace.Camera:GetChildren() do
@@ -502,8 +502,8 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 Window:SelectTab(1)
 
 Fluent:Notify({
-    Title = "V.G Hub",
-    Content = "The script has been loaded.",
+    Title = "132123321",
+    Content = "123123.",
     Duration = 8
 })
 
