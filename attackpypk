@@ -309,14 +309,14 @@ do
             end
         end)
         spawn(function()
-            while AutoCollect do wait(0.1)
+            while AutoCollect do wait(1)
                 pcall(function()
                     for _, v in next, Workspace.Interactions.Nodes[CollectionItem]:GetChildren() do
                         if v:IsA("Model") and v:FindFirstChild("Hitbox") and VG.GetHumanoid().SeatPart then
                             if v:FindFirstChild("BillboardPart", true) and v.BillboardPart.Health.Value ~= 0 then
                                 Player.Character:SetPrimaryPartCFrame(CFrame.new(v.Hitbox.Position) * CFrame.new(0, 10, 0))
-                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 0.01
-                                for i=1, 2 do wait(.001)
+                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 1
+                                for i=1, 10 do wait(.1)
                                     VG.FireConnection(Player.PlayerGui.HUDGui.BottomFrame.CurrentDragonFrame.DragonControlsFrame.Other.Bite.MouseButton1Down)
                                 end
                                 for _,v in next, Workspace.Camera:GetChildren() do
