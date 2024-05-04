@@ -315,8 +315,8 @@ do
                         if v:IsA("Model") and v:FindFirstChild("Hitbox") and VG.GetHumanoid().SeatPart then
                             if v:FindFirstChild("BillboardPart", true) and v.BillboardPart.Health.Value ~= 0 then
                                 Player.Character:SetPrimaryPartCFrame(CFrame.new(v.Hitbox.Position) * CFrame.new(0, 10, 0))
-                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 0.0000000000000001
-                                for i=1, 2 do wait(.000000000001)
+                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 0.01
+                                for i=1, 2 do wait(.001)
                                     VG.FireConnection(Player.PlayerGui.HUDGui.BottomFrame.CurrentDragonFrame.DragonControlsFrame.Other.Bite.MouseButton1Down)
                                 end
                                 for _,v in next, Workspace.Camera:GetChildren() do
