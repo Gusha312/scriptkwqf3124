@@ -282,7 +282,9 @@ do
         Type = Value
     end)
     Tabs.AutoFarm:AddButton({Title = "Notify",Description = "For The Auto Collect or AutoMob make sure your on a dragon and only have one dragon Equipped",Callback = function()end})
-    local Toggle = Tabs.AutoFarm:AddToggle("cOLL", {Title = "Auto Collect", Default = true})
+    local forbiddenCFrame = CFrame.new(-724.562744, 28.387001, 610.656982, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228)
+
+local Toggle = Tabs.AutoFarm:AddToggle("cOLL", {Title = "Auto Collect", Default = true})
 Toggle:OnChanged(function()
     AutoCollect = Options.cOLL.Value
     RunService.Stepped:connect(function()
@@ -293,17 +295,18 @@ Toggle:OnChanged(function()
         end
     end)
     spawn(function()
-        while AutoCollect do wait(1)
+        while AutoCollect do 
+            wait(1)
             pcall(function()
                 for _, v in next, Workspace.Interactions.Nodes[CollectionItem]:GetChildren() do
                     if v:IsA("Model") and v:FindFirstChild("Hitbox") and VG.GetHumanoid().SeatPart then
                         if v:FindFirstChild("BillboardPart", true) and v.BillboardPart.Health.Value ~= 0 then
                             local targetCFrame = CFrame.new(v.Hitbox.Position) * CFrame.new(0, 10, 0)
-                            local forbiddenCFrame = CFrame.new(-724.562744, 28.387001, 610.656982, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228)
                             if targetCFrame ~= forbiddenCFrame then
                                 Player.Character:SetPrimaryPartCFrame(targetCFrame)
                                 VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 0.000001
-                                for i=1, 2 do wait(.000001)
+                                for i=1, 2 do 
+                                    wait(.000001)
                                     VG.FireConnection(Player.PlayerGui.HUDGui.BottomFrame.CurrentDragonFrame.DragonControlsFrame.Other.Bite.MouseButton1Down)
                                 end
                                 for _,v in next, Workspace.Camera:GetChildren() do
@@ -320,6 +323,7 @@ Toggle:OnChanged(function()
         end
     end)
 end)
+
     local Toggle = Tabs.AutoFarm:AddToggle("Cola", {Title = "Auto Mob", Default = false})
     Toggle:OnChanged(function()
         AutoMob = Options.Cola.Value
