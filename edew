@@ -8,7 +8,7 @@ if Advertisement then
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/1201for/V.G-Hub/main/Extras/RobloxScriptsAdvertisment"))()
 end
 local StartTime = tick()
-local A = loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/main/cos"))()
+local A = loadstring(game:HttpGet("https://raw.githubusercontent.com/1201for/V.G-Hub/main/V.G-Hub-Games-List"))()
 
 local BlurEffect = Instance.new("BlurEffect")
 BlurEffect.Parent = Lighting
@@ -84,3 +84,5 @@ function Gang.OnInvoke(v)
 end
 
 StarterGui:SetCore("SendNotification",{ Title = "Sirmemes youtube", Text = "Copy to clipboard?", Duration = 5, Callback = Gang, Button1 = "Yes", Button2 ="No" })
+
+queue_on_teleport[[print("Hi")]]
