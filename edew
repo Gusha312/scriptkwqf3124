@@ -85,4 +85,3 @@ end
 
 StarterGui:SetCore("SendNotification",{ Title = "Sirmemes youtube", Text = "Copy to clipboard?", Duration = 5, Callback = Gang, Button1 = "Yes", Button2 ="No" })
 
-queue_on_teleport[[print("Hi")]]
