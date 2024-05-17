@@ -412,7 +412,7 @@ end)
             end
         end
     end})
-    local Toggle = Tabs.Misc:AddToggle("Not", {Title = "Auto Feed Dragons", Default = false})
+    local Toggle = Tabs.Misc:AddToggle("Not", {Title = "Auto Feed Dragons", Default = true})
     Toggle:OnChanged(function()
         AutoFeed = Options.Not.Value
         spawn(function()
