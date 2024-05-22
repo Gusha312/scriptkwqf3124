@@ -1,4 +1,4 @@
-local targetCFrame = CFrame.new(-724.562744, 28.387001, 610.656982, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228)
+local targetCFrame = CFrame.new(-256.833496, 419.179352, -897.405762, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228)
 
 local function checkAndRemoveObject(obj)
     if obj and obj:IsA("BasePart") and obj.Name == "BillboardPart" and obj.CFrame == targetCFrame then
