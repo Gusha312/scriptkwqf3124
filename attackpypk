@@ -295,7 +295,7 @@ Toggle:OnChanged(function()
     end)
     spawn(function()
         while AutoCollect do 
-            wait(0.000001)
+            wait(1)
             pcall(function()
                 for _, v in next, Workspace.Interactions.Nodes[CollectionItem]:GetChildren() do
                     if v:IsA("Model") and v:FindFirstChild("Hitbox") and VG.GetHumanoid().SeatPart then
