@@ -304,9 +304,9 @@ Toggle:OnChanged(function()
                             -- Добавьте проверку на запрещенный CFrame
                             if targetCFrame ~= forbiddenCFrame then
                                 Player.Character:SetPrimaryPartCFrame(targetCFrame)
-                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 0.00000000000000001
+                                VG.GetHumanoid().SeatPart.Parent.Data.CombatStats.BiteCooldown.Value = 0.0001
                                 for i=1, 10 do 
-                                    wait(.00000000000000000001)
+                                    wait(.0001)
                                     VG.FireConnection(Player.PlayerGui.HUDGui.BottomFrame.CurrentDragonFrame.DragonControlsFrame.Other.Bite.MouseButton1Down)
                                 end
                                 for _,v in next, Workspace.Camera:GetChildren() do
