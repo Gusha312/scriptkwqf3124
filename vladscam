@@ -8,5 +8,3 @@ local pumpkin = Workspace.Interactions.Nodes.SmashablePumpkins.ActiveNodes.Pumpk
 if pumpkin then
 character:SetPrimaryPartCFrame(pumpkin.CFrame)
 end
-wait(5)
-end
