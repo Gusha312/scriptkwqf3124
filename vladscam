@@ -1,0 +1,3 @@
+local pumpkin = Workspace.Interactions.Nodes.SmashablePumpkins.ActiveNodes.Pumpkin.Pumpkin
+if pumpkin then
+character:SetPrimaryPartCFrame(pumpkin.CFrame)
