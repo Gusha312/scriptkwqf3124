@@ -3,6 +3,10 @@ local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
+
 local pumpkin = Workspace.Interactions.Nodes.SmashablePumpkins.ActiveNodes.Pumpkin.Pumpkin
 if pumpkin then
 character:SetPrimaryPartCFrame(pumpkin.CFrame)
+end
+wait(5)
+end 
