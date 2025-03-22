@@ -59,6 +59,7 @@ farmButton.MouseButton1Click:Connect(function()
             while isFarming do
                 teleportToFoodNode() -- Телепортируем игрока
                 pressF() -- Нажимаем клавишу "F"
+                wait(0.1)
                 press1()
                 wait(1) -- Ждем 1 секунду перед следующим действием
             end
