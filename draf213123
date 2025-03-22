@@ -60,7 +60,7 @@ farmButton.MouseButton1Click:Connect(function()
                 pressF() -- Нажимаем клавишу "F"
                 wait(0.1)
                 press1()
-                wait(1) -- Ждем 1 секунду перед следующим действием
+                wait(0.9) -- Ждем 1 секунду перед следующим действием
             end
         end)
         coroutine.resume(teleportCoroutine)
@@ -77,35 +77,3 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
         menuFrame.Visible = not menuFrame.Visible -- Переключаем видимость меню
     end
 end)
-while true do
-wait(1)
-local billboardPart = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
-
-for i = 1, 10 do
-    local args = {
-        [1] = billboardPart,
-        [2] = i,
-        [3] = 1
-    }
-    
-    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
-end
-for i = 1, 10 do
-    local args = {
-        [1] = billboardPart,
-        [2] = i,
-        [3] = 2
-    }
-    
-    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
-end
-for i = 1, 10 do
-    local args = {
-        [1] = billboardPart,
-        [2] = i,
-        [3] = 3
-    }
-    
-    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
-end
-end
