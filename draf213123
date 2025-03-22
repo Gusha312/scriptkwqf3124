@@ -1,0 +1,62 @@
+-- Создаем ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Создаем фрейм для меню с уменьшенным размером
+local menuFrame = Instance.new("Frame")
+menuFrame.Size = UDim2.new(0.3, 0, 0.3, 0) -- Уменьшенный размер
+menuFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
+menuFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+menuFrame.Parent = screenGui
+
+-- Создаем кнопку "Farm"
+local farmButton = Instance.new("TextButton")
+farmButton.Size = UDim2.new(0.5, 0, 0.2, 0)
+farmButton.Position = UDim2.new(0.25, 0, 0.4, 0)
+farmButton.Text = "Farm"
+farmButton.Parent = menuFrame
+
+local isFarming = false
+local teleportCoroutine
+
+-- Функция для нажатия клавиши "F"
+local function pressF()
+    keypress(0x46) -- Нажимаем F (код клавиши F: 0x46)
+    wait(0.1) -- Короткая задержка для имитации нажатия
+    keyrelease(0x46) -- Отпускаем F
+end
+
+-- Функция для телепортации
+local function teleportToFoodNode()
+    local foodNode = workspace.Interactions.Nodes.Food:GetChildren()[6]
+    if foodNode and foodNode:FindFirstChild("BillboardPart") then
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = foodNode.BillboardPart.CFrame
+    end
+end
+
+-- Обработчик нажатия на кнопку
+farmButton.MouseButton1Click:Connect(function()
+    isFarming = not isFarming -- Переключаем состояние
+    if isFarming then
+        farmButton.Text = "Stop Farming"
+        teleportCoroutine = coroutine.create(function()
+            while isFarming do
+                teleportToFoodNode() -- Телепортируем игрока
+                pressF() -- Нажимаем клавишу "F"
+                wait(1) -- Ждем 1 секунду перед следующим действием
+            end
+        end)
+        coroutine.resume(teleportCoroutine)
+    else
+        farmButton.Text = "Farm"
+        isFarming = false -- Останавливаем действия
+    end
+end)
+
+-- Обработчик нажатия клавиши "P" для скрытия/показа меню
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if input.KeyCode == Enum.KeyCode.P and not gameProcessedEvent then
+        menuFrame.Visible = not menuFrame.Visible -- Переключаем видимость меню
+    end
+end)
