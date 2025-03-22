@@ -24,15 +24,27 @@ local function pressF()
     keypress(0x46) -- Нажимаем F (код клавиши F: 0x46)
     wait(0.1) -- Короткая задержка для имитации нажатия
     keyrelease(0x46) -- Отпускаем F
+    wait(0.1)
     keypress(0x01) -- Нажимаем F (код клавиши F: 0x46)
     wait(0.1) -- Короткая задержка для имитации нажатия
     keyrelease(0x01) -- Отпускаем F
 end
 
+-- Функция для поиска подходящего узла еды
+local function findFoodNode()
+    local foodNodes = workspace.Interactions.Nodes.Food:GetChildren()
+    for _, foodNode in ipairs(foodNodes) do
+        if foodNode:FindFirstChild("BillboardPart") and foodNode.BillboardPart.Health and foodNode.BillboardPart.Health.Value > 1 then
+            return foodNode
+        end
+    end
+    return nil
+end
+
 -- Функция для телепортации
 local function teleportToFoodNode()
-    local foodNode = workspace.Interactions.Nodes.Food:GetChildren()[6]
-    if foodNode and foodNode:FindFirstChild("BillboardPart") then
+    local foodNode = findFoodNode() -- Ищем подходящий узел еды
+    if foodNode then
         game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = foodNode.BillboardPart.CFrame
     end
 end
