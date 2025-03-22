@@ -8,7 +8,38 @@ menuFrame.Size = UDim2.new(0.3, 0, 0.3, 0) -- Уменьшенный разме�
 menuFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 menuFrame.Parent = screenGui
+while true do
+wait(1)
+local billboardPart = workspace:WaitForChild("Interactions"):WaitForChild("Nodes"):WaitForChild("Food"):WaitForChild("LargeFoodNode"):WaitForChild("BillboardPart")
 
+for i = 1, 10 do
+    local args = {
+        [1] = billboardPart,
+        [2] = i,
+        [3] = 1
+    }
+    
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
+end
+for i = 1, 10 do
+    local args = {
+        [1] = billboardPart,
+        [2] = i,
+        [3] = 2
+    }
+    
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
+end
+for i = 1, 10 do
+    local args = {
+        [1] = billboardPart,
+        [2] = i,
+        [3] = 3
+    }
+    
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
+end
+end
 -- Создаем кнопку "Farm"
 local farmButton = Instance.new("TextButton")
 farmButton.Size = UDim2.new(0.5, 0, 0.2, 0)
