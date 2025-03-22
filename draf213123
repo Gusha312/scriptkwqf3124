@@ -24,7 +24,8 @@ local function pressF()
     keypress(0x46) -- Нажимаем F (код клавиши F: 0x46)
     wait(0.1) -- Короткая задержка для имитации нажатия
     keyrelease(0x46) -- Отпускаем F
-    wait(0.1)
+end
+local function press1()
     keypress(0x01) -- Нажимаем F (код клавиши F: 0x46)
     wait(0.1) -- Короткая задержка для имитации нажатия
     keyrelease(0x01) -- Отпускаем F
@@ -58,6 +59,7 @@ farmButton.MouseButton1Click:Connect(function()
             while isFarming do
                 teleportToFoodNode() -- Телепортируем игрока
                 pressF() -- Нажимаем клавишу "F"
+                press1()
                 wait(1) -- Ждем 1 секунду перед следующим действием
             end
         end)
