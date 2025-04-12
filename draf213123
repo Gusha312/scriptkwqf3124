@@ -67,7 +67,7 @@ local function CheckAngleAndClick()
                 -- Используем VirtualInputManager для клика
                 local VirtualInputManager = game:GetService("VirtualInputManager")
                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1) -- Нажатие
-                task.wait(0.05) -- Короткая задержка
+                task.wait(0.01) -- Короткая задержка
                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1) -- Отпускание
                 
                 return true
@@ -86,7 +86,7 @@ spawn(function()
                 Player.Character:FindFirstChild("HumanoidRootPart", true).CFrame = CFrame.new(Workspace.Interactions.Nodes.Fishing.Zone.FishingZone.Position + Vector3.new(0, 25, 0))
                 
                 -- Проверяем угол каждые 0.1 секунды
-                if tick() % 0.1 < 0.01 then
+                if tick() % 0.1 < 0.001 then
                     CheckAngleAndClick()
                 end
                 
@@ -103,7 +103,7 @@ end)
 
 -- Отдельный поток для проверки угла (альтернативный вариант)
 spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.01) do
         if G.AutoFish then
             CheckAngleAndClick()
         end
