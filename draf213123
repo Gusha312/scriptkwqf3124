@@ -1,79 +1,106 @@
--- Создаем ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local G = getgenv and getgenv() or _G or shared
+G.AutoFish = true
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage, Players, Workspace, spawn, wait = game:GetService("ReplicatedStorage"), game:GetService("Players"), game:GetService("Workspace"), task.spawn, task.wait
+local Player = Players.LocalPlayer
+local Fish = require(ReplicatedStorage["_replicationFolder"].FishingClient)
 
--- Создаем фрейм для меню с уменьшенным размером
-local menuFrame = Instance.new("Frame")
-menuFrame.Size = UDim2.new(0.3, 0, 0.3, 0) -- Уменьшенный размер
-menuFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
-menuFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-menuFrame.Parent = screenGui
--- Создаем кнопку "Farm"
-local farmButton = Instance.new("TextButton")
-farmButton.Size = UDim2.new(0.5, 0, 0.2, 0)
-farmButton.Position = UDim2.new(0.25, 0, 0.4, 0)
-farmButton.Text = "Farm"
-farmButton.Parent = menuFrame
+-- Создание GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoFishGUI"
+ScreenGui.Parent = Player.PlayerGui
 
-local isFarming = false
-local teleportCoroutine
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 200, 0, 100)
+Frame.Position = UDim2.new(0.5, -100, 0.5, -50)
+Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Frame.BorderSizePixel = 0
+Frame.Visible = false
+Frame.Parent = ScreenGui
 
--- Функция для нажатия клавиши "F"
-local function pressF()
-    keypress(0x46) -- Нажимаем F (код клавиши F: 0x46)
-    wait(0.1) -- Короткая задержка для имитации нажатия
-    keyrelease(0x46) -- Отпускаем F
-end
-local function press1()
-    keypress(0x01) -- Нажимаем F (код клавиши F: 0x46)
-    wait(0.1) -- Короткая задержка для имитации нажатия
-    keyrelease(0x01) -- Отпускаем F
-end
+local TextLabel = Instance.new("TextLabel")
+TextLabel.Size = UDim2.new(1, 0, 0, 30)
+TextLabel.Text = "AutoFish Menu"
+TextLabel.TextColor3 = Color3.new(1, 1, 1)
+TextLabel.BackgroundTransparency = 1
+TextLabel.Parent = Frame
 
--- Функция для поиска подходящего узла еды
-local function findFoodNode()
-    local foodNodes = workspace.Interactions.Nodes.Food:GetChildren()
-    for _, foodNode in ipairs(foodNodes) do
-        if foodNode:FindFirstChild("BillboardPart") and foodNode.BillboardPart.Health and foodNode.BillboardPart.Health.Value > 1 then
-            return foodNode
-        end
-    end
-    return nil
-end
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0.8, 0, 0, 30)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.5, -15)
+ToggleButton.Text = "Toggle (F)"
+ToggleButton.Parent = Frame
 
--- Функция для телепортации
-local function teleportToFoodNode()
-    local foodNode = findFoodNode() -- Ищем подходящий узел еды
-    if foodNode then
-        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = foodNode.BillboardPart.CFrame
-    end
-end
-
--- Обработчик нажатия на кнопку
-farmButton.MouseButton1Click:Connect(function()
-    isFarming = not isFarming -- Переключаем состояние
-    if isFarming then
-        farmButton.Text = "Stop Farming"
-        teleportCoroutine = coroutine.create(function()
-            while isFarming do
-                teleportToFoodNode() -- Телепортируем игрока
-                pressF() -- Нажимаем клавишу "F"
-                wait(0.1)
-                press1()
-                wait(0.9) -- Ждем 1 секунду перед следующим действием
-            end
-        end)
-        coroutine.resume(teleportCoroutine)
-    else
-        farmButton.Text = "Farm"
-        isFarming = false -- Останавливаем действия
+-- Обработчик нажатия Ctrl
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        Frame.Visible = not Frame.Visible
     end
 end)
 
--- Обработчик нажатия клавиши "P" для скрытия/показа меню
-local UserInputService = game:GetService("UserInputService")
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if input.KeyCode == Enum.KeyCode.P and not gameProcessedEvent then
-        menuFrame.Visible = not menuFrame.Visible -- Переключаем видимость меню
+-- Обработчик кнопки F (вкл/выкл)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.F and Frame.Visible then
+        G.AutoFish = not G.AutoFish
+        ToggleButton.Text = G.AutoFish and "ON (F)" or "OFF (F)"
+    end
+end)
+
+ToggleButton.MouseButton1Click:Connect(function()
+    G.AutoFish = not G.AutoFish
+    ToggleButton.Text = G.AutoFish and "ON (F)" or "OFF (F)"
+end)
+
+-- Функция для проверки совпадения угла и нажатия ЛКМ
+local function CheckAngleAndClick()
+    pcall(function()
+        local spinReelLabel = Player.PlayerGui.FishingGui.ContainerFrame.ReelingFrame.SpinReelLabel
+        local spinRingFrame = Player.PlayerGui.FishingGui.ContainerFrame.ReelingFrame.SpinRingFrame
+        
+        if spinReelLabel and spinRingFrame then
+            local reelRotation = spinReelLabel.AbsoluteRotation
+            local ringRotation = spinRingFrame.AbsoluteRotation
+            
+            -- Если угол совпадает (разница <= 10 градусов)
+            if math.abs(reelRotation - ringRotation) <= 10 then
+                print("Угол совпадает! Нажимаем ЛКМ!")
+                mouse1click() -- Нажимаем левую кнопку мыши
+                return true
+            end
+        end
+        return false
+    end)
+end
+
+-- Авто-рыбалка + проверка вращения
+spawn(function()
+    while task.wait(0.01) do
+        pcall(function()
+            if G.AutoFish then
+                Fish:StartCasting()
+                Player.Character:FindFirstChild("HumanoidRootPart", true).CFrame = CFrame.new(Workspace.Interactions.Nodes.Fishing.Zone.FishingZone.Position + Vector3.new(0, 25, 0))
+                
+                -- Проверяем угол каждые 0.1 секунды
+                if tick() % 0.1 < 0.01 then
+                    CheckAngleAndClick()
+                end
+                
+                if Fish.Snagged then
+                    Fish.ReelSignal:Fire()
+                    if Player.PlayerGui.FishingGui.ContainerFrame.ReelingFrame.BarLabel.InnerLabel.PointerLabel.Position.X.Scale <= Player.PlayerGui.FishingGui.ContainerFrame.ReelingFrame.BarLabel.InnerLabel.SafeBarLabel.Position.X.Scale + 0.02 then
+                        Fish:Click()
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Отдельный поток для проверки угла (альтернативный вариант)
+spawn(function()
+    while task.wait(0.1) do
+        if G.AutoFish then
+            CheckAngleAndClick()
+        end
     end
 end)
