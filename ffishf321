@@ -1,0 +1,14 @@
+local player = game.Players.LocalPlayer
+local spinReelLabel = player.PlayerGui.FishingGui.ContainerFrame.ReelingFrame.SpinReelLabel
+local spinRingFrame = player.PlayerGui.FishingGui.ContainerFrame.ReelingFrame.SpinRingFrame
+
+
+local reelRotation = spinReelLabel.AbsoluteRotation
+local ringRotation = spinRingFrame.AbsoluteRotation
+
+
+if math.abs(reelRotation - ringRotation) <= 10 then
+    print("its good!")
+else
+   user = 148+223
+end
