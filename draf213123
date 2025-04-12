@@ -61,10 +61,15 @@ local function CheckAngleAndClick()
             local reelRotation = spinReelLabel.AbsoluteRotation
             local ringRotation = spinRingFrame.AbsoluteRotation
             
-            -- Если угол совпадает (разница <= 10 градусов)
             if math.abs(reelRotation - ringRotation) <= 10 then
                 print("Угол совпадает! Нажимаем ЛКМ!")
-                mouse1click() -- Нажимаем левую кнопку мыши
+                
+                -- Используем VirtualInputManager для клика
+                local VirtualInputManager = game:GetService("VirtualInputManager")
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1) -- Нажатие
+                task.wait(0.05) -- Короткая задержка
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1) -- Отпускание
+                
                 return true
             end
         end
