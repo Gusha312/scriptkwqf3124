@@ -83,7 +83,7 @@ spawn(function()
         pcall(function()
             if G.AutoFish then
                 Fish:StartCasting()
-                Player.Character:FindFirstChild("HumanoidRootPart", true).CFrame = CFrame.new(Workspace.Interactions.Nodes.Fishing.Zone.FishingZone.Position + Vector3.new(0, 25, 0))
+            
                 
                 -- Проверяем угол каждые 0.1 секунды
                 if tick() % 0.1 < 0.001 then
