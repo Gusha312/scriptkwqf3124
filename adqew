@@ -1,0 +1,22 @@
+local Player = game:GetService("Players").LocalPlayer
+local targetRotation = 50 -- Угол, при котором нужно кликать
+local checkDelay = 0.01 -- Проверка каждые 0.01 секунды
+
+-- Функция для клика ЛКМ
+local function Click()
+    local VIM = game:GetService("VirtualInputManager")
+    VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1) -- Нажатие
+    task.wait(0.02)
+    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1) -- Отпускание
+end
+
+-- Основной цикл
+while task.wait(checkDelay) do
+    pcall(function() -- Защита от ошибок
+        local catchLabel = Player.PlayerGui.FishingGui.ContainerFrame.ButtonsFrame.ReelButton.CatchLabel
+        if catchLabel and catchLabel.AbsoluteRotation == targetRotation then
+            print("Угол = 50! Кликаем!")
+            Click()
+        end
+    end)
+end
