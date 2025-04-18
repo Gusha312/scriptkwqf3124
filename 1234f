@@ -1,0 +1,14 @@
+while true do 
+wait (25) 
+ local player = game:GetService("Players").LocalPlayer 
+ local baconAmount = player:WaitForChild("Data"):WaitForChild("Resources"):WaitForChild("Coconut").Value 
+ 
+ if baconAmount > 14999 then 
+ local args = { 
+ [1] = 3475397644, 
+ [2] = {} 
+ } 
+ 
+ game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("WorldTeleportRemote"):InvokeServer(unpack(args)) 
+ end 
+end
