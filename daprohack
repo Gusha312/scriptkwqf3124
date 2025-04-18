@@ -16,7 +16,7 @@ farmButton.Position = UDim2.new(0.25, 0, 0.4, 0)
 farmButton.Text = "Farm"
 farmButton.Parent = menuFrame
 
-local isFarming = false
+local isFarming = true
 local teleportCoroutine
 
 -- Функция для нажатия клавиши "F"
