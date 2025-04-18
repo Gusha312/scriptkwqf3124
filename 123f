@@ -1,0 +1,34 @@
+wait (5) 
+local args = { 
+ [1] = { 
+ ["ItemName"] = "Avacado", 
+ ["Amount"] = 15000 
+ } 
+} 
+ 
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SellItemRemote"):FireServer(unpack(args)) 
+wait (0.1) 
+local args = { 
+ [1] = { 
+ ["ItemName"] = "Coconut", 
+ ["Amount"] = 15000 
+ } 
+} 
+ 
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SellItemRemote"):FireServer(unpack(args)) 
+wait (0.1) 
+local args = { 
+ [1] = { 
+ ["ItemName"] = "CacaoBean", 
+ ["Amount"] = 15000 
+ } 
+} 
+ 
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SellItemRemote"):FireServer(unpack(args)) 
+wait (1) 
+local args = { 
+ [1] = 4869039553, 
+ [2] = {} 
+} 
+ 
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("WorldTeleportRemote"):InvokeServer(unpack(args))
