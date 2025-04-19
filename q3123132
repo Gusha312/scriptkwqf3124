@@ -19,54 +19,37 @@ farmButton.Parent = menuFrame
 local isFarming = true -- Фарминг включен по умолчанию
 local teleportCoroutine
 
--- Функция для проверки спецмоделей еды
-local function checkSpecialFood()
-    local camera = game:GetService("Workspace").CurrentCamera
-    if not camera then return nil end
-    
+-- Функция для нажатия клавиши "F"
+local function pressF()
+    keypress(0x46) -- Нажимаем F (код клавиши F: 0x46)
+    wait(0.1) -- Короткая задержка для имитации нажатия
+    keyrelease(0x46) -- Отпускаем F
+end
+
+local function press1()
+    keypress(0x01) -- Нажимаем 1 (код клавиши 1: 0x01)
+    wait(0.1) -- Короткая задержка для имитации нажатия
+    keyrelease(0x01) -- Отпускаем 1
+end
+
+-- Функция для поиска подходящего узла еды
+local function findFoodNode()
+    -- Проверяем специальные модели в камере
+    local camera = game:GetService("Workspace").Camera
     local specialModels = {
         camera:FindFirstChild("AvacadoFoodModel"),
         camera:FindFirstChild("CacaoBeanFoodModel"),
         camera:FindFirstChild("CoconutFoodModel")
     }
     
+    -- Если есть спецмодель, телепортируемся к ней
     for _, model in ipairs(specialModels) do
         if model and model:FindFirstChild("Handle") then
             return model.Handle
         end
     end
     
-    return nil
-end
-
--- Основная функция фарминга
-local function farmRoutine()
-    while isFarming do
-        -- Приоритетно проверяем спецмодели
-        local specialFood = checkSpecialFood()
-        local target = specialFood or findFoodNode()
-        
-        if target and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            -- Телепортируемся к цели
-            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 0, 2)
-            
-            -- Имитируем сбор
-            local VirtualInputManager = game:GetService("VirtualInputManager")
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            task.wait(0.8)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-            task.wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-        end
-        
-        task.wait(0.5) -- Пауза между проверками
-    end
-end
-
--- Оригинальная функция поиска еды (без изменений)
-local function findFoodNode()
-    -- Ищем обычные узлы еды
+    -- Иначе ищем обычные узлы еды
     local foodNodes = workspace.Interactions.Nodes.Food:GetChildren()
     for _, foodNode in ipairs(foodNodes) do
         if foodNode:FindFirstChild("BillboardPart") and foodNode.BillboardPart.Health and foodNode.BillboardPart.Health.Value > 1 then
@@ -76,26 +59,60 @@ local function findFoodNode()
     return nil
 end
 
--- Автоматически запускаем фарминг
-teleportCoroutine = coroutine.create(farmRoutine)
+-- Функция для телепортации
+local function teleportToFoodNode()
+    local target = findFoodNode() -- Ищем цель для телепортации
+    if target and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame * CFrame.new(0, 0, 2) -- Телепортируемся немного перед целью
+    end
+end
+
+-- Автоматически запускаем фарминг при выполнении скрипта
+teleportCoroutine = coroutine.create(function()
+    while isFarming do
+        teleportToFoodNode() -- Телепортируем игрока
+        local VirtualInputManager = game:GetService("VirtualInputManager")
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1) -- Нажатие
+        task.wait(0.8) -- Короткая задержка
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1) -- Отпускание
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        task.wait(0.1)
+    end
+end)
 coroutine.resume(teleportCoroutine)
 
--- Обработчик кнопки (без изменений)
+-- Обработчик нажатия на кнопку
 farmButton.MouseButton1Click:Connect(function()
-    isFarming = not isFarming
+    isFarming = not isFarming -- Переключаем состояние
     if isFarming then
         farmButton.Text = "Stop Farming"
-        teleportCoroutine = coroutine.create(farmRoutine)
+        teleportCoroutine = coroutine.create(function()
+            while isFarming do
+                teleportToFoodNode() -- Телепортируем игрока
+                local VirtualInputManager = game:GetService("VirtualInputManager")
+                VirtualInputManager:SendMouseButtonEvent(960, 480, 0, true, game, 1) -- Нажатие
+                task.wait(0.8) -- Короткая задержка
+                VirtualInputManager:SendMouseButtonEvent(958, 480, 0, false, game, 1) -- Отпускание
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                task.wait(0.1)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                task.wait(0.1)
+                checkSpecialFood()
+            end
+        end)
         coroutine.resume(teleportCoroutine)
     else
         farmButton.Text = "Farm"
+        isFarming = false -- Останавливаем действия
     end
 end)
 
--- Обработчик клавиши P (без изменений)
+-- Обработчик нажатия клавиши "P" для скрытия/показа меню
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if input.KeyCode == Enum.KeyCode.P and not gameProcessedEvent then
-        menuFrame.Visible = not menuFrame.Visible
+        menuFrame.Visible = not menuFrame.Visible -- Переключаем видимость меню
     end
 end)
