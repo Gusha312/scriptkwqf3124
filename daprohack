@@ -97,7 +97,7 @@ farmButton.MouseButton1Click:Connect(function()
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
                 task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                checkSpecialFood()
+                findFoodNode()
                 task.wait(0.1)
             end
         end)
