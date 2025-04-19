@@ -1,0 +1,16 @@
+while true do
+wait(4)
+local args = {
+	"1",
+	{
+		ItemName = "Coconut",
+		Amount = 1
+	}
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("FeedDragonRemote"):InvokeServer(unpack(args))
+local args = {
+	"1",
+	"RevivalHeart"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ReviveDragonRemote"):InvokeServer(unpack(args))
+end
