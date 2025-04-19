@@ -1,4 +1,3 @@
--- Создаем ScreenGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
@@ -99,7 +98,6 @@ farmButton.MouseButton1Click:Connect(function()
                 task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
                 task.wait(0.1)
-                checkSpecialFood()
             end
         end)
         coroutine.resume(teleportCoroutine)
