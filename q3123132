@@ -13,7 +13,6 @@ local function teleportToHandle(handle)
         local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
         if humanoidRootPart then
             humanoidRootPart.CFrame = handle.CFrame * CFrame.new(0, 0, 2)
-            print("Телепортировались к " .. handle:GetFullName())
         end
     end
 end
