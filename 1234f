@@ -3,7 +3,7 @@ wait (25)
  local player = game:GetService("Players").LocalPlayer 
  local baconAmount = player:WaitForChild("Data"):WaitForChild("Resources"):WaitForChild("Coconut").Value 
  
- if baconAmount > 14999 then 
+ if baconAmount > 8000 then 
  local args = { 
  [1] = 3475397644, 
  [2] = {} 
