@@ -1,5 +1,5 @@
 while true do 
-wait (25) 
+wait (6) 
  local player = game:GetService("Players").LocalPlayer 
  local baconAmount = player:WaitForChild("Data"):WaitForChild("Resources"):WaitForChild("Coconut").Value 
  
