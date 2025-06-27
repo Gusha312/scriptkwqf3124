@@ -54,3 +54,22 @@ local function checkChildren(parent)
 end
 
 checkChildren(game:GetService("Workspace").Interactions.Nodes.Food)
+wait (0.01)
+local targetCFrame = CFrame.new(198.083801, 563.870239, -2109.92749, -1, 0, 0, 0, 1, 0, 0, 0, -1)
+
+local function checkAndRemoveObject(obj)
+    if obj and obj:IsA("BasePart") and obj.Name == "BillboardPart" and obj.CFrame == targetCFrame then
+        obj:Destroy()
+    end
+end
+
+local function checkChildren(parent)
+    for _, child in ipairs(parent:GetChildren()) do
+        if child.Name == "LargeFoodNode" then
+            checkAndRemoveObject(child:FindFirstChild("BillboardPart"))
+        end
+        checkChildren(child)
+    end
+end
+
+checkChildren(game:GetService("Workspace").Interactions.Nodes.Food)
