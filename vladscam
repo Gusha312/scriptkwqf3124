@@ -1,6 +1,161 @@
-while true do
-wait(120)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("AppleMinigame"):FireServer()
-wait(0.01)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CoffeeMinigame"):FireServer()
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TradeMasterEvent = ReplicatedStorage:WaitForChild("TradeMasterEvent")
+
+-- Настройки
+local settings = {
+    targetPlayer = "r3yandrA",
+    itemAmount = 12000.5,
+    itemType = "Shoom",
+    keybind = Enum.KeyCode.J
+}
+
+-- Создаем GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = game:GetService("CoreGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 230) -- Увеличили высоту для новой кнопки
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+mainFrame.Parent = screenGui
+
+-- Поля ввода
+local function createInput(yPos, text, default)
+    local label = Instance.new("TextLabel")
+    label.Text = text
+    label.Size = UDim2.new(1, -10, 0, 20)
+    label.Position = UDim2.new(0, 5, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Parent = mainFrame
+    
+    local box = Instance.new("TextBox")
+    box.Text = tostring(default)
+    box.Size = UDim2.new(1, -10, 0, 25)
+    box.Position = UDim2.new(0, 5, 0, yPos + 20)
+    box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    box.TextColor3 = Color3.new(1, 1, 1)
+    box.Parent = mainFrame
+    
+    return box
 end
+
+local amountBox = createInput(5, "Amount:", settings.itemAmount)
+local typeBox = createInput(55, "Item Type:", settings.itemType)
+local playerBox = createInput(105, "Player:", settings.targetPlayer)
+
+-- Кнопка выбора игрока
+local selectPlayerButton = Instance.new("TextButton")
+selectPlayerButton.Text = "Select Player"
+selectPlayerButton.Size = UDim2.new(1, -10, 0, 30)
+selectPlayerButton.Position = UDim2.new(0, 5, 0, 165)
+selectPlayerButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+selectPlayerButton.TextColor3 = Color3.new(1, 1, 1)
+selectPlayerButton.Parent = mainFrame
+
+-- Кнопка запуска
+local executeButton = Instance.new("TextButton")
+executeButton.Text = "Start (J)"
+executeButton.Size = UDim2.new(1, -10, 0, 30)
+executeButton.Position = UDim2.new(0, 5, 0, 195)
+executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+executeButton.TextColor3 = Color3.new(1, 1, 1)
+executeButton.Parent = mainFrame
+
+-- Функция для создания окна выбора игрока
+local function createPlayerSelectionGui()
+    local selectionGui = Instance.new("ScreenGui")
+    selectionGui.Name = "PlayerSelectionGui"
+    selectionGui.Parent = game:GetService("CoreGui")
+    
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(0, 200, 0, 300)
+    background.Position = UDim2.new(0.5, -100, 0.5, -150)
+    background.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    background.Parent = selectionGui
+    
+    local title = Instance.new("TextLabel")
+    title.Text = "Select Player"
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.Parent = background
+    
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -10, 1, -40)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 35)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.Parent = background
+    
+    local playerListLayout = Instance.new("UIListLayout")
+    playerListLayout.Parent = scrollFrame
+    
+    -- Добавляем игроков в список
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            local playerButton = Instance.new("TextButton")
+            playerButton.Text = player.Name
+            playerButton.Size = UDim2.new(1, 0, 0, 30)
+            playerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            playerButton.TextColor3 = Color3.new(1, 1, 1)
+            playerButton.Parent = scrollFrame
+            
+            playerButton.MouseButton1Click:Connect(function()
+                playerBox.Text = player.Name
+                selectionGui:Destroy()
+            end)
+        end
+    end
+    
+    -- Кнопка закрытия
+    local closeButton = Instance.new("TextButton")
+    closeButton.Text = "Close"
+    closeButton.Size = UDim2.new(1, 0, 0, 25)
+    closeButton.Position = UDim2.new(0, 0, 1, -25)
+    closeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    closeButton.TextColor3 = Color3.new(1, 1, 1)
+    closeButton.Parent = background
+    
+    closeButton.MouseButton1Click:Connect(function()
+        selectionGui:Destroy()
+    end)
+    
+    -- Обновляем размер списка
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playerListLayout.AbsoluteContentSize.Y)
+    playerListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playerListLayout.AbsoluteContentSize.Y)
+    end)
+end
+
+-- Функция выполнения
+local function executeScript()
+    local target = Players:FindFirstChild(playerBox.Text)
+    if not target then return end
+    
+    TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+    wait(2)
+    
+    for i = 1, 3 do
+        TradeMasterEvent:FireServer("AddItemAsync", {
+            Amount = tonumber(amountBox.Text) or settings.itemAmount,
+            Type = typeBox.Text or settings.itemType
+        })
+        wait(0.5)
+    end
+    
+    wait(1)
+    TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+end
+
+-- Обработчики
+selectPlayerButton.MouseButton1Click:Connect(createPlayerSelectionGui)
+executeButton.MouseButton1Click:Connect(executeScript)
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == settings.keybind then
+        executeScript()
+    end
+end)
