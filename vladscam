@@ -154,7 +154,7 @@ local function performTrade()
                 Amount = tonumber(amountBox.Text) or settings.itemAmount,
                 Type = typeBox.Text or settings.itemType
             })
-            wait(0.5)
+            wait(1.5)
         end
         
         if not isTrading then break end
