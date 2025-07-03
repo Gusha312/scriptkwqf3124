@@ -8,7 +8,7 @@ local settings = {
     targetPlayer = "r3yandrA",
     itemAmount = 12000.5,
     itemType = "Shoom",
-    keybind = Enum.KeyCode.J
+    keybind = Enum.KeyCode.M
 }
 
 -- Создаем GUI
