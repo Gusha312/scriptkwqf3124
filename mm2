@@ -1,80 +1,113 @@
 local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 -- Настройки
-local FLY_SPEED = 30 -- Скорость полёта
+local FLY_SPEED = 30 -- Скорость полёта (рекомендуется 50-100)
 local HEIGHT_OFFSET = 2 -- Высота над монетой
-local CHECK_INTERVAL = 0.5 -- Частота проверки
-local REACH_DISTANCE = 1 -- Дистанция достижения
-local SMOOTHNESS = 0.2 -- Плавность движения (0-1)
+local CHECK_INTERVAL = 0.3 -- Частота проверки (секунды)
+local REACH_DISTANCE = 2 -- Дистанция сбора
+local COLLECT_EFFECT = true -- Визуальный эффект сбора
 
 -- Инициализация
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Поиск любой монеты в игре
-local function findCoin()
+-- Поиск ближайшей монеты
+local function findNearestCoin()
+    local closestCoin, minDistance = nil, math.huge
+    
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj.Name == "Coin_Server" and obj:IsA("BasePart") then
-            return obj
+            local distance = (obj.Position - rootPart.Position).Magnitude
+            if distance < minDistance then
+                closestCoin = obj
+                minDistance = distance
+            end
         end
     end
+    
+    return closestCoin
 end
 
--- Плавный полёт к цели
-local function flyTo(target)
-    if not target or not rootPart then return end
+-- Эффект сбора монеты
+local function playCollectEffect(coin)
+    if not COLLECT_EFFECT then return end
+    
+    local effect = Instance.new("Part")
+    effect.Size = Vector3.new(1, 1, 1)
+    effect.Shape = Enum.PartType.Ball
+    effect.Material = Enum.Material.Neon
+    effect.Color = Color3.fromRGB(255, 215, 0) -- Золотой цвет
+    effect.CFrame = coin.CFrame
+    effect.Anchored = true
+    effect.CanCollide = false
+    effect.Parent = workspace
+    
+    local tween = TweenService:Create(
+        effect,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad),
+        {Size = Vector3.new(3, 3, 3), Transparency = 1}
+    )
+    
+    tween:Play()
+    game:GetService("Debris"):AddItem(effect, 0.6)
+end
+
+-- Плавный полёт к монете
+local function flyAndCollect(coin)
+    if not coin or not coin.Parent then return end
     
     humanoid:ChangeState(Enum.HumanoidStateType.Flying)
-    
-    local startPos = rootPart.Position
-    local endPos = target.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
-    local direction = (endPos - startPos).Unit
-    local distance = (endPos - startPos).Magnitude
     local startTime = os.clock()
+    local startPos = rootPart.Position
+    local endPos = coin.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
+    local distance = (endPos - startPos).Magnitude
+    local duration = distance / FLY_SPEED
     
-    -- Эффект ускорения
+    -- Анимация полёта
     local connection
     connection = RunService.Heartbeat:Connect(function(delta)
-        if not target or not target.Parent then
+        if not coin or not coin.Parent then
             connection:Disconnect()
             return
         end
         
-        local currentTime = os.clock() - startTime
-        local progress = math.min(currentTime * FLY_SPEED / distance, 1)
-        
-        -- Плавное замедление при приближении
-        local smoothProgress = progress < 0.9 and progress or 
-                             progress + (1 - progress) * SMOOTHNESS
+        local progress = (os.clock() - startTime) / duration
+        if progress >= 1 then
+            connection:Disconnect()
+            
+            -- Удаление монеты при достижении
+            playCollectEffect(coin)
+            coin:Destroy()
+            
+            humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+            return
+        end
         
         -- Параболическая траектория
         local heightFactor = math.sin(progress * math.pi) * 2
-        local currentPos = startPos:Lerp(endPos, smoothProgress) + 
-                         Vector3.new(0, heightFactor, 0)
+        local currentPos = startPos:Lerp(endPos, progress) + 
+                         Vector3.new(0, heightFactor * (1 - progress), 0)
         
-        rootPart.CFrame = CFrame.new(currentPos, currentPos + direction)
-        
-        -- Завершение при достижении
-        if (rootPart.Position - endPos).Magnitude < REACH_DISTANCE then
-            connection:Disconnect()
-            humanoid:ChangeState(Enum.HumanoidStateType.Landed)
-        end
+        rootPart.CFrame = CFrame.new(currentPos, endPos)
     end)
 end
 
 -- Основной цикл
 while task.wait(CHECK_INTERVAL) do
+    -- Переинициализация при смерти
     if not character or not character.Parent then
         character = player.Character or player.CharacterAdded:Wait()
         humanoid = character:WaitForChild("Humanoid")
         rootPart = character:WaitForChild("HumanoidRootPart")
+        continue
     end
     
-    local coin = findCoin()
+    local coin = findNearestCoin()
     if coin then
-        flyTo(coin)
-        task.wait(1) -- Задержка перед следующей проверкой
+        flyAndCollect(coin)
+        task.wait(0.5) -- Задержка перед поиском следующей
     end
 end
