@@ -1,6 +1,7 @@
 local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
 
 -- Настройки
 local FLY_SPEED = 25 -- Скорость полёта (рекомендуется 50-100)
@@ -8,6 +9,28 @@ local HEIGHT_OFFSET = 2 -- Высота над монетой
 local CHECK_INTERVAL = 0.1 -- Частота проверки (секунды)
 local REACH_DISTANCE = 2 -- Дистанция сбора
 local COLLECT_EFFECT = true -- Визуальный эффект сбора
+local PLACE_ID = 142823291 -- ID места для перезахода
+
+-- Функция перезахода в игру
+local function rejoinGame()
+    local success, err = pcall(function()
+        TeleportService:Teleport(PLACE_ID, player)
+    end)
+    
+    if not success then
+        warn("Ошибка при перезаходе: " .. err)
+        -- Повторная попытка через 5 секунд
+        task.wait(5)
+        rejoinGame()
+    end
+end
+
+-- Обработчик кика
+player.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Failed then
+        rejoinGame()
+    end
+end)
 
 -- Инициализация
 local character = player.Character or player.CharacterAdded:Wait()
@@ -111,3 +134,10 @@ while task.wait(CHECK_INTERVAL) do
         task.wait(0.5) -- Задержка перед поиском следующей
     end
 end
+
+-- Обработка отключения (на случай кика)
+game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
+    if leavingPlayer == player then
+        rejoinGame()
+    end
+end)
