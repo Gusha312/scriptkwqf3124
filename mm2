@@ -1,0 +1,80 @@
+local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- Настройки
+local FLY_SPEED = 30 -- Скорость полёта
+local HEIGHT_OFFSET = 2 -- Высота над монетой
+local CHECK_INTERVAL = 0.5 -- Частота проверки
+local REACH_DISTANCE = 1 -- Дистанция достижения
+local SMOOTHNESS = 0.2 -- Плавность движения (0-1)
+
+-- Инициализация
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Поиск любой монеты в игре
+local function findCoin()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == "Coin_Server" and obj:IsA("BasePart") then
+            return obj
+        end
+    end
+end
+
+-- Плавный полёт к цели
+local function flyTo(target)
+    if not target or not rootPart then return end
+    
+    humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+    
+    local startPos = rootPart.Position
+    local endPos = target.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
+    local direction = (endPos - startPos).Unit
+    local distance = (endPos - startPos).Magnitude
+    local startTime = os.clock()
+    
+    -- Эффект ускорения
+    local connection
+    connection = RunService.Heartbeat:Connect(function(delta)
+        if not target or not target.Parent then
+            connection:Disconnect()
+            return
+        end
+        
+        local currentTime = os.clock() - startTime
+        local progress = math.min(currentTime * FLY_SPEED / distance, 1)
+        
+        -- Плавное замедление при приближении
+        local smoothProgress = progress < 0.9 and progress or 
+                             progress + (1 - progress) * SMOOTHNESS
+        
+        -- Параболическая траектория
+        local heightFactor = math.sin(progress * math.pi) * 2
+        local currentPos = startPos:Lerp(endPos, smoothProgress) + 
+                         Vector3.new(0, heightFactor, 0)
+        
+        rootPart.CFrame = CFrame.new(currentPos, currentPos + direction)
+        
+        -- Завершение при достижении
+        if (rootPart.Position - endPos).Magnitude < REACH_DISTANCE then
+            connection:Disconnect()
+            humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+        end
+    end)
+end
+
+-- Основной цикл
+while task.wait(CHECK_INTERVAL) do
+    if not character or not character.Parent then
+        character = player.Character or player.CharacterAdded:Wait()
+        humanoid = character:WaitForChild("Humanoid")
+        rootPart = character:WaitForChild("HumanoidRootPart")
+    end
+    
+    local coin = findCoin()
+    if coin then
+        flyTo(coin)
+        task.wait(1) -- Задержка перед следующей проверкой
+    end
+end
