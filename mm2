@@ -4,7 +4,7 @@ local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
 
 -- Настройки
-local FLY_SPEED = 25 -- Скорость полёта (рекомендуется 50-100)
+local FLY_SPEED = 17 -- Скорость полёта (рекомендуется 50-100)
 local HEIGHT_OFFSET = 2 -- Высота над монетой
 local CHECK_INTERVAL = 0.1 -- Частота проверки (секунды)
 local REACH_DISTANCE = 2 -- Дистанция сбора
