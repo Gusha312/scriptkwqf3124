@@ -2,43 +2,83 @@ local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
 
 -- Настройки
-local FLY_SPEED = 17 -- Скорость полёта (рекомендуется 50-100)
-local HEIGHT_OFFSET = 2 -- Высота над монетой
-local CHECK_INTERVAL = 0.1 -- Частота проверки (секунды)
-local REACH_DISTANCE = 2 -- Дистанция сбора
-local COLLECT_EFFECT = true -- Визуальный эффект сбора
-local PLACE_ID = 142823291 -- ID места для перезахода
+local FLY_SPEED = 17
+local HEIGHT_OFFSET = 2
+local CHECK_INTERVAL = 0.1
+local REACH_DISTANCE = 2
+local COLLECT_EFFECT = true
+local PLACE_ID = 142823291
+local RESET_COIN_COUNT = 40
 
--- Функция перезахода в игру
+-- Глобальные переменные
+local character, humanoid, rootPart
+
+-- Инициализация персонажа
+local function initializeCharacter()
+    character = player.Character or player.CharacterAdded:Wait()
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    -- Автоматическое восстановление после смерти
+    humanoid.Died:Connect(function()
+        task.wait(3) -- Ожидаем респавн
+        initializeCharacter()
+    end)
+end
+
+-- Убийство персонажа
+local function killCharacter()
+    if character and humanoid and humanoid.Health > 0 then
+        humanoid.Health = 0
+        return true
+    end
+    return false
+end
+
+-- Перезаход в игру
 local function rejoinGame()
     local success, err = pcall(function()
         TeleportService:Teleport(PLACE_ID, player)
     end)
     
     if not success then
-        warn("Ошибка при перезаходе: " .. err)
-        -- Повторная попытка через 5 секунд
+        warn("Ошибка перезахода: " .. err)
         task.wait(5)
         rejoinGame()
     end
 end
 
--- Обработчик кика
-player.OnTeleport:Connect(function(state)
-    if state == Enum.TeleportState.Failed then
-        rejoinGame()
+-- Проверка монет для ресета
+local function checkCoinReset()
+    local targetPlayer = Players[player.Name]
+    if not targetPlayer then return false end
+    
+    local gui = targetPlayer:FindFirstChild("PlayerGui")
+    if not gui then return false end
+    
+    local success, coinValue = pcall(function()
+        local coins = gui.MainGUI.Game.CoinBags.Container.Coin.CurrencyFrame.Icon.Coins
+        if coins:IsA("TextLabel") then
+            return tonumber(coins.Text:match("%d+")) or 0
+        elseif coins:IsA("IntValue") then
+            return coins.Value
+        end
+        return 0
+    end)
+    
+    if success and coinValue and coinValue >= RESET_COIN_COUNT then
+        return killCharacter()
     end
-end)
+    return false
+end
 
--- Инициализация
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
-
--- Поиск ближайшей монеты
+-- Поиск монет
 local function findNearestCoin()
+    if not rootPart or not rootPart.Parent then return nil end
+    
     local closestCoin, minDistance = nil, math.huge
     
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -54,7 +94,7 @@ local function findNearestCoin()
     return closestCoin
 end
 
--- Эффект сбора монеты
+-- Эффект сбора
 local function playCollectEffect(coin)
     if not COLLECT_EFFECT then return end
     
@@ -62,7 +102,7 @@ local function playCollectEffect(coin)
     effect.Size = Vector3.new(1, 1, 1)
     effect.Shape = Enum.PartType.Ball
     effect.Material = Enum.Material.Neon
-    effect.Color = Color3.fromRGB(255, 215, 0) -- Золотой цвет
+    effect.Color = Color3.fromRGB(255, 215, 0)
     effect.CFrame = coin.CFrame
     effect.Anchored = true
     effect.CanCollide = false
@@ -78,9 +118,9 @@ local function playCollectEffect(coin)
     game:GetService("Debris"):AddItem(effect, 0.6)
 end
 
--- Плавный полёт к монете
+-- Полет к монете
 local function flyAndCollect(coin)
-    if not coin or not coin.Parent then return end
+    if not coin or not coin.Parent or not rootPart or not rootPart.Parent then return end
     
     humanoid:ChangeState(Enum.HumanoidStateType.Flying)
     local startTime = os.clock()
@@ -89,10 +129,9 @@ local function flyAndCollect(coin)
     local distance = (endPos - startPos).Magnitude
     local duration = distance / FLY_SPEED
     
-    -- Анимация полёта
     local connection
-    connection = RunService.Heartbeat:Connect(function(delta)
-        if not coin or not coin.Parent then
+    connection = RunService.Heartbeat:Connect(function()
+        if not coin or not coin.Parent or not rootPart or not rootPart.Parent then
             connection:Disconnect()
             return
         end
@@ -100,16 +139,13 @@ local function flyAndCollect(coin)
         local progress = (os.clock() - startTime) / duration
         if progress >= 1 then
             connection:Disconnect()
-            
-            -- Удаление монеты при достижении
             playCollectEffect(coin)
             coin:Destroy()
-            
             humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+            checkCoinReset()
             return
         end
         
-        -- Параболическая траектория
         local heightFactor = math.sin(progress * math.pi) * 2
         local currentPos = startPos:Lerp(endPos, progress) + 
                          Vector3.new(0, heightFactor * (1 - progress), 0)
@@ -119,25 +155,46 @@ local function flyAndCollect(coin)
 end
 
 -- Основной цикл
-while task.wait(CHECK_INTERVAL) do
-    -- Переинициализация при смерти
-    if not character or not character.Parent then
-        character = player.Character or player.CharacterAdded:Wait()
-        humanoid = character:WaitForChild("Humanoid")
-        rootPart = character:WaitForChild("HumanoidRootPart")
-        continue
-    end
+local function mainLoop()
+    initializeCharacter()
     
-    local coin = findNearestCoin()
-    if coin then
-        flyAndCollect(coin)
-        task.wait(0.5) -- Задержка перед поиском следующей
+    while true do
+        task.wait(CHECK_INTERVAL)
+        
+        -- Проверка состояния персонажа
+        if not character or not character.Parent or humanoid.Health <= 0 then
+            task.wait(3)
+            initializeCharacter()
+            continue
+        end
+        
+        -- Проверка монет для ресета
+        if checkCoinReset() then
+            task.wait(3)
+            continue
+        end
+        
+        -- Поиск и сбор монет
+        local coin = findNearestCoin()
+        if coin then
+            flyAndCollect(coin)
+            task.wait(0.5)
+        end
     end
 end
 
--- Обработка отключения (на случай кика)
-game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
+-- Обработчики событий
+player.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Failed then
+        rejoinGame()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(leavingPlayer)
     if leavingPlayer == player then
         rejoinGame()
     end
 end)
+
+-- Запуск
+mainLoop()
