@@ -1,0 +1,71 @@
+local player = game.Players.LocalPlayer
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+
+-- Настройки
+local PLACE_ID = 142823291
+local RESET_COIN_COUNT = 40
+local CHECK_INTERVAL = 5 -- Проверка каждые 5 секунд
+
+-- Функция ресета персонажа
+local function resetCharacter()
+    if player.Character then
+        player.Character:BreakJoints()
+    end
+end
+
+-- Функция перезахода
+local function rejoinGame()
+    local success, err = pcall(function()
+        TeleportService:Teleport(PLACE_ID, player)
+    end)
+    
+    if not success then
+        warn("Ошибка перезахода: " .. err)
+        task.wait(5)
+        rejoinGame()
+    end
+end
+
+-- Проверка монет для ресета
+local function checkCoins()
+    local targetPlayer = Players[player.Name]
+    if not targetPlayer then return false end
+    
+    local gui = targetPlayer:FindFirstChild("PlayerGui")
+    if not gui then return false end
+    
+    local success, coinValue = pcall(function()
+        local coins = gui.MainGUI.Game.CoinBags.Container.Coin.CurrencyFrame.Icon.Coins
+        if coins:IsA("TextLabel") then
+            return tonumber(coins.Text:match("%d+")) or 0
+        elseif coins:IsA("IntValue") then
+            return coins.Value
+        end
+        return 0
+    end)
+    
+    return success and coinValue and coinValue >= RESET_COIN_COUNT
+end
+
+-- Обработчик кика
+player.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Failed then
+        rejoinGame()
+    end
+end)
+
+-- Основной цикл проверки
+while task.wait(CHECK_INTERVAL) do
+    if checkCoins() then
+        resetCharacter()
+        task.wait(3) -- Ждем респавн
+    end
+end
+
+-- Обработка отключения
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if leavingPlayer == player then
+        rejoinGame()
+    end
+end)
