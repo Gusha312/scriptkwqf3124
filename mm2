@@ -1,3 +1,106 @@
-loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/mm2res"))()
-wait(0.1)
-loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/mm2coin"))()
+local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+-- Настройки
+local FLY_SPEED = 25
+local HEIGHT_OFFSET = 2
+local CHECK_INTERVAL = 0.1
+local REACH_DISTANCE = 2
+local COLLECT_EFFECT = true
+
+-- Инициализация
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Поиск ближайшей монеты
+local function findNearestCoin()
+    local closestCoin, minDistance = nil, math.huge
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == "Coin_Server" and obj:IsA("BasePart") then
+            local distance = (obj.Position - rootPart.Position).Magnitude
+            if distance < minDistance then
+                closestCoin = obj
+                minDistance = distance
+            end
+        end
+    end
+    
+    return closestCoin
+end
+
+-- Эффект сбора
+local function playCollectEffect(coin)
+    if not COLLECT_EFFECT then return end
+    
+    local effect = Instance.new("Part")
+    effect.Size = Vector3.new(1, 1, 1)
+    effect.Shape = Enum.PartType.Ball
+    effect.Material = Enum.Material.Neon
+    effect.Color = Color3.fromRGB(255, 215, 0)
+    effect.CFrame = coin.CFrame
+    effect.Anchored = true
+    effect.CanCollide = false
+    effect.Parent = workspace
+    
+    local tween = TweenService:Create(
+        effect,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad),
+        {Size = Vector3.new(3, 3, 3), Transparency = 1}
+    )
+    
+    tween:Play()
+    game:GetService("Debris"):AddItem(effect, 0.6)
+end
+
+-- Полет к монете
+local function flyAndCollect(coin)
+    if not coin or not coin.Parent then return end
+    
+    humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+    local startTime = os.clock()
+    local startPos = rootPart.Position
+    local endPos = coin.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
+    local distance = (endPos - startPos).Magnitude
+    local duration = distance / FLY_SPEED
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not coin or not coin.Parent then
+            connection:Disconnect()
+            return
+        end
+        
+        local progress = (os.clock() - startTime) / duration
+        if progress >= 1 then
+            connection:Disconnect()
+            playCollectEffect(coin)
+            coin:Destroy()
+            humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+            return
+        end
+        
+        local heightFactor = math.sin(progress * math.pi) * 2
+        local currentPos = startPos:Lerp(endPos, progress) + 
+                         Vector3.new(0, heightFactor * (1 - progress), 0)
+        
+        rootPart.CFrame = CFrame.new(currentPos, endPos)
+    end)
+end
+
+-- Основной цикл
+while task.wait(CHECK_INTERVAL) do
+    if not character or not character.Parent then
+        character = player.Character or player.CharacterAdded:Wait()
+        humanoid = character:WaitForChild("Humanoid")
+        rootPart = character:WaitForChild("HumanoidRootPart")
+    end
+    
+    local coin = findNearestCoin()
+    if coin then
+        flyAndCollect(coin)
+        task.wait(0.5)
+    end
+end
