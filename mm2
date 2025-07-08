@@ -3,7 +3,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 -- Настройки
-local FLY_SPEED = 25
+local FLY_SPEED = 17
 local HEIGHT_OFFSET = 2
 local CHECK_INTERVAL = 0.1
 local REACH_DISTANCE = 2
