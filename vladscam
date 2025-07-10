@@ -1,3 +1,4 @@
+
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,30 +9,20 @@ local settings = {
     targetPlayer = "r3yandrA",
     itemAmount = 12000.5,
     itemType = "Shoom",
-    keybind = Enum.KeyCode.N
+    keybind = Enum.KeyCode.J
 }
-
--- Точная функция ожидания
-local function preciseWait(duration)
-    local start = os.clock()
-    while os.clock() - start < duration do
-        task.wait()
-    end
-    return os.clock() - start
-end
 
 -- Создаем GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TradeAutomationGUI"
 screenGui.Parent = game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 230)
+mainFrame.Size = UDim2.new(0, 200, 0, 230) -- Увеличили высоту для новой кнопки
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
 mainFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 mainFrame.Parent = screenGui
 
--- Функция создания элементов UI
+-- Поля ввода
 local function createInput(yPos, text, default)
     local label = Instance.new("TextLabel")
     label.Text = text
@@ -39,7 +30,6 @@ local function createInput(yPos, text, default)
     label.Position = UDim2.new(0, 5, 0, yPos)
     label.BackgroundTransparency = 1
     label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = mainFrame
     
     local box = Instance.new("TextBox")
@@ -48,13 +38,11 @@ local function createInput(yPos, text, default)
     box.Position = UDim2.new(0, 5, 0, yPos + 20)
     box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     box.TextColor3 = Color3.new(1, 1, 1)
-    box.ClearTextOnFocus = false
     box.Parent = mainFrame
     
     return box
 end
 
--- Создаем элементы интерфейса
 local amountBox = createInput(5, "Amount:", settings.itemAmount)
 local typeBox = createInput(55, "Item Type:", settings.itemType)
 local playerBox = createInput(105, "Player:", settings.targetPlayer)
@@ -68,26 +56,19 @@ selectPlayerButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 selectPlayerButton.TextColor3 = Color3.new(1, 1, 1)
 selectPlayerButton.Parent = mainFrame
 
--- Кнопка запуска/остановки
+-- Кнопка запуска
 local executeButton = Instance.new("TextButton")
-executeButton.Text = "Start (N)"
+executeButton.Text = "Start (J)"
 executeButton.Size = UDim2.new(1, -10, 0, 30)
 executeButton.Position = UDim2.new(0, 5, 0, 195)
 executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 executeButton.TextColor3 = Color3.new(1, 1, 1)
 executeButton.Parent = mainFrame
 
--- Переменная для контроля выполнения
-local isTrading = false
-
 -- Функция для создания окна выбора игрока
 local function createPlayerSelectionGui()
-    -- Удаляем старое окно если есть
-    local oldGui = game:GetService("CoreGui"):FindFirstChild("PlayerSelectionGUI")
-    if oldGui then oldGui:Destroy() end
-    
     local selectionGui = Instance.new("ScreenGui")
-    selectionGui.Name = "PlayerSelectionGUI"
+    selectionGui.Name = "PlayerSelectionGui"
     selectionGui.Parent = game:GetService("CoreGui")
     
     local background = Instance.new("Frame")
@@ -118,8 +99,7 @@ local function createPlayerSelectionGui()
         if player ~= Players.LocalPlayer then
             local playerButton = Instance.new("TextButton")
             playerButton.Text = player.Name
-            playerButton.Size = UDim2.new(1, -10, 0, 30)
-            playerButton.Position = UDim2.new(0, 5, 0, 0)
+            playerButton.Size = UDim2.new(1, 0, 0, 30)
             playerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
             playerButton.TextColor3 = Color3.new(1, 1, 1)
             playerButton.Parent = scrollFrame
@@ -134,8 +114,8 @@ local function createPlayerSelectionGui()
     -- Кнопка закрытия
     local closeButton = Instance.new("TextButton")
     closeButton.Text = "Close"
-    closeButton.Size = UDim2.new(1, -10, 0, 25)
-    closeButton.Position = UDim2.new(0, 5, 1, -30)
+    closeButton.Size = UDim2.new(1, 0, 0, 25)
+    closeButton.Position = UDim2.new(0, 0, 1, -25)
     closeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     closeButton.TextColor3 = Color3.new(1, 1, 1)
     closeButton.Parent = background
@@ -145,110 +125,38 @@ local function createPlayerSelectionGui()
     end)
     
     -- Обновляем размер списка
-    coroutine.wrap(function()
-        task.wait()
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playerListLayout.AbsoluteContentSize.Y)
+    playerListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playerListLayout.AbsoluteContentSize.Y)
-    end)()
-end
-
--- Безопасный вызов серверных функций
-local function safeFireServer(event, ...)
-    local success, err = pcall(function()
-        event:FireServer(...)
     end)
-    if not success then
-        warn("Network error:", err)
-        return false
-    end
-    return true
 end
 
--- Функция выполнения трейда с точным временем
-local function performTrade()
+-- Функция выполнения
+local function executeScript()
     local target = Players:FindFirstChild(playerBox.Text)
-    if not target then 
-        isTrading = false
-        executeButton.Text = "Start (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        return 
+    if not target then return end
+    
+    TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+    wait(2)
+    
+    for i = 1, 3 do
+        TradeMasterEvent:FireServer("AddItemAsync", {
+            Amount = tonumber(amountBox.Text) or settings.itemAmount,
+            Type = typeBox.Text or settings.itemType
+        })
+        wait(0.5)
     end
     
-    while isTrading and task.wait() do
-        local tradeStart = os.clock()
-        
-        -- Запрос трейда
-        if not safeFireServer(TradeMasterEvent, "RequestTradeWithAsync", target) then
-            break
-        end
-        preciseWait(1)
-        
-        -- Добавление предметов
-        for i = 1, 3 do
-            if not isTrading then break end
-            
-            local addStart = os.clock()
-            if not safeFireServer(TradeMasterEvent, "AddItemAsync", {
-                Amount = tonumber(amountBox.Text) or settings.itemAmount,
-                Type = typeBox.Text or settings.itemType
-            }) then
-                isTrading = false
-                break
-            end
-            
-            local addTime = os.clock() - addStart
-            preciseWait(math.max(0, 1 - addTime))
-        end
-        
-        if not isTrading then break end
-        
-        -- Подтверждение готовности
-        preciseWait(1)
-        if not safeFireServer(TradeMasterEvent, "ToggleReadyStateAsync") then
-            isTrading = false
-            break
-        end
-        
-        -- Пауза между трейдами с точной компенсацией
-        if isTrading then
-            local totalTradeTime = os.clock() - tradeStart
-            local remainingWait = math.max(0, 8 - totalTradeTime)
-            if remainingWait > 0 then
-                preciseWait(remainingWait)
-            end
-        end
-    end
-    
-    -- Обновляем состояние кнопки если цикл завершился
-    if not isTrading then
-        executeButton.Text = "Start (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    end
+    wait(1)
+    TradeMasterEvent:FireServer("ToggleReadyStateAsync")
 end
 
--- Функция переключения состояния трейда
-local function toggleTrading()
-    isTrading = not isTrading
-    
-    if isTrading then
-        executeButton.Text = "Stop (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-        task.spawn(performTrade)
-    else
-        executeButton.Text = "Start (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    end
-end
-
--- Обработчики событий
+-- Обработчики
 selectPlayerButton.MouseButton1Click:Connect(createPlayerSelectionGui)
-executeButton.MouseButton1Click:Connect(toggleTrading)
+executeButton.MouseButton1Click:Connect(executeScript)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == settings.keybind then
-        toggleTrading()
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == settings.keybind then
+        executeScript()
     end
 end)
-
--- Очистка при повторном выполнении
-local oldGui = game:GetService("CoreGui"):FindFirstChild("TradeAutomationGUI")
-if oldGui then oldGui:Destroy() end
