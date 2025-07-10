@@ -1,4 +1,3 @@
-
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,7 +8,7 @@ local settings = {
     targetPlayer = "r3yandrA",
     itemAmount = 12000.5,
     itemType = "Shoom",
-    keybind = Enum.KeyCode.J
+    keybind = Enum.KeyCode.N
 }
 
 -- Создаем GUI
@@ -17,7 +16,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 230) -- Увеличили высоту для новой кнопки
+mainFrame.Size = UDim2.new(0, 200, 0, 230)
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
 mainFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 mainFrame.Parent = screenGui
@@ -56,7 +55,7 @@ selectPlayerButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 selectPlayerButton.TextColor3 = Color3.new(1, 1, 1)
 selectPlayerButton.Parent = mainFrame
 
--- Кнопка запуска
+-- Кнопка запуска/остановки
 local executeButton = Instance.new("TextButton")
 executeButton.Text = "Start (J)"
 executeButton.Size = UDim2.new(1, -10, 0, 30)
@@ -64,6 +63,10 @@ executeButton.Position = UDim2.new(0, 5, 0, 195)
 executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 executeButton.TextColor3 = Color3.new(1, 1, 1)
 executeButton.Parent = mainFrame
+
+-- Переменная для контроля выполнения
+local isTrading = false
+local stopTrading = false
 
 -- Функция для создания окна выбора игрока
 local function createPlayerSelectionGui()
@@ -131,32 +134,60 @@ local function createPlayerSelectionGui()
     end)
 end
 
--- Функция выполнения
-local function executeScript()
+-- Функция выполнения трейда
+local function performTrade()
     local target = Players:FindFirstChild(playerBox.Text)
-    if not target then return end
-    
-    TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
-    wait(3)
-    
-    for i = 1, 3 do
-        TradeMasterEvent:FireServer("AddItemAsync", {
-            Amount = tonumber(amountBox.Text) or settings.itemAmount,
-            Type = typeBox.Text or settings.itemType
-        })
-        wait(0.5)
+    if not target then 
+        isTrading = false
+        executeButton.Text = "Start (N)"
+        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        return 
     end
     
-    wait(1)
-    TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+    while isTrading do
+        TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+        wait(1)
+        
+        for i = 1, 3 do
+            if not isTrading then break end
+            TradeMasterEvent:FireServer("AddItemAsync", {
+                Amount = tonumber(amountBox.Text) or settings.itemAmount,
+                Type = typeBox.Text or settings.itemType
+            })
+            wait(1)
+        end
+        
+        if not isTrading then break end
+        wait(1)
+        TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+        
+        -- Пауза между трейдами
+        if isTrading then
+            wait(8)
+        end
+    end
+end
+
+-- Функция переключения состояния трейда
+local function toggleTrading()
+    isTrading = not isTrading
+    
+    if isTrading then
+        executeButton.Text = "Stop (N)"
+        executeButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        performTrade()
+    else
+        executeButton.Text = "Start (N)"
+        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    end
 end
 
 -- Обработчики
 selectPlayerButton.MouseButton1Click:Connect(createPlayerSelectionGui)
-executeButton.MouseButton1Click:Connect(executeScript)
+executeButton.MouseButton1Click:Connect(toggleTrading)
 
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == settings.keybind then
-        executeScript()
+        toggleTrading()
     end
 end)
