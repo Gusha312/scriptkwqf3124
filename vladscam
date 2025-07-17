@@ -8,7 +8,9 @@ local settings = {
     targetPlayer = "r3yandrA",
     itemAmount = 12000.5,
     itemType = "Shoom",
-    keybind = Enum.KeyCode.N
+    keybind = Enum.KeyCode.N,
+    speciesKeybind = Enum.KeyCode.M,
+    speciesList = "Mijusuima,Aolenus,Keruku"
 }
 
 -- Создаем GUI
@@ -16,10 +18,31 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 230)
+mainFrame.Size = UDim2.new(0, 200, 0, 270)
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
 mainFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 mainFrame.Parent = screenGui
+
+-- Кнопка сворачивания/разворачивания
+local toggleButton = Instance.new("TextButton")
+toggleButton.Text = "▼"
+toggleButton.Size = UDim2.new(0, 20, 0, 20)
+toggleButton.Position = UDim2.new(1, -20, 0, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Parent = mainFrame
+
+local isMinimized = false
+toggleButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        mainFrame.Size = UDim2.new(0, 200, 0, 30)
+        toggleButton.Text = "▲"
+    else
+        mainFrame.Size = UDim2.new(0, 200, 0, 270)
+        toggleButton.Text = "▼"
+    end
+end)
 
 -- Поля ввода
 local function createInput(yPos, text, default)
@@ -29,6 +52,7 @@ local function createInput(yPos, text, default)
     label.Position = UDim2.new(0, 5, 0, yPos)
     label.BackgroundTransparency = 1
     label.TextColor3 = Color3.new(1, 1, 1)
+    label.Visible = not isMinimized
     label.Parent = mainFrame
     
     local box = Instance.new("TextBox")
@@ -37,6 +61,7 @@ local function createInput(yPos, text, default)
     box.Position = UDim2.new(0, 5, 0, yPos + 20)
     box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     box.TextColor3 = Color3.new(1, 1, 1)
+    box.Visible = not isMinimized
     box.Parent = mainFrame
     
     return box
@@ -45,28 +70,41 @@ end
 local amountBox = createInput(5, "Amount:", settings.itemAmount)
 local typeBox = createInput(55, "Item Type:", settings.itemType)
 local playerBox = createInput(105, "Player:", settings.targetPlayer)
+local speciesBox = createInput(155, "Species (comma sep):", settings.speciesList)
 
 -- Кнопка выбора игрока
 local selectPlayerButton = Instance.new("TextButton")
 selectPlayerButton.Text = "Select Player"
 selectPlayerButton.Size = UDim2.new(1, -10, 0, 30)
-selectPlayerButton.Position = UDim2.new(0, 5, 0, 165)
+selectPlayerButton.Position = UDim2.new(0, 5, 0, 205)
 selectPlayerButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 selectPlayerButton.TextColor3 = Color3.new(1, 1, 1)
+selectPlayerButton.Visible = not isMinimized
 selectPlayerButton.Parent = mainFrame
 
 -- Кнопка запуска/остановки
 local executeButton = Instance.new("TextButton")
-executeButton.Text = "Start (J)"
+executeButton.Text = "Start (N)"
 executeButton.Size = UDim2.new(1, -10, 0, 30)
-executeButton.Position = UDim2.new(0, 5, 0, 195)
+executeButton.Position = UDim2.new(0, 5, 0, 235)
 executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 executeButton.TextColor3 = Color3.new(1, 1, 1)
+executeButton.Visible = not isMinimized
 executeButton.Parent = mainFrame
 
 -- Переменная для контроля выполнения
 local isTrading = false
 local stopTrading = false
+
+-- Обновляем видимость элементов при сворачивании/разворачивании
+toggleButton:GetPropertyChangedSignal("Text"):Connect(function()
+    local visible = not isMinimized
+    for _, child in ipairs(mainFrame:GetChildren()) do
+        if child:IsA("TextBox") or child:IsA("TextLabel") or child:IsA("TextButton") and child ~= toggleButton then
+            child.Visible = visible
+        end
+    end
+end)
 
 -- Функция для создания окна выбора игрока
 local function createPlayerSelectionGui()
@@ -168,6 +206,33 @@ local function performTrade()
     end
 end
 
+-- Функция для добавления существ
+local function addSpecies()
+    local target = Players:FindFirstChild(playerBox.Text)
+    if not target then return end
+    
+    local speciesList = string.split(speciesBox.Text, ",")
+    if #speciesList == 0 then return end
+    
+    TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+    wait(1)
+    
+    for _, species in ipairs(speciesList) do
+        species = string.trim(species)
+        if species ~= "" then
+            TradeMasterEvent:FireServer("AddItemAsync", {
+                ID = species,
+                Type = "Species",
+                Amount = 1.5
+            })
+            wait(1)
+        end
+    end
+    
+    wait(1)
+    TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+end
+
 -- Функция переключения состояния трейда
 local function toggleTrading()
     isTrading = not isTrading
@@ -189,5 +254,7 @@ executeButton.MouseButton1Click:Connect(toggleTrading)
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == settings.keybind then
         toggleTrading()
+    elseif input.KeyCode == settings.speciesKeybind then
+        addSpecies()
     end
 end)
