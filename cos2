@@ -5,11 +5,13 @@ local TradeMasterEvent = ReplicatedStorage:WaitForChild("TradeMasterEvent")
 
 -- Настройки
 local settings = {
-    targetPlayer = "r3yandrA",
+    targetPlayer = "PlayerName", -- Замените на имя игрока
     itemAmount = 12000.5,
     itemType = "Shoom",
     keybind = Enum.KeyCode.N,
-    speciesKeybind = Enum.KeyCode.M
+    speciesKeybind = Enum.KeyCode.M,
+    minSpecies = 21,
+    maxSpecies = 40
 }
 
 -- Создаем GUI
@@ -17,333 +19,322 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 250)
+mainFrame.Size = UDim2.new(0, 220, 0, 220)
 mainFrame.Position = UDim2.new(0, 10, 0, 10)
 mainFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 mainFrame.Parent = screenGui
 
--- Кнопка сворачивания/разворачивания
-local toggleButton = Instance.new("TextButton")
-toggleButton.Text = "▼"
-toggleButton.Size = UDim2.new(0, 20, 0, 20)
-toggleButton.Position = UDim2.new(1, -20, 0, 0)
-toggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-toggleButton.TextColor3 = Color3.new(1, 1, 1)
-toggleButton.Parent = mainFrame
+-- Элементы GUI
+local playerBox = Instance.new("TextBox")
+playerBox.Text = settings.targetPlayer
+playerBox.PlaceholderText = "Player Name"
+playerBox.Size = UDim2.new(0.7, -10, 0, 25)
+playerBox.Position = UDim2.new(0, 5, 0, 5)
+playerBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+playerBox.TextColor3 = Color3.new(1, 1, 1)
+playerBox.Parent = mainFrame
 
-local isMinimized = false
-toggleButton.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    if isMinimized then
-        mainFrame.Size = UDim2.new(0, 200, 0, 30)
-        toggleButton.Text = "▲"
-    else
-        mainFrame.Size = UDim2.new(0, 200, 0, 250)
-        toggleButton.Text = "▼"
-    end
-end)
+local selectPlayerBtn = Instance.new("TextButton")
+selectPlayerBtn.Text = "Select"
+selectPlayerBtn.Size = UDim2.new(0.3, -5, 0, 25)
+selectPlayerBtn.Position = UDim2.new(0.7, 0, 0, 5)
+selectPlayerBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+selectPlayerBtn.TextColor3 = Color3.new(1, 1, 1)
+selectPlayerBtn.Parent = mainFrame
 
--- Поля ввода
-local function createInput(yPos, text, default)
-    local label = Instance.new("TextLabel")
-    label.Text = text
-    label.Size = UDim2.new(1, -10, 0, 20)
-    label.Position = UDim2.new(0, 5, 0, yPos)
-    label.BackgroundTransparency = 1
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.Visible = not isMinimized
-    label.Parent = mainFrame
-    
-    local box = Instance.new("TextBox")
-    box.Text = tostring(default or "")
-    box.Size = UDim2.new(1, -10, 0, 25)
-    box.Position = UDim2.new(0, 5, 0, yPos + 20)
-    box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    box.TextColor3 = Color3.new(1, 1, 1)
-    box.Visible = not isMinimized
-    box.Parent = mainFrame
-    
-    return box
-end
+-- Настройки грибов
+local itemAmountBox = Instance.new("TextBox")
+itemAmountBox.Text = tostring(settings.itemAmount)
+itemAmountBox.PlaceholderText = "Amount"
+itemAmountBox.Size = UDim2.new(0.5, -10, 0, 25)
+itemAmountBox.Position = UDim2.new(0, 5, 0, 35)
+itemAmountBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+itemAmountBox.TextColor3 = Color3.new(1, 1, 1)
+itemAmountBox.Parent = mainFrame
 
--- Основные поля
-local amountBox = createInput(5, "Amount:", settings.itemAmount)
-local typeBox = createInput(55, "Item Type:", settings.itemType)
-local playerBox = createInput(105, "Player:", settings.targetPlayer)
+local itemTypeBox = Instance.new("TextBox")
+itemTypeBox.Text = settings.itemType
+itemTypeBox.PlaceholderText = "Item Type"
+itemTypeBox.Size = UDim2.new(0.5, -10, 0, 25)
+itemTypeBox.Position = UDim2.new(0.5, 0, 0, 35)
+itemTypeBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+itemTypeBox.TextColor3 = Color3.new(1, 1, 1)
+itemTypeBox.Parent = mainFrame
 
--- Кнопка выбора игрока
-local selectPlayerButton = Instance.new("TextButton")
-selectPlayerButton.Text = "Select Player"
-selectPlayerButton.Size = UDim2.new(1, -10, 0, 30)
-selectPlayerButton.Position = UDim2.new(0, 5, 0, 135)
-selectPlayerButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-selectPlayerButton.TextColor3 = Color3.new(1, 1, 1)
-selectPlayerButton.Visible = not isMinimized
-selectPlayerButton.Parent = mainFrame
+-- Настройки существ
+local minBox = Instance.new("TextBox")
+minBox.Text = tostring(settings.minSpecies)
+minBox.PlaceholderText = "Min"
+minBox.Size = UDim2.new(0.3, -5, 0, 25)
+minBox.Position = UDim2.new(0, 5, 0, 65)
+minBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+minBox.TextColor3 = Color3.new(1, 1, 1)
+minBox.Parent = mainFrame
 
--- Кнопка запуска/остановки предметов
-local executeButton = Instance.new("TextButton")
-executeButton.Text = "Start Items (N)"
-executeButton.Size = UDim2.new(0.48, -5, 0, 30)
-executeButton.Position = UDim2.new(0, 5, 0, 175)
-executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-executeButton.TextColor3 = Color3.new(1, 1, 1)
-executeButton.Visible = not isMinimized
-executeButton.Parent = mainFrame
+local maxBox = Instance.new("TextBox")
+maxBox.Text = tostring(settings.maxSpecies)
+maxBox.PlaceholderText = "Max"
+maxBox.Size = UDim2.new(0.3, -5, 0, 25)
+maxBox.Position = UDim2.new(0.35, 0, 0, 65)
+maxBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+maxBox.TextColor3 = Color3.new(1, 1, 1)
+maxBox.Parent = mainFrame
 
--- Кнопка запуска/остановки существ
-local executeSpeciesButton = Instance.new("TextButton")
-executeSpeciesButton.Text = "Start Species (M)"
-executeSpeciesButton.Size = UDim2.new(0.48, -5, 0, 30)
-executeSpeciesButton.Position = UDim2.new(0.52, 0, 0, 175)
-executeSpeciesButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-executeSpeciesButton.TextColor3 = Color3.new(1, 1, 1)
-executeSpeciesButton.Visible = not isMinimized
-executeSpeciesButton.Parent = mainFrame
+-- Кнопки
+local itemBtn = Instance.new("TextButton")
+itemBtn.Text = "Trade Items (N)"
+itemBtn.Size = UDim2.new(0.9, -10, 0, 30)
+itemBtn.Position = UDim2.new(0.05, 0, 0, 95)
+itemBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+itemBtn.TextColor3 = Color3.new(1, 1, 1)
+itemBtn.Parent = mainFrame
 
--- Переменные для контроля выполнения
+local speciesBtn = Instance.new("TextButton")
+speciesBtn.Text = "Trade Species (M)"
+speciesBtn.Size = UDim2.new(0.9, -10, 0, 30)
+speciesBtn.Position = UDim2.new(0.05, 0, 0, 130)
+speciesBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+speciesBtn.TextColor3 = Color3.new(1, 1, 1)
+speciesBtn.Parent = mainFrame
+
+-- Статус
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Text = "Status: Ready"
+statusLabel.Size = UDim2.new(1, -10, 0, 20)
+statusLabel.Position = UDim2.new(0, 5, 0, 165)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.new(1, 1, 1)
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+-- Логика работы
 local isTrading = false
 local isTradingSpecies = false
+local speciesQueue = {}
 
--- Обновляем видимость элементов при сворачивании/разворачивании
-toggleButton:GetPropertyChangedSignal("Text"):Connect(function()
-    local visible = not isMinimized
-    for _, child in ipairs(mainFrame:GetChildren()) do
-        if child:IsA("TextBox") or child:IsA("TextLabel") or (child:IsA("TextButton") and child ~= toggleButton) then
-            child.Visible = visible
-        end
-    end
-end)
-
--- Функция для создания окна выбора игрока
 local function createPlayerSelectionGui()
     local selectionGui = Instance.new("ScreenGui")
-    selectionGui.Name = "PlayerSelectionGui"
     selectionGui.Parent = game:GetService("CoreGui")
     
-    local background = Instance.new("Frame")
-    background.Size = UDim2.new(0, 200, 0, 300)
-    background.Position = UDim2.new(0.5, -100, 0.5, -150)
-    background.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    background.Parent = selectionGui
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 0, 250)
+    frame.Position = UDim2.new(0.5, -100, 0.5, -125)
+    frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    frame.Parent = selectionGui
     
-    local title = Instance.new("TextLabel")
-    title.Text = "Select Player"
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.Parent = background
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -10, 1, -40)
+    scroll.Position = UDim2.new(0, 5, 0, 35)
+    scroll.BackgroundTransparency = 1
+    scroll.Parent = frame
     
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1, -10, 1, -40)
-    scrollFrame.Position = UDim2.new(0, 5, 0, 35)
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.Parent = background
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = scroll
     
-    local playerListLayout = Instance.new("UIListLayout")
-    playerListLayout.Parent = scrollFrame
-    
-    -- Добавляем игроков в список
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer then
-            local playerButton = Instance.new("TextButton")
-            playerButton.Text = player.Name
-            playerButton.Size = UDim2.new(1, 0, 0, 30)
-            playerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            playerButton.TextColor3 = Color3.new(1, 1, 1)
-            playerButton.Parent = scrollFrame
+            local btn = Instance.new("TextButton")
+            btn.Text = player.Name
+            btn.Size = UDim2.new(1, 0, 0, 30)
+            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            btn.TextColor3 = Color3.new(1, 1, 1)
+            btn.Parent = scroll
             
-            playerButton.MouseButton1Click:Connect(function()
+            btn.MouseButton1Click:Connect(function()
                 playerBox.Text = player.Name
                 selectionGui:Destroy()
             end)
         end
     end
     
-    -- Кнопка закрытия
-    local closeButton = Instance.new("TextButton")
-    closeButton.Text = "Close"
-    closeButton.Size = UDim2.new(1, 0, 0, 25)
-    closeButton.Position = UDim2.new(0, 0, 1, -25)
-    closeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    closeButton.TextColor3 = Color3.new(1, 1, 1)
-    closeButton.Parent = background
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Text = "Close"
+    closeBtn.Size = UDim2.new(1, 0, 0, 25)
+    closeBtn.Position = UDim2.new(0, 0, 1, -25)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.Parent = frame
     
-    closeButton.MouseButton1Click:Connect(function()
+    closeBtn.MouseButton1Click:Connect(function()
         selectionGui:Destroy()
-    end)
-    
-    -- Обновляем размер списка
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playerListLayout.AbsoluteContentSize.Y)
-    playerListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playerListLayout.AbsoluteContentSize.Y)
     end)
 end
 
--- Функция получения списка существ игрока (от 21 до 40)
-local function getPlayerSpecies()
-    local speciesList = {}
-    local unlocks = Players.LocalPlayer.Data.Unlocks
+local function updateSpeciesQueue()
+    speciesQueue = {}
+    local minCount = tonumber(minBox.Text) or settings.minSpecies
+    local maxCount = tonumber(maxBox.Text) or settings.maxSpecies
     
-    for speciesName, speciesValue in pairs(unlocks:GetChildren()) do
-        if speciesValue:IsA("IntValue") then
-            local count = speciesValue.Value
-            if count >= 21 and count <= 40 then
-                table.insert(speciesList, speciesName)
+    for _, species in pairs(Players.LocalPlayer.Data.Unlocks:GetChildren()) do
+        if species:IsA("IntValue") then
+            local count = species.Value
+            if count >= minCount and count <= maxCount then
+                table.insert(speciesQueue, species.Name)
             end
         end
     end
     
-    return speciesList
+    statusLabel.Text = "Found "..#speciesQueue.." species"
+    return #speciesQueue > 0
 end
 
--- Функция выполнения трейда с предметами
-local function performTrade()
+local function performItemTrade()
     local target = Players:FindFirstChild(playerBox.Text)
-    if not target then 
+    if not target then
         isTrading = false
-        executeButton.Text = "Start Items (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        return 
+        itemBtn.Text = "Trade Items (N)"
+        itemBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        statusLabel.Text = "Error: Target not found"
+        return
     end
-    
+
     while isTrading do
-        -- Запрос на трейд
-        TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+        statusLabel.Text = "Starting trade..."
+        
+        local success = pcall(function()
+            TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+        end)
+        if not success then break end
         wait(1)
         
-        -- Добавление предметов
         for i = 1, 3 do
             if not isTrading then break end
-            TradeMasterEvent:FireServer("AddItemAsync", {
-                Amount = tonumber(amountBox.Text) or settings.itemAmount,
-                Type = typeBox.Text or settings.itemType
-            })
+            pcall(function()
+                TradeMasterEvent:FireServer("AddItemAsync", {
+                    Amount = tonumber(itemAmountBox.Text) or settings.itemAmount,
+                    Type = itemTypeBox.Text or settings.itemType
+                })
+            end)
             wait(1)
         end
         
         if not isTrading then break end
         
-        -- Подтверждение трейда
-        wait(1)
-        TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+        pcall(function()
+            TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+        end)
         
-        -- Пауза между трейдами
         if isTrading then
-            wait(8)
+            for i = 1, 8 do
+                if not isTrading then break end
+                statusLabel.Text = "Waiting ("..(8-i).."s)..."
+                wait(1)
+            end
         end
     end
+    
+    itemBtn.Text = "Trade Items (N)"
+    itemBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    statusLabel.Text = "Trade stopped"
 end
 
--- Функция выполнения трейда с существами
 local function performSpeciesTrade()
     local target = Players:FindFirstChild(playerBox.Text)
-    if not target then 
+    if not target then
         isTradingSpecies = false
-        executeSpeciesButton.Text = "Start Species (M)"
-        executeSpeciesButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        return 
-    end
-    
-    -- Получаем список существ игрока (от 21 до 40)
-    local allSpecies = getPlayerSpecies()
-    if #allSpecies == 0 then
-        isTradingSpecies = false
-        executeSpeciesButton.Text = "Start Species (M)"
-        executeSpeciesButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        speciesBtn.Text = "Trade Species (M)"
+        speciesBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        statusLabel.Text = "Error: Target not found"
         return
     end
-    
-    -- Создаем таблицу для хранения индексов существ
-    local speciesIndex = 1
+
+    if not updateSpeciesQueue() then
+        isTradingSpecies = false
+        speciesBtn.Text = "Trade Species (M)"
+        speciesBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        statusLabel.Text = "Error: No valid species"
+        return
+    end
+
+    local currentIndex = 1
     
     while isTradingSpecies do
-        -- Запрос на трейд
-        TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+        statusLabel.Text = "Starting species trade..."
+        
+        pcall(function()
+            TradeMasterEvent:FireServer("RequestTradeWithAsync", target)
+        end)
         wait(1)
         
-        -- Добавление 3 существ (или меньше, если осталось мало)
         for i = 1, 3 do
-            if not isTradingSpecies then break end
+            if not isTradingSpecies or #speciesQueue == 0 then break end
             
-            -- Получаем текущее существо
-            local currentSpecies = allSpecies[speciesIndex]
-            if not currentSpecies then
-                speciesIndex = 1
-                currentSpecies = allSpecies[speciesIndex]
+            if currentIndex > #speciesQueue then
+                currentIndex = 1
             end
             
-            -- Добавляем существо
-            TradeMasterEvent:FireServer("AddItemAsync", {
-                ID = currentSpecies,
-                Type = "Species",
-                Amount = 1.5
-            })
+            local speciesName = speciesQueue[currentIndex]
+            statusLabel.Text = "Adding "..speciesName
             
-            -- Переходим к следующему существу
-            speciesIndex = speciesIndex + 1
-            if speciesIndex > #allSpecies then
-                speciesIndex = 1
-            end
+            pcall(function()
+                TradeMasterEvent:FireServer("AddItemAsync", {
+                    ID = speciesName,
+                    Type = "Species",
+                    Amount = 1.5
+                })
+            end)
             
+            currentIndex = currentIndex + 1
             wait(1)
         end
         
         if not isTradingSpecies then break end
         
-        -- Подтверждение трейда
-        wait(1)
-        TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+        pcall(function()
+            TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+        end)
         
-        -- Пауза между трейдами
         if isTradingSpecies then
-            wait(8)
+            for i = 1, 8 do
+                if not isTradingSpecies then break end
+                statusLabel.Text = "Waiting ("..(8-i).."s)..."
+                wait(1)
+            end
+        end
+        
+        if not updateSpeciesQueue() then
+            statusLabel.Text = "No more species"
+            isTradingSpecies = false
+            break
         end
     end
+    
+    speciesBtn.Text = "Trade Species (M)"
+    speciesBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    statusLabel.Text = "Trade stopped"
 end
 
--- Функция переключения состояния трейда с предметами
-local function toggleTrading()
-    if isTradingSpecies then return end -- Не позволяем запускать оба режима одновременно
-    
+-- Обработчики событий
+selectPlayerBtn.MouseButton1Click:Connect(createPlayerSelectionGui)
+
+itemBtn.MouseButton1Click:Connect(function()
     isTrading = not isTrading
-    
     if isTrading then
-        executeButton.Text = "Stop Items (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-        performTrade()
+        itemBtn.Text = "STOP Trading (N)"
+        itemBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        performItemTrade()
     else
-        executeButton.Text = "Start Items (N)"
-        executeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        itemBtn.Text = "Trade Items (N)"
+        itemBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     end
-end
+end)
 
--- Функция переключения состояния трейда с существами
-local function toggleSpeciesTrading()
-    if isTrading then return end -- Не позволяем запускать оба режима одновременно
-    
+speciesBtn.MouseButton1Click:Connect(function()
     isTradingSpecies = not isTradingSpecies
-    
     if isTradingSpecies then
-        executeSpeciesButton.Text = "Stop Species (M)"
-        executeSpeciesButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        speciesBtn.Text = "STOP Species (M)"
+        speciesBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
         performSpeciesTrade()
     else
-        executeSpeciesButton.Text = "Start Species (M)"
-        executeSpeciesButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        speciesBtn.Text = "Trade Species (M)"
+        speciesBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     end
-end
-
--- Обработчики
-selectPlayerButton.MouseButton1Click:Connect(createPlayerSelectionGui)
-executeButton.MouseButton1Click:Connect(toggleTrading)
-executeSpeciesButton.MouseButton1Click:Connect(toggleSpeciesTrading)
+end)
 
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == settings.keybind then
-        toggleTrading()
+        itemBtn:Activate()
     elseif input.KeyCode == settings.speciesKeybind then
-        toggleSpeciesTrading()
+        speciesBtn:Activate()
     end
 end)
