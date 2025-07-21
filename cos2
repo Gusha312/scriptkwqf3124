@@ -184,11 +184,14 @@ end
 -- Функция получения списка существ игрока (от 21 до 40)
 local function getPlayerSpecies()
     local speciesList = {}
-    local unlocks = game:GetService("Players").LocalPlayer.Data.Unlocks
+    local unlocks = Players.LocalPlayer.Data.Unlocks
     
-    for _, species in pairs(unlocks:GetChildren()) do
-        if species:IsA("IntValue") and species.Value >= 21 and species.Value <= 40 then
-            table.insert(speciesList, species.Name)
+    for speciesName, speciesValue in pairs(unlocks:GetChildren()) do
+        if speciesValue:IsA("IntValue") then
+            local count = speciesValue.Value
+            if count >= 21 and count <= 40 then
+                table.insert(speciesList, speciesName)
+            end
         end
     end
     
@@ -243,7 +246,7 @@ local function performSpeciesTrade()
         return 
     end
     
-    -- Получаем список существ игрока
+    -- Получаем список существ игрока (от 21 до 40)
     local allSpecies = getPlayerSpecies()
     if #allSpecies == 0 then
         isTradingSpecies = false
