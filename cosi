@@ -12,7 +12,7 @@ local REQUIRED_AMOUNT = 12000
 local ITEM_TYPE = "Shoom"
 local COOLDOWN = 6
 local MAX_ATTEMPTS = 30
-local TRADE_DISTANCE = 15
+local TRADE_DISTANCE = 40
 
 -- Телепорт к целевой точке
 local target = game:GetService('Workspace')['Map Assets'].Trees.BoarderTree.Leaves
