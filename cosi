@@ -67,9 +67,9 @@ local function sendTradeRequest(partner)
     return false
 end
 
--- Логика получателя (исправлено: проверяем Them вместо You)
+-- Логика получателя (проверяем ТОЛЬКО Them ячейки)
 local function receiverLogic()
-    log("Проверяю ячейки ОТПРАВИТЕЛЯ (Them)...")
+    log("Проверяю ячейки отправителя (Them)...")
     
     local attempts = 0
     while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
@@ -84,7 +84,7 @@ local function receiverLogic()
         
         if allCorrect then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-            log("Трейд принят! Получено 3x"..REQUIRED_AMOUNT)
+            log("Все грибы получены! Трейд завершен.")
             return true
         end
         
@@ -95,7 +95,7 @@ local function receiverLogic()
     return false
 end
 
--- Логика отправителя
+-- Логика отправителя (проверяем ТОЛЬКО Player2Ready)
 local function senderLogic()
     log("Отправляю грибы...")
     
@@ -108,12 +108,15 @@ local function senderLogic()
         task.wait(0.5)
     end
     
-    -- Ожидание подтверждения
+    -- Ожидание реального подтверждения
     local attempts = 0
     while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
-        if TradeGui.BG.Player2Ready.Text == "They Accepted" then
+        local readyText = TradeGui.BG:FindFirstChild("Player2Ready") and TradeGui.BG.Player2Ready.Text or ""
+        
+        -- Точная проверка подтверждения
+        if readyText:match("They Accepted") or readyText:match("Готов") then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-            log("Трейд подтвержден!")
+            log("Партнер действительно подтвердил трейд!")
             
             -- Телепорт если мало денег
             if player.Data.Coins.Value < 13000 then
@@ -121,6 +124,7 @@ local function senderLogic()
             end
             return true
         end
+        
         attempts = attempts + 1
         task.wait(1)
     end
