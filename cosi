@@ -12,6 +12,7 @@ local ITEM_TYPE = "Shoom"
 local COOLDOWN = 6
 local MAX_ATTEMPTS = 30
 local TRADE_DISTANCE = 15
+local MIN_RECEIVER_COINS = 100000 -- Минимальный баланс для отправителя
 
 -- Телепорт к дереву (однократно)
 local target = game:GetService('Workspace')['Map Assets'].Trees.BoarderTree.Leaves
@@ -32,34 +33,54 @@ local function log(msg)
     })
 end
 
--- Определение роли
+-- Защищенное определение роли (с проверкой во время трейда)
+local currentRole = nil
 local function determineRole()
     local coins = player.Data.Coins.Value
-    return coins < 100000 -- true = получатель, false = отправитель
+    currentRole = coins < MIN_RECEIVER_COINS
+    return currentRole -- true = получатель, false = отправитель
 end
 
--- Поиск партнера
+-- Поиск партнера с проверкой роли
 local function findTradePartner()
+    local partner = nil
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - character.HumanoidRootPart.Position).Magnitude < TRADE_DISTANCE then
-                return plr
+                partner = plr
+                break
             end
         end
     end
-    return nil
+    
+    -- Дополнительная проверка роли перед трейдом
+    if partner and determineRole() ~= currentRole then
+        log("Обнаружена смена роли! Прерываю трейд.")
+        return nil
+    end
+    
+    return partner
 end
 
--- Отправка запроса на трейд
+-- Отправка запроса на трейд с защитой от смены роли
 local function sendTradeRequest(partner)
+    local initialRole = determineRole()
+    
     for attempt = 1, 3 do
         ReplicatedStorage.TradeMasterEvent:FireServer("RequestTradeWithAsync", partner)
         log("Отправка запроса трейда (попытка "..attempt..")")
         
         local waitTime = 0
         while waitTime < 5 do
-            if TradeGui.Enabled then return true end
+            if TradeGui.Enabled then
+                -- Проверка, не изменилась ли роль во время ожидания
+                if determineRole() ~= initialRole then
+                    log("Роль изменилась! Отменяю трейд.")
+                    return false
+                end
+                return true
+            end
             waitTime = waitTime + 0.5
             task.wait(0.5)
         end
@@ -67,12 +88,18 @@ local function sendTradeRequest(partner)
     return false
 end
 
--- Логика получателя (проверяем ТОЛЬКО Them ячейки)
-local function receiverLogic()
+-- Логика получателя с защитой от смены роли
+local function receiverLogic(initialCoins)
     log("Проверяю ячейки отправителя (Them)...")
     
     local attempts = 0
     while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
+        -- Защита от смены роли во время трейда
+        if player.Data.Coins.Value >= MIN_RECEIVER_COINS then
+            log("Обнаружена смена роли на отправителя! Прерываю.")
+            return false
+        end
+        
         local allCorrect = true
         for i = 1, 3 do
             local cell = TradeGui.BG.Them[tostring(i)].TextLabel
@@ -84,7 +111,7 @@ local function receiverLogic()
         
         if allCorrect then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-            log("Все грибы получены! Трейд завершен.")
+            log("Трейд завершен. Получено: 3x"..REQUIRED_AMOUNT)
             return true
         end
         
@@ -95,12 +122,18 @@ local function receiverLogic()
     return false
 end
 
--- Логика отправителя (проверяем ТОЛЬКО Player2Ready)
-local function senderLogic()
+-- Логика отправителя с защитой от смены роли
+local function senderLogic(initialCoins)
     log("Отправляю грибы...")
     
     -- Отправка предметов
     for i = 1, 3 do
+        -- Проверка баланса перед каждой отправкой
+        if player.Data.Coins.Value < REQUIRED_AMOUNT then
+            log("Недостаточно средств для отправки!")
+            return false
+        end
+        
         ReplicatedStorage.TradeMasterEvent:FireServer("AddItemAsync", {
             Amount = REQUIRED_AMOUNT,
             Type = ITEM_TYPE
@@ -108,15 +141,20 @@ local function senderLogic()
         task.wait(0.5)
     end
     
-    -- Ожидание реального подтверждения
+    -- Ожидание подтверждения
     local attempts = 0
     while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
+        -- Проверка роли во время ожидания
+        if determineRole() then
+            log("Обнаружена смена роли на получателя! Прерываю.")
+            return false
+        end
+        
         local readyText = TradeGui.BG:FindFirstChild("Player2Ready") and TradeGui.BG.Player2Ready.Text or ""
         
-        -- Точная проверка подтверждения
         if readyText:match("They Accepted") or readyText:match("Готов") then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-            log("Партнер действительно подтвердил трейд!")
+            log("Трейд подтвержден партнером!")
             
             -- Телепорт если мало денег
             if player.Data.Coins.Value < 13000 then
@@ -132,21 +170,22 @@ local function senderLogic()
     return false
 end
 
--- Основной цикл
+-- Основной цикл с защитой от смены ролей
 local function main()
     while true do
+        local initialCoins = player.Data.Coins.Value
         local isReceiver = determineRole()
         local partner = findTradePartner()
         
         if partner then
-            log("Найден партнер: "..partner.Name)
+            log("Начало трейда с: "..partner.Name)
             log("Роль: "..(isReceiver and "ПОЛУЧАТЕЛЬ" or "ОТПРАВИТЕЛЬ"))
             
             if sendTradeRequest(partner) then
                 if isReceiver then
-                    receiverLogic()
+                    receiverLogic(initialCoins)
                 else
-                    senderLogic()
+                    senderLogic(initialCoins)
                 end
             end
         else
