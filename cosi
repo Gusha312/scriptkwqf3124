@@ -3,24 +3,28 @@ local character = player.Character or player.CharacterAdded:Wait()
 local TradeGui = player.PlayerGui:WaitForChild("Trade")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
 
--- Телепорт к дереву
+-- Настройки
+local FARM_WORLD = 5233782396
+local TRADE_WORLD = 5301474388
+local REQUIRED_AMOUNT = 12000
+local ITEM_TYPE = "Shoom"
+local COOLDOWN = 6
+local MAX_ATTEMPTS = 30
+local TRADE_DISTANCE = 15
+
+-- Телепорт к целевой точке
 local target = game:GetService('Workspace')['Map Assets'].Trees.BoarderTree.Leaves
 local function teleportToTarget()
     local rootPart = character:FindFirstChild('HumanoidRootPart') or character:WaitForChild('HumanoidRootPart')
     rootPart.CFrame = target.CFrame + Vector3.new(0, 3, 0)
-    print("Успешно телепортирован к дереву")
+    print("Телепортирован к целевой точке")
 end
 
--- Основные настройки
-local REQUIRED_AMOUNT = 12000
-local COOLDOWN = 6
-local ITEM_TYPE = "Shoom"
-local MAX_ATTEMPTS = 30
-
--- Улучшенное логирование
+-- Логирование с уведомлениями
 local function log(msg)
-    print("[AUTO TRADER]", os.date("%H:%M:%S"), msg)
+    print("[TRADE BOT]", os.date("%H:%M:%S"), msg)
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Трейд бот",
         Text = msg,
@@ -28,102 +32,140 @@ local function log(msg)
     })
 end
 
--- Улучшенный поиск партнера
+-- Поиск ближайшего партнера
 local function findTradePartner()
+    local closestPlayer, closestDistance = nil, TRADE_DISTANCE
+    
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-            if hrp and (hrp.Position - character.HumanoidRootPart.Position).Magnitude < 20 then
-                return plr
+            if hrp then
+                local distance = (hrp.Position - character.HumanoidRootPart.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = plr
+                end
             end
         end
     end
-    return nil
+    
+    return closestPlayer
 end
 
--- Функция отправки трейд-запроса (исправленная)
+-- Отправка запроса на трейд с повторными попытками
 local function sendTradeRequest(partner)
-    ReplicatedStorage.TradeMasterEvent:FireServer("RequestTradeWithAsync", partner)
-    log("Отправлен запрос трейда для @"..partner.Name)
-    
-    -- Ждем открытия окна трейда
-    local attempts = 0
-    repeat
-        task.wait(1)
-        attempts = attempts + 1
-    until TradeGui.Enabled or attempts >= 10
-    
-    return TradeGui.Enabled
+    for attempt = 1, 3 do
+        ReplicatedStorage.TradeMasterEvent:FireServer("RequestTradeWithAsync", partner)
+        log("Отправка запроса трейда (попытка "..attempt..")")
+        
+        local waitTime = 0
+        while waitTime < 5 do
+            if TradeGui.Enabled then
+                return true
+            end
+            waitTime = waitTime + 0.5
+            task.wait(0.5)
+        end
+    end
+    return false
 end
 
--- Основной рабочий цикл
-while true do
-    teleportToTarget()
+-- Логика получателя
+local function receiverLogic()
+    log("Проверяю ячейки получателя...")
     
-    local coins = player.Data.Coins.Value
-    local isReceiver = coins < 100000
-    local partner = findTradePartner()
-    
-    if partner then
-        log("Найден партнер: @"..partner.Name)
+    local attempts = 0
+    while attempts < MAX_ATTEMPTS do
+        if not TradeGui.Enabled then break end
         
-        -- Отправляем запрос на трейд
-        if sendTradeRequest(partner) then
-            if isReceiver then
-                log("Режим: ПОЛУЧАТЕЛЬ | Ожидаю грибы...")
-                
-                -- Проверка ячеек получателя
-                local attempts = 0
-                while attempts < MAX_ATTEMPTS do
-                    local allCorrect = true
-                    for i = 1, 3 do
-                        local cell = TradeGui.BG.You[tostring(i)].TextLabel
-                        if not cell or tonumber(cell.Text) ~= REQUIRED_AMOUNT then
-                            allCorrect = false
-                            break
-                        end
-                    end
+        local allCorrect = true
+        for i = 1, 3 do
+            local cell = TradeGui.BG.You[tostring(i)].TextLabel
+            if not cell or tonumber(cell.Text) ~= REQUIRED_AMOUNT then
+                allCorrect = false
+                break
+            end
+        end
+        
+        if allCorrect then
+            ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+            log("Все грибы получены! Трейд завершен.")
+            return true
+        end
+        
+        attempts = attempts + 1
+        task.wait(1)
+    end
+    return false
+end
+
+-- Логика отправителя
+local function senderLogic()
+    log("Отправляю грибы...")
+    
+    -- Отправка предметов
+    for i = 1, 3 do
+        ReplicatedStorage.TradeMasterEvent:FireServer("AddItemAsync", {
+            Amount = REQUIRED_AMOUNT,
+            Type = ITEM_TYPE
+        })
+        task.wait(0.5)
+    end
+    
+    -- Ожидание подтверждения
+    local attempts = 0
+    while attempts < MAX_ATTEMPTS do
+        if not TradeGui.Enabled then break end
+        
+        if TradeGui.BG.Player2Ready.Text == "They Accepted" then
+            ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
+            log("Партнер подтвердил трейд!")
+            return true
+        end
+        
+        attempts = attempts + 1
+        task.wait(1)
+    end
+    return false
+end
+
+-- Основной цикл
+local function main()
+    while true do
+        teleportToTarget()
+        
+        local coins = player.Data.Coins.Value
+        local isReceiver = coins < 100000
+        local partner = findTradePartner()
+        
+        if partner then
+            log("Найден партнер: "..partner.Name)
+            
+            if sendTradeRequest(partner) then
+                if isReceiver then
+                    log("Режим: ПОЛУЧАТЕЛЬ | Баланс: "..coins)
+                    receiverLogic()
+                else
+                    log("Режим: ОТПРАВИТЕЛЬ | Баланс: "..coins)
+                    senderLogic()
                     
-                    if allCorrect then
-                        ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-                        log("Все грибы получены! Трейд завершен.")
-                        break
+                    -- Телепорт при недостатке средств
+                    if player.Data.Coins.Value < 13000 then
+                        log("Мало денег, телепортируюсь...")
+                        TeleportService:Teleport(FARM_WORLD, player)
                     end
-                    
-                    attempts = attempts + 1
-                    task.wait(1)
-                end
-            else
-                log("Режим: ОТПРАВИТЕЛЬ | Отправляю грибы...")
-                
-                -- Отправка грибов
-                for _ = 1, 3 do
-                    ReplicatedStorage.TradeMasterEvent:FireServer("AddItemAsync", {
-                        Amount = REQUIRED_AMOUNT,
-                        Type = ITEM_TYPE
-                    })
-                    task.wait(0.5)
-                end
-                
-                -- Ожидание подтверждения
-                local attempts = 0
-                while attempts < MAX_ATTEMPTS do
-                    if TradeGui.BG.Player2Ready.Text == "They Accepted" then
-                        ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-                        log("Партнер подтвердил трейд!")
-                        break
-                    end
-                    attempts = attempts + 1
-                    task.wait(1)
                 end
             end
         else
-            log("Не удалось открыть окно трейда")
+            log("Партнер не найден рядом")
         end
-    else
-        log("Партнер не найден рядом")
+        
+        log("Ожидание кулдауна "..COOLDOWN.." сек...")
+        task.wait(COOLDOWN)
     end
-    
-    log("Ожидание кулдауна "..COOLDOWN.." сек...")
-    task.wait(COOLDOWN)
 end
+
+-- Запуск
+log("Автотрейдер запущен!")
+teleportToTarget()
+pcall(main)
