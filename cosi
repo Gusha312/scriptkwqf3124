@@ -13,7 +13,7 @@ local COOLDOWN = 6
 local MAX_ATTEMPTS = 30
 local TRADE_DISTANCE = 15
 
--- Однократный телепорт к дереву
+-- Телепорт к дереву (однократно)
 local target = game:GetService('Workspace')['Map Assets'].Trees.BoarderTree.Leaves
 local function teleportToTarget()
     local rootPart = character:FindFirstChild('HumanoidRootPart') or character:WaitForChild('HumanoidRootPart')
@@ -32,16 +32,10 @@ local function log(msg)
     })
 end
 
--- Определение роли (true = получатель, false = отправитель)
+-- Определение роли
 local function determineRole()
     local coins = player.Data.Coins.Value
-    if coins < 100000 then
-        log("Определена роль: ПОЛУЧАТЕЛЬ (баланс: "..coins..")")
-        return true
-    else
-        log("Определена роль: ОТПРАВИТЕЛЬ (баланс: "..coins..")")
-        return false
-    end
+    return coins < 100000 -- true = получатель, false = отправитель
 end
 
 -- Поиск партнера
@@ -73,17 +67,15 @@ local function sendTradeRequest(partner)
     return false
 end
 
--- Логика получателя
+-- Логика получателя (исправлено: проверяем Them вместо You)
 local function receiverLogic()
-    log("Ожидаю грибы от партнера...")
+    log("Проверяю ячейки ОТПРАВИТЕЛЯ (Them)...")
     
     local attempts = 0
-    while attempts < MAX_ATTEMPTS do
-        if not TradeGui.Enabled then break end
-        
+    while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
         local allCorrect = true
         for i = 1, 3 do
-            local cell = TradeGui.BG.You[tostring(i)].TextLabel
+            local cell = TradeGui.BG.Them[tostring(i)].TextLabel
             if not cell or tonumber(cell.Text) ~= REQUIRED_AMOUNT then
                 allCorrect = false
                 break
@@ -92,7 +84,7 @@ local function receiverLogic()
         
         if allCorrect then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-            log("Трейд успешно завершен (получено 3x"..REQUIRED_AMOUNT..")")
+            log("Трейд принят! Получено 3x"..REQUIRED_AMOUNT)
             return true
         end
         
@@ -105,9 +97,9 @@ end
 
 -- Логика отправителя
 local function senderLogic()
-    log("Отправляю грибы партнеру...")
+    log("Отправляю грибы...")
     
-    -- Отправка грибов
+    -- Отправка предметов
     for i = 1, 3 do
         ReplicatedStorage.TradeMasterEvent:FireServer("AddItemAsync", {
             Amount = REQUIRED_AMOUNT,
@@ -118,21 +110,17 @@ local function senderLogic()
     
     -- Ожидание подтверждения
     local attempts = 0
-    while attempts < MAX_ATTEMPTS do
-        if not TradeGui.Enabled then break end
-        
+    while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
         if TradeGui.BG.Player2Ready.Text == "They Accepted" then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
-            log("Партнер подтвердил трейд!")
+            log("Трейд подтвержден!")
             
-            -- Проверка баланса для телепорта
+            -- Телепорт если мало денег
             if player.Data.Coins.Value < 13000 then
-                log("Баланс низкий, телепортируюсь...")
                 TeleportService:Teleport(FARM_WORLD, player)
             end
             return true
         end
-        
         attempts = attempts + 1
         task.wait(1)
     end
@@ -148,6 +136,7 @@ local function main()
         
         if partner then
             log("Найден партнер: "..partner.Name)
+            log("Роль: "..(isReceiver and "ПОЛУЧАТЕЛЬ" or "ОТПРАВИТЕЛЬ"))
             
             if sendTradeRequest(partner) then
                 if isReceiver then
@@ -157,10 +146,10 @@ local function main()
                 end
             end
         else
-            log("Партнер не найден в радиусе "..TRADE_DISTANCE.." studs")
+            log("Партнер не найден рядом")
         end
         
-        log("Ожидание кулдауна "..COOLDOWN.." сек...")
+        log("Ожидание "..COOLDOWN.." сек...")
         task.wait(COOLDOWN)
     end
 end
