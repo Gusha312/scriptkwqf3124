@@ -12,7 +12,16 @@ local ITEM_TYPE = "Shoom"
 local COOLDOWN = 6
 local MAX_ATTEMPTS = 30
 local TRADE_DISTANCE = 15
-local MIN_RECEIVER_COINS = 100000 -- Минимальный баланс для отправителя
+local TARGET_BALANCE = 2868000 -- Баланс для смены роли
+
+-- Фиксированная роль (определяется при старте)
+local fixedRole = nil
+local initialBalance = player.Data.Coins.Value
+if initialBalance < TARGET_BALANCE then
+    fixedRole = "RECEIVER"
+else
+    fixedRole = "SENDER"
+end
 
 -- Телепорт к дереву (однократно)
 local target = game:GetService('Workspace')['Map Assets'].Trees.BoarderTree.Leaves
@@ -33,54 +42,39 @@ local function log(msg)
     })
 end
 
--- Защищенное определение роли (с проверкой во время трейда)
-local currentRole = nil
-local function determineRole()
-    local coins = player.Data.Coins.Value
-    currentRole = coins < MIN_RECEIVER_COINS
-    return currentRole -- true = получатель, false = отправитель
+-- Проверка необходимости смены роли
+local function checkRoleChange()
+    if fixedRole == "RECEIVER" and player.Data.Coins.Value >= TARGET_BALANCE then
+        log("Достигнут целевой баланс! Телепортируюсь...")
+        TeleportService:Teleport(FARM_WORLD, player)
+        return true
+    end
+    return false
 end
 
--- Поиск партнера с проверкой роли
+-- Поиск партнера
 local function findTradePartner()
-    local partner = nil
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - character.HumanoidRootPart.Position).Magnitude < TRADE_DISTANCE then
-                partner = plr
-                break
+                return plr
             end
         end
     end
-    
-    -- Дополнительная проверка роли перед трейдом
-    if partner and determineRole() ~= currentRole then
-        log("Обнаружена смена роли! Прерываю трейд.")
-        return nil
-    end
-    
-    return partner
+    return nil
 end
 
--- Отправка запроса на трейд с защитой от смены роли
+-- Отправка запроса на трейд
 local function sendTradeRequest(partner)
-    local initialRole = determineRole()
-    
     for attempt = 1, 3 do
         ReplicatedStorage.TradeMasterEvent:FireServer("RequestTradeWithAsync", partner)
         log("Отправка запроса трейда (попытка "..attempt..")")
         
         local waitTime = 0
         while waitTime < 5 do
-            if TradeGui.Enabled then
-                -- Проверка, не изменилась ли роль во время ожидания
-                if determineRole() ~= initialRole then
-                    log("Роль изменилась! Отменяю трейд.")
-                    return false
-                end
-                return true
-            end
+            if checkRoleChange() then return false end
+            if TradeGui.Enabled then return true end
             waitTime = waitTime + 0.5
             task.wait(0.5)
         end
@@ -88,17 +82,13 @@ local function sendTradeRequest(partner)
     return false
 end
 
--- Логика получателя с защитой от смены роли
-local function receiverLogic(initialCoins)
-    log("Проверяю ячейки отправителя (Them)...")
+-- Логика получателя (жестко фиксирована)
+local function receiverLogic()
+    log("Ожидаю грибы от партнера...")
     
     local attempts = 0
     while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
-        -- Защита от смены роли во время трейда
-        if player.Data.Coins.Value >= MIN_RECEIVER_COINS then
-            log("Обнаружена смена роли на отправителя! Прерываю.")
-            return false
-        end
+        if checkRoleChange() then return false end
         
         local allCorrect = true
         for i = 1, 3 do
@@ -122,13 +112,12 @@ local function receiverLogic(initialCoins)
     return false
 end
 
--- Логика отправителя с защитой от смены роли
-local function senderLogic(initialCoins)
-    log("Отправляю грибы...")
+-- Логика отправителя (жестко фиксирована)
+local function senderLogic()
+    log("Отправляю грибы партнеру...")
     
     -- Отправка предметов
     for i = 1, 3 do
-        -- Проверка баланса перед каждой отправкой
         if player.Data.Coins.Value < REQUIRED_AMOUNT then
             log("Недостаточно средств для отправки!")
             return false
@@ -144,20 +133,14 @@ local function senderLogic(initialCoins)
     -- Ожидание подтверждения
     local attempts = 0
     while attempts < MAX_ATTEMPTS and TradeGui.Enabled do
-        -- Проверка роли во время ожидания
-        if determineRole() then
-            log("Обнаружена смена роли на получателя! Прерываю.")
-            return false
-        end
-        
         local readyText = TradeGui.BG:FindFirstChild("Player2Ready") and TradeGui.BG.Player2Ready.Text or ""
         
         if readyText:match("They Accepted") or readyText:match("Готов") then
             ReplicatedStorage.TradeMasterEvent:FireServer("ToggleReadyStateAsync")
             log("Трейд подтвержден партнером!")
             
-            -- Телепорт если мало денег
             if player.Data.Coins.Value < 13000 then
+                log("Баланс исчерпан, телепортируюсь...")
                 TeleportService:Teleport(FARM_WORLD, player)
             end
             return true
@@ -170,22 +153,23 @@ local function senderLogic(initialCoins)
     return false
 end
 
--- Основной цикл с защитой от смены ролей
+-- Основной цикл
 local function main()
+    log("Старт работы. Роль: "..fixedRole)
+    
     while true do
-        local initialCoins = player.Data.Coins.Value
-        local isReceiver = determineRole()
+        if checkRoleChange() then break end -- Выход если достигнут целевой баланс
+        
         local partner = findTradePartner()
         
         if partner then
             log("Начало трейда с: "..partner.Name)
-            log("Роль: "..(isReceiver and "ПОЛУЧАТЕЛЬ" or "ОТПРАВИТЕЛЬ"))
             
             if sendTradeRequest(partner) then
-                if isReceiver then
-                    receiverLogic(initialCoins)
+                if fixedRole == "RECEIVER" then
+                    receiverLogic()
                 else
-                    senderLogic(initialCoins)
+                    senderLogic()
                 end
             end
         else
@@ -198,5 +182,4 @@ local function main()
 end
 
 -- Запуск
-log("Автотрейдер запущен!")
 pcall(main)
