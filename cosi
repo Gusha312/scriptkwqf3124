@@ -97,8 +97,8 @@ local function sendTradeRequest(partner)
             if TradeGui.Enabled then
                 return true
             end
-            waitTime = waitTime + 0.5
-            task.wait(0.5)
+            waitTime = waitTime + 0.3
+            task.wait(0.3)
         end
     end
     return false
