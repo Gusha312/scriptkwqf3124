@@ -12,7 +12,7 @@ local ITEM_TYPE = 'Shoom'
 local COOLDOWN = 6
 local MAX_ATTEMPTS = 30
 local TRADE_DISTANCE = 15
-local TARGET_BALANCE = 3816000 -- Баланс для смены роли
+local TARGET_BALANCE = 3816000+36000 -- Баланс для смены роли
 
 -- Фиксированная роль (определяется при старте)
 local fixedRole = nil
