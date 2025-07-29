@@ -1,3 +1,13 @@
+while true do
+wait(15)
+for i = 1,150 do
+wait(0.01)
+local args = {
+	workspace.Interactions.CurrencyNodes:GetChildren()[i]
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GetCurrencyNodeRemote"):FireServer(unpack(args))
+end
+end
 local player = game.Players.LocalPlayer
 local teleportDelay = 0.9 -- Задержка между телепортами (в секундах)
 
