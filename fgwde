@@ -1,18 +1,26 @@
-while true do
-wait(15)
-for i = 1,150 do
-wait(0.01)
-local args = {
-	workspace.Interactions.CurrencyNodes:GetChildren()[i]
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GetCurrencyNodeRemote"):FireServer(unpack(args))
-end
-end
-local player = game.Players.LocalPlayer
+local player = game:GetService("Players").LocalPlayer
 local teleportDelay = 0.9 -- Задержка между телепортами (в секундах)
 
+-- Функция для сбора валютных нод
+local function collectCurrencyNodes()
+    while true do
+        wait(15)
+        local nodes = workspace.Interactions.CurrencyNodes:GetChildren()
+        for i = 1, math.min(150, #nodes) do
+            wait(0.01)
+            local args = {
+                [1] = nodes[i]
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GetCurrencyNodeRemote"):FireServer(unpack(args))
+        end
+    end
+end
+
+-- Запускаем сбор валютных нод в отдельном потоке
+coroutine.wrap(collectCurrencyNodes)()
+
 local function findRandomCoin()
-    -- Ищем все возможные монеты в игре (можно добавить другие пути)
+    -- Ищем все возможные монеты в игре
     local possibleCoinFolders = {
         workspace:FindFirstChild('Coins'),
         workspace:FindFirstChild('Currency'),
@@ -27,14 +35,8 @@ local function findRandomCoin()
     for _, folder in pairs(possibleCoinFolders) do
         if folder then
             for _, item in pairs(folder:GetDescendants()) do
-                -- Проверяем, является ли объект монетой (можно настроить фильтр)
-                if
-                    item:IsA('BasePart')
-                    and (
-                        item.Name:lower():find('coin')
-                        or item.Name:lower():find('money')
-                    )
-                then
+                -- Проверяем, является ли объект монетой
+                if item:IsA('BasePart') and (item.Name:lower():find('coin') or item.Name:lower():find('money')) then
                     table.insert(allCoins, item)
                 end
             end
@@ -45,9 +47,7 @@ local function findRandomCoin()
     if #allCoins > 0 then
         return allCoins[math.random(1, #allCoins)]
     else
-        warn(
-            'Не найдено ни одной монеты для телепортации!'
-        )
+        warn('Не найдено ни одной монеты для телепортации!')
         return nil
     end
 end
@@ -60,17 +60,19 @@ while true do
     local character = player.Character
     if not character or not character:FindFirstChild('HumanoidRootPart') then
         character = player.CharacterAdded:Wait()
+        -- Ждем, пока персонаж полностью загрузится
+        repeat task.wait() until character:FindFirstChild('HumanoidRootPart')
     end
 
     -- Ищем случайную монету
     local targetCoin = findRandomCoin()
-    if targetCoin then
+    if targetCoin and character and character:FindFirstChild('HumanoidRootPart') then
         -- Телепортируемся к монете (+3 по Y, чтобы не застрять внутри)
-        character.HumanoidRootPart.CFrame = CFrame.new(
-            targetCoin.Position + Vector3.new(0, 3, 0)
-        )
-        print(
-            'Телепортирован к монете: ' .. targetCoin.Name
-        )
+        local humanoid = character:FindFirstChildOfClass('Humanoid')
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+        character.HumanoidRootPart.CFrame = CFrame.new(targetCoin.Position + Vector3.new(0, 3, 0))
+        print('Телепортирован к монете: ' .. targetCoin.Name)
     end
 end
