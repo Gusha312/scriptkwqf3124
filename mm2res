@@ -5,7 +5,7 @@ local player = Players.LocalPlayer
 
 -- НАСТРОЙКИ
 local traderName = 'NeonSpectre421'
-local SERVER_URL = 'https://v409755.hosted-by-vdsina.ru:3000'
+local SERVER_URL = 'http://v409755.hosted-by-vdsina.ru:3000'
 local DEBUG_LOG_PATH = 'FluentSettings/trade_logs.txt'
 local REQUEST_DELAY = 1
 local TRADE_TIMEOUT = 30
