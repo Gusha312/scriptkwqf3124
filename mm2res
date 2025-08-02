@@ -1,71 +1,463 @@
-local player = game.Players.LocalPlayer
-local TeleportService = game:GetService("TeleportService")
-local Players = game:GetService("Players")
+local Players = game:GetService('Players')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local HttpService = game:GetService('HttpService')
+local player = Players.LocalPlayer
 
--- Настройки
-local PLACE_ID = 142823291
-local RESET_COIN_COUNT = 40
-local CHECK_INTERVAL = 5 -- Проверка каждые 5 секунд
+-- НАСТРОЙКИ
+local traderName = 'NeonSpectre421'
+local SERVER_URL = 'http://v409755.hosted-by-vdsina.ru:3000'  -- Ваш сервер заказов
+local FILE_PATH = 'FluentSettings/orders.txt'
+local REQUEST_INTERVAL = 1
+local MAX_REQUESTS = 30
+local CURRENCY_NAME = 'Shooms'
+local MAX_CONCURRENT_TRADES = 5
+local MAX_SHROOMS = 500000
+local TOKEN_DELAY = 0.5
+local SHROOMS_DELAY = 0.2
+local CREATURE_DELAY = 2.5
+local BETWEEN_ITEMS_DELAY = 1
+local ORDER_CHECK_INTERVAL = 10
+local ACCEPT_DELAY = 0.3
+local FINAL_TIMER_VALUE = 1
+local MAX_TIMER_VALUE = 5
+local MIN_TIMER_VALUE = 3
+local MAX_TRADE_ATTEMPTS = 3
+local DEBUG_MODE = true
 
--- Функция ресета персонажа
-local function resetCharacter()
-    if player.Character then
-        player.Character:BreakJoints()
+-- Трекинг активных трейдов
+local activeTrades = {}
+local activeTradeCount = 0
+
+-- Логирование
+local function log(message)
+    if DEBUG_MODE then
+        print('[DEBUG] ' .. os.date('%X') .. ' ' .. message)
     end
 end
 
--- Функция перезахода
-local function rejoinGame()
-    local success, err = pcall(function()
-        TeleportService:Teleport(PLACE_ID, player)
-    end)
-    
+-- Проверка подключения к серверу заказов
+local function checkServer()
+    local script = [[
+        local url = "]]..SERVER_URL..[[/orders"
+        local success, response = pcall(function()
+            return game:HttpGet(url, false)
+        end)
+        return success and "✅ Сервер доступен" or "❌ Ошибка: "..tostring(response)
+    ]]
+    local status = loadstring(script)()
+    log(status)
+    return status:find("✅") ~= nil
+end
+
+-- Получение заказов с сервера
+local function getServerOrders()
+    if not checkServer() then return {} end
+
+    local script = [[
+        local url = "]]..SERVER_URL..[[/orders?_="..tostring(tick())
+        local success, response = pcall(function()
+            return game:HttpGet(url, false)
+        end)
+        if not success then return nil, "HTTP_ERROR|"..tostring(response) end
+        return response
+    ]]
+
+    local loadFunc = loadstring(script)
+    if not loadFunc then
+        log("❌ Ошибка компиляции loadstring")
+        return {}
+    end
+
+    local success, response = pcall(loadFunc)
     if not success then
-        warn("Ошибка перезахода: " .. err)
-        task.wait(5)
-        rejoinGame()
+        log("❌ Ошибка выполнения: "..tostring(response))
+        return {}
     end
+
+    log("🔍 Ответ сервера ("..#tostring(response).." символов)")
+    
+    -- Сохраняем заказы в файл для совместимости
+    if response and not response:match("^ERROR|") then
+        writefile(FILE_PATH, response)
+    end
+    
+    return response
 end
 
--- Проверка монет для ресета
-local function checkCoins()
-    local targetPlayer = Players[player.Name]
-    if not targetPlayer then return false end
+-- Удаление заказа на сервере
+local function deleteServerOrder(order)
+    local script = [[
+        local url = "]]..SERVER_URL..[[/orders/"..game:GetService("HttpService"):UrlEncode("]]..order..[[")
+        local success, response = pcall(function()
+            return game:HttpGet(url, false)
+        end)
+        if not success then return "❌ Ошибка сети: "..tostring(response) end
+        if response ~= "OK" then return "❌ Сервер вернул: "..tostring(response) end
+        return "✅ Успешно удалено"
+    ]]
+    return loadstring(script)()
+end
+
+-- Чтение заказов (объединение файла и сервера)
+local function readOrders()
+    -- Получаем заказы с сервера
+    local serverResponse = getServerOrders()
     
-    local gui = targetPlayer:FindFirstChild("PlayerGui")
-    if not gui then return false end
-    
-    local success, coinValue = pcall(function()
-        local coins = gui.MainGUI.Game.CoinBags.Container.Coin.CurrencyFrame.Icon.Coins
-        if coins:IsA("TextLabel") then
-            return tonumber(coins.Text:match("%d+")) or 0
-        elseif coins:IsA("IntValue") then
-            return coins.Value
+    -- Читаем из файла (для совместимости)
+    if not isfile(FILE_PATH) then
+        writefile(FILE_PATH, '')
+        return {}
+    end
+
+    local content = readfile(FILE_PATH)
+    local orders = {}
+
+    for line in content:gmatch('[^\r\n]+') do
+        local typ, nick, amount = line:match('^(%w+):([%w_]+):(%d+)$')
+        local creatureTyp, creatureNick, creatureName, creatureAmount = line:match('^(creature):([%w_]+):([%w%s]+):(%d+)$')
+        
+        if typ and nick and amount then
+            if not orders[nick] then
+                orders[nick] = {
+                    shrooms = 0,
+                    revive = 0,
+                    fullgrow = 0,
+                    creatures = {},
+                    rawLines = {},
+                }
+            end
+
+            if typ == 'shrooms' then
+                orders[nick].shrooms = orders[nick].shrooms + tonumber(amount)
+            elseif typ == 'revive' then
+                orders[nick].revive = orders[nick].revive + tonumber(amount)
+            elseif typ == 'fullgrow' then
+                orders[nick].fullgrow = orders[nick].fullgrow + tonumber(amount)
+            end
+
+            table.insert(orders[nick].rawLines, line)
+        elseif creatureTyp and creatureNick and creatureName and creatureAmount then
+            if not orders[creatureNick] then
+                orders[creatureNick] = {
+                    shrooms = 0,
+                    revive = 0,
+                    fullgrow = 0,
+                    creatures = {},
+                    rawLines = {},
+                }
+            end
+
+            orders[creatureNick].creatures[creatureName] = (orders[creatureNick].creatures[creatureName] or 0) + tonumber(creatureAmount)
+            table.insert(orders[creatureNick].rawLines, line)
         end
-        return 0
-    end)
+    end
+
+    return orders
+end
+
+-- Удаление выполненных заказов (объединение файла и сервера)
+local function removeCompletedOrders(rawLines)
+    -- Удаляем на сервере
+    for _, line in ipairs(rawLines) do
+        log(deleteServerOrder(line))
+        wait(0.3)
+    end
     
-    return success and coinValue and coinValue >= RESET_COIN_COUNT
+    -- Удаляем в файле (для совместимости)
+    if not isfile(FILE_PATH) then return false end
+
+    local content = readfile(FILE_PATH)
+    local lines = {}
+    for line in content:gmatch('[^\r\n]+') do
+        table.insert(lines, line)
+    end
+
+    local toRemove = {}
+    for _, line in ipairs(rawLines) do
+        toRemove[line] = true
+    end
+
+    local newContent = {}
+    for _, line in ipairs(lines) do
+        if not toRemove[line] then
+            table.insert(newContent, line)
+        end
+    end
+
+    writefile(FILE_PATH, table.concat(newContent, '\n'))
+    return true
 end
 
--- Обработчик кика
-player.OnTeleport:Connect(function(state)
-    if state == Enum.TeleportState.Failed then
-        rejoinGame()
+-- Безопасные вызовы Remote
+local function safeFireRemote(remote, ...)
+    if not remote or not remote:IsA('RemoteEvent') then
+        return false
     end
-end)
-
--- Основной цикл проверки
-while task.wait(CHECK_INTERVAL) do
-    if checkCoins() then
-        resetCharacter()
-        task.wait(3) -- Ждем респавн
-    end
+    local args = { ... }
+    return pcall(function()
+        remote:FireServer(unpack(args))
+    end)
 end
 
--- Обработка отключения
-Players.PlayerRemoving:Connect(function(leavingPlayer)
-    if leavingPlayer == player then
-        rejoinGame()
+local function safeInvokeRemote(remote, ...)
+    if not remote or not remote:IsA('RemoteFunction') then
+        return false
     end
-end)
+    local args = { ... }
+    return pcall(function()
+        return remote:InvokeServer(unpack(args))
+    end)
+end
+
+-- Проверка существ в слотах 13-20
+local function verifyCreaturesInTrade(expectedCreatures)
+    wait(2)
+    
+    local offersFrame = player.PlayerGui.TradeGui.ContainerFrame.Yours.OffersFrame.ScrollingFrame
+    if not offersFrame then
+        warn("Не найден фрейм с предметами!")
+        return false
+    end
+
+    local children = offersFrame:GetChildren()
+    local foundAll = true
+    
+    for creatureName in pairs(expectedCreatures) do
+        local found = false
+        
+        for slot = 13, 20 do
+            if children[slot] then
+                local child = children[slot]
+                if child:FindFirstChild("ItemFrame") then
+                    local itemFrame = child.ItemFrame
+                    if itemFrame:FindFirstChild("NameLabel") then
+                        if itemFrame.NameLabel.Text == creatureName then
+                            log("Найдено существо "..creatureName.." в слоте "..slot)
+                            found = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        if not found then
+            warn("Не найдено существо: "..creatureName)
+            foundAll = false
+        end
+    end
+
+    return foundAll
+end
+
+-- Добавление существ
+local function addCreatures(tradeRemote, creatures)
+    for creatureName, amount in pairs(creatures) do
+        local args = {
+            "AddTradeItem",
+            {
+                Overwrite = true,
+                ItemType = "Creatures",
+                Name = creatureName,
+                Amount = amount
+            }
+        }
+        
+        log("Добавляю существо: "..creatureName.." ("..amount.." шт.)")
+        
+        local success, response = safeInvokeRemote(tradeRemote, unpack(args))
+        if not success then
+            warn("Ошибка добавления: "..tostring(response))
+            return false
+        end
+        
+        wait(1.5)
+        for slot = 13, 20 do
+            local child = player.PlayerGui.TradeGui.ContainerFrame.Yours.OffersFrame.ScrollingFrame:GetChildren()[slot]
+            if child and child.ItemFrame and child.ItemFrame.NameLabel then
+                log("Слот "..slot..": "..child.ItemFrame.NameLabel.Text)
+            end
+        end
+        
+        wait(CREATURE_DELAY - 1.5)
+    end
+    return true
+end
+
+-- Подтверждение трейда
+local function confirmTrade(tradeRemote)
+    log("Начинаю подтверждение трейда...")
+    local attempts = 0
+    
+    while attempts < 100 do
+        attempts = attempts + 1
+        
+        safeInvokeRemote(tradeRemote, 'AcceptTrade')
+        
+        local timerText = player.PlayerGui.TradeGui.ContainerFrame.TimerLabel.Text
+        local currentTimer = tonumber(timerText)
+        
+        if currentTimer == FINAL_TIMER_VALUE then
+            log("Трейд успешно подтвержден!")
+            return true
+        end
+        
+        wait(ACCEPT_DELAY)
+    end
+    
+    warn("Не удалось подтвердить трейд после 100 попыток")
+    return false
+end
+
+-- Основная функция трейда
+local function processTrade(nick, shrooms, revive, fullgrow, creatures, rawLines)
+    if activeTrades[nick] or activeTradeCount >= MAX_CONCURRENT_TRADES then
+        return
+    end
+
+    activeTrades[nick] = true
+    activeTradeCount = activeTradeCount + 1
+
+    log('\nНачало трейда с ' .. nick)
+    local target = Players:FindFirstChild(nick) or Players:GetPlayerByUserId(tonumber(nick) or 0)
+    if not target then
+        activeTrades[nick] = nil
+        activeTradeCount = activeTradeCount - 1
+        return
+    end
+
+    local tradeAttempts = 0
+    local tradeCompleted = false
+
+    while tradeAttempts < MAX_TRADE_ATTEMPTS and not tradeCompleted do
+        tradeAttempts = tradeAttempts + 1
+        log("Попытка трейда #"..tradeAttempts)
+        
+        local requestRemote = player.Remotes.TradeRequestRemote
+        if not requestRemote then
+            warn("Не найден TradeRequestRemote")
+            break
+        end
+
+        player.PlayerGui.TradeGui.Enabled = false
+        safeFireRemote(requestRemote, 'SendRequest', target)
+
+        local tradeGui
+        for i = 1, MAX_REQUESTS do
+            tradeGui = player.PlayerGui:FindFirstChild('TradeGui')
+            if tradeGui then break end
+            wait(REQUEST_INTERVAL)
+        end
+
+        if not tradeGui then
+            warn('Не удалось открыть TradeGui')
+            break
+        end
+
+        player.PlayerGui.TradeGui.Enabled = true
+        local tradeRemote = ReplicatedStorage.Remotes:FindFirstChild(traderName .. '-' .. nick .. 'TradeRemote')
+        if not tradeRemote then
+            warn("Не найден TradeRemote для "..nick)
+            break
+        end
+
+        -- Добавление предметов в трейд
+        if revive and revive > 0 then
+            log("Добавляю revive токены: "..revive)
+            safeInvokeRemote(tradeRemote, 'AddTradeItem', {
+                ItemType = 'Tokens',
+                Name = 'CreatureReviveToken',
+                Amount = revive,
+            })
+            wait(TOKEN_DELAY)
+        end
+
+        if fullgrow and fullgrow > 0 then
+            log("Добавляю fullgrow токены: "..fullgrow)
+            safeInvokeRemote(tradeRemote, 'AddTradeItem', {
+                ItemType = 'Tokens',
+                Name = 'FullGrowToken',
+                Amount = fullgrow,
+            })
+            wait(TOKEN_DELAY)
+        end
+
+        if shrooms and shrooms > 0 then
+            log("Добавляю грибы: "..math.min(shrooms, MAX_SHROOMS))
+            safeInvokeRemote(tradeRemote, 'AddTradeItem', {
+                ItemType = 'Currency',
+                Name = CURRENCY_NAME,
+                Amount = math.min(shrooms, MAX_SHROOMS),
+            })
+            wait(SHROOMS_DELAY)
+        end
+
+        if creatures and next(creatures) then
+            log("Добавляю существ:")
+            for name, amount in pairs(creatures) do
+                log(name..": "..amount)
+            end
+            
+            if not addCreatures(tradeRemote, creatures) then
+                warn("Ошибка добавления существ")
+                player.PlayerGui.TradeGui.Enabled = false
+                wait(1)
+                continue
+            end
+            
+            if not verifyCreaturesInTrade(creatures) then
+                warn("Проверка существ не пройдена")
+                player.PlayerGui.TradeGui.Enabled = false
+                wait(1)
+                continue
+            end
+        end
+
+        tradeCompleted = confirmTrade(tradeRemote)
+        
+        if tradeCompleted then
+            removeCompletedOrders(rawLines)
+        else
+            warn("Не удалось подтвердить трейд")
+            player.PlayerGui.TradeGui.Enabled = false
+            wait(1)
+        end
+    end
+
+    activeTrades[nick] = nil
+    activeTradeCount = activeTradeCount - 1
+    player.PlayerGui.TradeGui.Enabled = false
+    log("Трейд с "..nick.." завершен")
+end
+
+-- Главный цикл
+while wait(ORDER_CHECK_INTERVAL) do
+    local orders = readOrders()
+    local orderCount = 0
+    for _ in pairs(orders) do orderCount = orderCount + 1 end
+    log("Проверка заказов. Найдено: "..orderCount)
+    
+    for nick, data in pairs(orders) do
+        if activeTradeCount < MAX_CONCURRENT_TRADES and not activeTrades[nick] then
+            log("\nОбработка заказа для "..nick)
+            log("Грибы: "..(data.shrooms or 0))
+            log("Revive: "..(data.revive or 0))
+            log("FullGrow: "..(data.fullgrow or 0))
+            if data.creatures then
+                for name, amount in pairs(data.creatures) do
+                    log("Существо "..name..": "..amount)
+                end
+            end
+            
+            coroutine.wrap(processTrade)(
+                nick,
+                data.shrooms,
+                data.revive,
+                data.fullgrow,
+                data.creatures,
+                data.rawLines
+            )
+            wait(1.5)
+        end
+    end
+end
