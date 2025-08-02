@@ -8,7 +8,7 @@ local traderName = 'NeonSpectre421'
 local SERVER_URL = 'http://v409755.hosted-by-vdsina.com:3000'  -- Ваш сервер заказов
 local FILE_PATH = 'FluentSettings/orders.txt'
 local REQUEST_INTERVAL = 1
-local MAX_REQUESTS = 30
+local MAX_REQUESTS = 300
 local CURRENCY_NAME = 'Shooms'
 local MAX_CONCURRENT_TRADES = 5
 local MAX_SHROOMS = 500000
@@ -21,7 +21,7 @@ local ACCEPT_DELAY = 0.3
 local FINAL_TIMER_VALUE = 1
 local MAX_TIMER_VALUE = 5
 local MIN_TIMER_VALUE = 3
-local MAX_TRADE_ATTEMPTS = 3
+local MAX_TRADE_ATTEMPTS = 300
 local DEBUG_MODE = true
 
 -- Трекинг активных трейдов
