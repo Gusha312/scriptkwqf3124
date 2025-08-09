@@ -36,7 +36,30 @@ local function spamSoundRequests(targetPart)
       :WaitForChild('PlaySoundRemote')
       :FireServer(unpack(args))
     wait(0.3)
+wait(0.1)
+for i = 1,6 do
+local args = {
+	targetPart,
+	i,
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
+wait(0.1)
+local args = {
+	targetPart,
+	i,
+	3
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
+wait(0.1)
+local args = {
+	targetPart,
+	i,
+	2
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote"):FireServer(unpack(args))
   end
+end
 end
 
 -- Функция для поиска подходящего узла еды
