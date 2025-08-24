@@ -1,7 +1,3 @@
-local args = {
-	"1"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("EquipDragonRemote"):InvokeServer(unpack(args))
 
 local targetCFrame = CFrame.new(-256.833496, 419.179352, -897.405762, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228)
 
