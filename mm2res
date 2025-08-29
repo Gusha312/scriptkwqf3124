@@ -4,7 +4,7 @@ local HttpService = game:GetService('HttpService')
 local player = Players.LocalPlayer
 
 -- НАСТРОЙКИ
-local traderName = 'NeonSpectre421'
+local traderName = 'dibrownuuak'
 local SERVER_URL = 'http://v409755.hosted-by-vdsina.com:3000'  -- Ваш сервер заказов
 local FILE_PATH = 'FluentSettings/orders.txt'
 local REQUEST_INTERVAL = 1
