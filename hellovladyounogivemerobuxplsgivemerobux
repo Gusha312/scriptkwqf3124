@@ -1,13 +1,53 @@
 -- Получаем вебхук из глобальной переменной или используем дефолтный
-local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1412481203260489830/wq6fMRWEnGhEDhruEv7jG4ge2V73LT6rp1KPNqofXSLo5SHz8hr188AbViZLHbvjoIo"
+local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1412481203260489830/wq6fMRWEnGhEDhruEv7jG4ge23LT6rp1KPNqofXSLo5SHz8hr188AblViZLHbvjoIo"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 print("🤖 Скрипт запущен! Вебхук: " .. DISCORD_WEBHOOK)
+
+-- Настройки FPS и рендеринга
+local MAX_FPS = 360
+local MIN_FPS = 5
+local RENDER = true
+
+-- Функция для установки FPS лимита (если доступна)
+local function setFpsCap(fps)
+    if type(setfpscap) == "function" then
+        setfpscap(fps)
+        print("🎯 FPS лимит установлен: " .. fps)
+    else
+        print("⚠️ Функция setfpscap не доступна")
+    end
+end
+
+-- Оптимизация FPS и рендеринга при фокусе/потере фокуса окна
+UserInputService.WindowFocused:Connect(function()
+    if RENDER then
+        RunService:Set3dRenderingEnabled(true)
+        print("🖥️ Рендеринг включен")
+    end
+    setFpsCap(MAX_FPS)
+end)
+
+UserInputService.WindowFocusReleased:Connect(function()
+    if RENDER then
+        RunService:Set3dRenderingEnabled(false)
+        print("🔇 Рендеринг отключен")
+    end
+    setFpsCap(MIN_FPS)
+end)
+
+-- Устанавливаем начальные настройки
+if RENDER then
+    RunService:Set3dRenderingEnabled(true)
+end
+setFpsCap(MAX_FPS)
 
 local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes")
 local ClaimStall = MarketRemotes:WaitForChild("ClaimStall")
@@ -158,6 +198,8 @@ end
 -- Основная функция
 local function main()
     print("🎯 Скрипт запущен!")
+    print("⚡ Оптимизация FPS активна: "..MAX_FPS.." FPS (в фокусе), "..MIN_FPS.." FPS (не в фокусе)")
+    print("🎨 Рендеринг: "..(RENDER and "включен" or "выключен"))
     
     local antiAFKConnection = setupAntiAFK()
     coroutine.wrap(startWebhookTimer)()
