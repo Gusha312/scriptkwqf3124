@@ -1,3 +1,6 @@
+-- Discord вебхук
+local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1412481203260489830"
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
@@ -23,15 +26,85 @@ local stallCFrames = {
 local marketStalls = workspace:WaitForChild("Interactable"):WaitForChild("MarketStalls")
 local localPlayer = Players.LocalPlayer
 
+-- Функция отправки вебхука в Discord
+local function sendDiscordWebhook()
+    local success, coins = pcall(function()
+        return localPlayer.Data.Coins.Value
+    end)
+    
+    if not success then
+        warn("Не удалось получить количество монет")
+        return false
+    end
+    
+    local playerName = localPlayer.Name
+    
+    local embed = {
+        {
+            title = "📊 СТАТИСТИКА",
+            color = 5814783,
+            fields = {
+                {
+                    name = "🍄 Грибов",
+                    value = tostring(coins),
+                    inline = true
+                },
+                {
+                    name = "👤 Ник в Roblox",
+                    value = playerName,
+                    inline = true
+                }
+            },
+            footer = {
+                text = "Автоматическая статистика"
+            },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }
+    }
+    
+    local message = {
+        embeds = embed,
+        username = "Статистика бота",
+        avatar_url = "https://cdn.discordapp.com/emojis/1125274830327718010.webp?size=96&quality=lossless"
+    }
+    
+    local success, response = pcall(function()
+        local http = game:GetService("HttpService")
+        local response = request({
+            Url = DISCORD_WEBHOOK,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = http:JSONEncode(message)
+        })
+        return response
+    end)
+    
+    if success then
+        print("✅ Статистика отправлена в Discord! Грибов: "..coins)
+        return true
+    else
+        warn("❌ Ошибка отправки вебхука")
+        return false
+    end
+end
+
+-- Таймер для отправки вебхука каждые 30 минут
+local function startWebhookTimer()
+    while true do
+        wait(1800)
+        sendDiscordWebhook()
+    end
+end
+
 -- Анти-AFK система
 local function setupAntiAFK()
     local connection
     connection = game:GetService("RunService").Heartbeat:Connect(function()
-        -- Имитация движения мыши
         VirtualInputManager:SendMouseMoveEvent(10, 10, game:GetService("Workspace"))
         VirtualInputManager:SendMouseMoveEvent(20, 20, game:GetService("Workspace"))
         
-        -- Имитация нажатия клавиш
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.W, false, game)
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.W, false, game)
@@ -44,106 +117,32 @@ local function setupAntiAFK()
     return connection
 end
 
--- Получение информации о сервере
-local function getServerInfo(placeId)
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..placeId.."/servers/Public?limit=100"))
-    end)
-    
-    if success and result and result.data then
-        return result.data
-    end
-    return {}
-end
-
--- Поиск сервера с максимальным онлайном
-local function findBestServer(placeId)
-    local servers = getServerInfo(placeId)
-    local bestServer = nil
-    local maxPlayers = 0
-    
-    for _, server in ipairs(servers) do
-        if server.playing and server.playing > maxPlayers and server.playing < server.maxPlayers then
-            maxPlayers = server.playing
-            bestServer = server
-        end
-    end
-    
-    return bestServer
-end
-
--- Телепортация на лучший сервер
-local function teleportToBestServer(targetPlaceId)
-    local bestServer = findBestServer(targetPlaceId)
-    if bestServer and bestServer.id then
-        TeleportService:TeleportToPlaceInstance(targetPlaceId, bestServer.id, localPlayer)
-        return true
-    end
-    return false
-end
-
--- Проверка необходимости телепортации
+-- Проверка условий телепортации
 local function checkTeleportConditions()
     local currentPlayers = #Players:GetPlayers()
+    local currentPlaceId = game.PlaceId
     
-    -- Если текущий плейс = 5233782396, телепортироваться в 14119723130
-    if game.PlaceId == 5233782396 then
-        print("Current place is 5233782396, teleporting to 14119723130...")
-        return teleportToBestServer(14119723130)
+    if currentPlaceId == 5233782396 then
+        print("Телепортация в 14119723130...")
+        TeleportService:Teleport(14119723130, localPlayer)
+        return true
     end
     
-    -- Если игроков <= 20, найти сервер с максимальным онлайном
     if currentPlayers <= 20 then
-        print("Only "..currentPlayers.." players online, searching for better server...")
-        return teleportToBestServer(game.PlaceId)
+        print("Мало игроков, перезапуск...")
+        TeleportService:Teleport(currentPlaceId, localPlayer)
+        return true
     end
     
     return false
 end
 
--- Основная функция
-local function main()
-    -- Запускаем анти-AFK
-    local antiAFKConnection = setupAntiAFK()
-    
-    while true do
-        -- Проверяем условия для телепортации
-        if checkTeleportConditions() then
-            print("Teleporting to better server...")
-            wait(5) -- Даем время для телепортации
-            break
-        end
-        
-        -- Пытаемся занять лавки
-        for _, stallCFrame in ipairs(stallCFrames) do
-            local anchorPart = findAnchorPartByCFrame(stallCFrame)
-            
-            if anchorPart then
-                local args = {anchorPart}
-                ClaimStall:FireServer(unpack(args))
-                print("Attempted to claim stall at CFrame:", stallCFrame)
-            else
-                warn("AnchorPart not found for CFrame:", stallCFrame)
-            end
-            
-            wait(0.3)
-        end
-        
-        print("Completed cycle. Waiting 2 seconds before next attempt...")
-        wait(2)
-    end
-    
-    -- Отключаем анти-AFK при выходе
-    if antiAFKConnection then
-        antiAFKConnection:Disconnect()
-    end
-end
-
--- Функция для поиска AnchorPart по CFrame
+-- Поиск AnchorPart по CFrame
 local function findAnchorPartByCFrame(targetCFrame)
     for _, child in pairs(marketStalls:GetChildren()) do
         if child:IsA("BasePart") and child.Name == "AnchorPart" then
-            if child.CFrame == targetCFrame then
+            local positionDiff = (child.CFrame.Position - targetCFrame.Position).Magnitude
+            if positionDiff < 1 then
                 return child
             end
         end
@@ -151,11 +150,43 @@ local function findAnchorPartByCFrame(targetCFrame)
     return nil
 end
 
--- Запускаем основную функцию в защищенном режиме
+-- Основная функция
+local function main()
+    print("Скрипт запущен!")
+    
+    local antiAFKConnection = setupAntiAFK()
+    coroutine.wrap(startWebhookTimer)()
+    sendDiscordWebhook()
+    
+    while true do
+        if checkTeleportConditions() then
+            wait(5)
+            break
+        end
+        
+        for i, stallCFrame in ipairs(stallCFrames) do
+            local anchorPart = findAnchorPartByCFrame(stallCFrame)
+            
+            if anchorPart then
+                local args = {anchorPart}
+                ClaimStall:FireServer(unpack(args))
+            end
+            
+            wait(0.3)
+        end
+        
+        wait(2)
+    end
+    
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+    end
+end
+
+-- Запуск
 local success, errorMsg = pcall(main)
 if not success then
-    warn("Script error: "..errorMsg)
-    -- Перезапуск скрипта через 10 секунд при ошибке
+    warn("Ошибка: "..errorMsg)
     wait(10)
     main()
 end
