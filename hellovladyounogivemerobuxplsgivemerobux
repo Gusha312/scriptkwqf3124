@@ -1,5 +1,5 @@
 -- Получаем вебхук из глобальной переменной или используем дефолтный
-local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1412481203260489830/wq6fMRWEnGhEDhruEv7jG4ge2V73LTp1KPNqofXSLo5SHz8hr188AblViZLHbvjoIo"
+local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1412481203260489830/wq6fMRWEnGhEDhr3uEv7jG4ge2V73LT6rp1KPNqofXSLo5SHz8hr188AblViZLHbvjoIo"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -182,7 +182,7 @@ local function setupAntiAFK()
     return connection
 end
 
--- Проверка условий телепортации
+-- Улучшенная проверка условий телепортации
 local function checkTeleportConditions()
     local currentPlayers = #Players:GetPlayers()
     local currentPlaceId = game.PlaceId
@@ -190,16 +190,39 @@ local function checkTeleportConditions()
     print("📍 Текущий плейс ID:", currentPlaceId)
     print("👥 Игроков на сервере:", currentPlayers)
     
+    -- Если текущий плейс = 5233782396, телепортироваться в 14119723130
     if currentPlaceId == 5233782396 then
-        print("🚀 Телепортация в 14119723130...")
-        TeleportService:Teleport(14119723130, localPlayer)
-        return true
+        print("🚀 Обнаружен плейс 5233782396, начинаем телепортацию в 14119723130...")
+        
+        -- Немедленная телепортация без ожидания
+        local success, errorMsg = pcall(function()
+            TeleportService:Teleport(14119723130, localPlayer)
+        end)
+        
+        if success then
+            print("✅ Телепортация начата успешно!")
+            return true
+        else
+            warn("❌ Ошибка телепортации: " .. tostring(errorMsg))
+            return false
+        end
     end
     
+    -- Если игроков <= 20, перезайти в игру
     if currentPlayers <= 20 then
-        print("🔁 Мало игроков ("..currentPlayers.."), перезапуск...")
-        TeleportService:Teleport(currentPlaceId, localPlayer)
-        return true
+        print("🔁 Мало игроков ("..currentPlayers.."), перезапускаем игру...")
+        
+        local success, errorMsg = pcall(function()
+            TeleportService:Teleport(currentPlaceId, localPlayer)
+        end)
+        
+        if success then
+            print("✅ Перезапуск игры начат!")
+            return true
+        else
+            warn("❌ Ошибка перезапуска: " .. tostring(errorMsg))
+            return false
+        end
     end
     
     return false
@@ -259,9 +282,12 @@ local function main()
     sendDiscordWebhook()
     
     while true do
-        if checkTeleportConditions() then
-            wait(5)
-            break
+        -- Проверяем условия для телепортации
+        local shouldTeleport = checkTeleportConditions()
+        
+        if shouldTeleport then
+            print("🔄 Телепортация запланирована, прерываем цикл...")
+            break -- Немедленно выходим из цикла для телепортации
         end
         
         -- Проверяем есть ли лавки в этом мире
@@ -273,6 +299,12 @@ local function main()
         
         -- Основной цикл занятия лавок
         for i, stallCFrame in ipairs(stallCFrames) do
+            -- Снова проверяем условия телепортации перед каждой лавкой
+            if checkTeleportConditions() then
+                print("🔄 Телепортация запланирована, прерываем занятие лавок...")
+                break -- Выходим из цикла лавок
+            end
+            
             local anchorPart = findAnchorPartByCFrame(stallCFrame)
             
             if anchorPart then
@@ -300,6 +332,8 @@ local function main()
     if antiAFKConnection then
         antiAFKConnection:Disconnect()
     end
+    
+    print("📋 Ожидание завершения телепортации...")
 end
 
 -- Запуск
