@@ -1,5 +1,5 @@
 -- Получаем вебхук из глобальной переменной или используем дефолтный
-local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/141248134203260489830/wq6fMRWEnGhEDhruEv7jG4ge2V73LT6rp1KPNqofXSLo5SHz8hr188AblViZLHbvjoIo"
+local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/141248120326830/wq6fMRWEnGhEDhruEv7jG4ge2V73LT6rp1KPNqofXSLo5SHz8hr188AblViZLHbvjoIo"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
