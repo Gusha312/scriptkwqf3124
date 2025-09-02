@@ -1,11 +1,13 @@
--- Discord вебхук
-local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1412481203260489830"
+-- Получаем вебхук из глобальной переменной или используем дефолтный
+local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1412481203260489830/wq6fMRWEnGhEDhruEv7jG4ge2V73LT6rp1KPNqofXSLo5SHz8hr188AbViZLHbvjoIo"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+
+print("🤖 Скрипт запущен! Вебхук: " .. DISCORD_WEBHOOK)
 
 local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes")
 local ClaimStall = MarketRemotes:WaitForChild("ClaimStall")
@@ -33,7 +35,7 @@ local function sendDiscordWebhook()
     end)
     
     if not success then
-        warn("Не удалось получить количество монет")
+        warn("❌ Не удалось получить количество монет")
         return false
     end
     
@@ -93,7 +95,7 @@ end
 -- Таймер для отправки вебхука каждые 30 минут
 local function startWebhookTimer()
     while true do
-        wait(1800)
+        wait(1800) -- 30 минут
         sendDiscordWebhook()
     end
 end
@@ -122,14 +124,17 @@ local function checkTeleportConditions()
     local currentPlayers = #Players:GetPlayers()
     local currentPlaceId = game.PlaceId
     
+    print("📍 Текущий плейс ID:", currentPlaceId)
+    print("👥 Игроков на сервере:", currentPlayers)
+    
     if currentPlaceId == 5233782396 then
-        print("Телепортация в 14119723130...")
+        print("🚀 Телепортация в 14119723130...")
         TeleportService:Teleport(14119723130, localPlayer)
         return true
     end
     
     if currentPlayers <= 20 then
-        print("Мало игроков, перезапуск...")
+        print("🔁 Мало игроков ("..currentPlayers.."), перезапуск...")
         TeleportService:Teleport(currentPlaceId, localPlayer)
         return true
     end
@@ -152,7 +157,7 @@ end
 
 -- Основная функция
 local function main()
-    print("Скрипт запущен!")
+    print("🎯 Скрипт запущен!")
     
     local antiAFKConnection = setupAntiAFK()
     coroutine.wrap(startWebhookTimer)()
@@ -170,11 +175,15 @@ local function main()
             if anchorPart then
                 local args = {anchorPart}
                 ClaimStall:FireServer(unpack(args))
+                print("🔄 Попытка занять лавку #"..i)
+            else
+                warn("❌ Лавка #"..i.." не найдена")
             end
             
             wait(0.3)
         end
         
+        print("⏳ Цикл завершен. Ждем 2 секунды...")
         wait(2)
     end
     
@@ -186,7 +195,8 @@ end
 -- Запуск
 local success, errorMsg = pcall(main)
 if not success then
-    warn("Ошибка: "..errorMsg)
+    warn("💥 Ошибка: "..errorMsg)
+    print("🔄 Перезапуск через 10 секунд...")
     wait(10)
     main()
 end
