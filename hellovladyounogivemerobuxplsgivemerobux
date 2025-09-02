@@ -9,23 +9,25 @@ local CURRENT_PLACE_ID = game.PlaceId
 local TARGET_PLACE_ID = 14119723130
 local MAIN_PLACE_ID = 5233782396
 
-local TARGET_POSITIONS = {
-    Vector3.new(-115.76767, 31.4889774, -83.580658),
-    Vector3.new(-80.3615417, 31.4889774, -23.9790859),
-    Vector3.new(-85.1257629, 31.4889774, 0.639569223),
-    Vector3.new(-142.565216, 31.4889774, -92.6095505),
-    Vector3.new(-168.641525, 31.4889774, -90.8674011),
-    Vector3.new(-191.504898, 31.4889774, -81.1337967),
-    Vector3.new(-160.504944, 31.4889774, 46.381073),
-    Vector3.new(-134.42865, 31.4889774, 44.6389275),
-    Vector3.new(-187.302505, 31.4889774, 37.3521729),
-    Vector3.new(-111.565277, 31.4889774, 34.9053154)
+-- Точные CFrame целевых MarketStalls (как есть)
+local TARGET_CFRAMES = {
+    CFrame.new(-115.76767, 31.4889774, -83.580658, -0.882971644, -0.469426453, -1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, -0.469426453, 0.882971644, 5.40614128e-05),
+    CFrame.new(-80.3615417, 31.4889774, -23.9790859, -0.0349992514, -0.999387324, 4.3451786e-05, -4.3451786e-05, 4.50015068e-05, 1, -0.999387324, 0.0349992514, -4.50611115e-05),
+    CFrame.new(-85.1257629, 31.4889774, 0.639569223, 0.342006564, -0.939697623, -7.00354576e-06, -7.00354576e-06, -1.00135803e-05, 1, -0.939697623, -0.342006564, -1.00135803e-05),
+    CFrame.new(-142.565216, 31.4889774, -92.6095505, -0.99452734, -0.104477406, 2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, -0.104477406, 0.99452728, -5.25712967e-05),
+    CFrame.new(-168.641525, 31.4889774, -90.8674011, -0.97028327, 0.241971374, -2.48849392e-06, 2.48849392e-06, 2.02655792e-05, 0.99999994, 0.241971374, 0.970283329, -2.02655792e-05),
+    CFrame.new(-191.504898, 31.4889774, -81.1337967, -0.787993431, 0.615683556, 1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, 0.615683556, 0.78799355, 4.12464142e-05),
+    CFrame.new(-160.504944, 31.4889774, 46.381073, 0.99452728, 0.104477406, -2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, 0.104477406, -0.99452728, 5.2511692e-05),
+    CFrame.new(-134.42865, 31.4889774, 44.6389275, 0.970283389, -0.241971403, 2.48104334e-06, 2.48104334e-06, 2.01463699e-05, 1.00000012, -0.241971403, -0.970283508, 2.01463699e-05),
+    CFrame.new(-187.302505, 31.4889774, 37.3521729, 0.882971585, 0.469426453, 1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, 0.469426453, -0.882971644, -5.41210175e-05),
+    CFrame.new(-111.565277, 31.4889774, 34.9053154, 0.78799355, -0.615683556, -1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, -0.615683556, -0.78799355, -4.12464142e-05)
 }
 
 local MIN_PLAYERS = 20
-local MAX_DISTANCE = 15 -- Увеличиваем дистанцию
+local POSITION_TOLERANCE = 0.01 -- Очень маленькая погрешность для точных CFrame
+local ROTATION_TOLERANCE = 0.0001 -- Очень маленькая погрешность вращения
 local CHECK_INTERVAL = 30
-local STALL_CHECK_INTERVAL = 2 -- ТОЧНО каждые 2 секунды
+local STALL_CHECK_INTERVAL = 2
 
 -- Кэш переменных
 local localPlayer = Players.LocalPlayer
@@ -34,8 +36,50 @@ local claimStallRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remo
 local lastMouseMove = os.time()
 local lastStallCheck = 0
 
--- Функция для покупки лавки
-function buyStall(stall)
+-- Функция для точного сравнения CFrame
+function isCFrameExact(cf1, cf2, posTolerance, rotTolerance)
+    -- Сравниваем позицию
+    local posDiff = (cf1.Position - cf2.Position).Magnitude
+    if posDiff > posTolerance then
+        return false, posDiff, 0
+    end
+    
+    -- Сравниваем вращение через все компоненты матрицы
+    local r11, r12, r13, r21, r22, r23, r31, r32, r33 = cf1:GetComponents()
+    local s11, s12, s13, s21, s22, s23, s31, s32, s33 = cf2:GetComponents()
+    
+    local rotDiff = math.abs(r11 - s11) + math.abs(r12 - s12) + math.abs(r13 - s13) +
+                   math.abs(r21 - s21) + math.abs(r22 - s22) + math.abs(r23 - s23) +
+                   math.abs(r31 - s31) + math.abs(r32 - s32) + math.abs(r33 - s33)
+    
+    return rotDiff <= rotTolerance, posDiff, rotDiff
+end
+
+-- Функция для поиска точного MarketStall по CFrame
+function findExactMarketStall(targetCFrame)
+    local interactables = workspace:FindFirstChild("Interactable")
+    if not interactables then 
+        print("❌ Interactable не найден")
+        return nil 
+    end
+    
+    for _, stall in ipairs(interactables:GetChildren()) do
+        if stall:IsA("Model") and stall:FindFirstChild("AnchorPart") then
+            local anchor = stall.AnchorPart
+            local isExact, posDiff, rotDiff = isCFrameExact(anchor.CFrame, targetCFrame, POSITION_TOLERANCE, ROTATION_TOLERANCE)
+            
+            if isExact then
+                print(string.format("🎯 ТОЧНОЕ СОВПАДЕНИЕ: %s", stall.Name))
+                print(string.format("   Позиция: diff=%.6f, вращение: diff=%.8f", posDiff, rotDiff))
+                return stall
+            end
+        end
+    end
+    return nil
+end
+
+-- Покупка MarketStall
+function buyMarketStall(stall)
     if stall and stall:FindFirstChild("AnchorPart") then
         local args = {stall.AnchorPart}
         local success, result = pcall(function()
@@ -47,66 +91,55 @@ function buyStall(stall)
     return false
 end
 
--- Поиск всех доступных лавок
-function getAllStalls()
-    local interactables = workspace:FindFirstChild("Interactable")
-    if not interactables then return {} end
-    
-    local stalls = {}
-    for _, stall in ipairs(interactables:GetChildren()) do
-        if stall:FindFirstChild("AnchorPart") then
-            table.insert(stalls, stall)
-        end
-    end
-    return stalls
-end
-
--- Пытаемся купить ВСЕ лавки рядом с целевыми позициями
-function tryBuyAllStalls()
-    local stalls = getAllStalls()
-    if #stalls == 0 then
-        print("Лавок не найдено")
-        return false
-    end
-
+-- Попытка покупки всех целевых MarketStalls
+function tryBuyTargetStalls()
     local boughtAny = false
     
-    for _, targetPos in ipairs(TARGET_POSITIONS) do
-        for _, stall in ipairs(stalls) do
-            local anchor = stall.AnchorPart
-            local distance = (anchor.Position - targetPos).Magnitude
-            
-            if distance <= MAX_DISTANCE then
-                local success = buyStall(stall)
-                if success then
-                    print("✅ Куплена лавка: " .. stall.Name .. " (расстояние: " .. math.floor(distance) .. ")")
-                    boughtAny = true
-                    wait(0.1) -- Небольшая пауза между покупками
-                else
-                    print("❌ Не удалось купить: " .. stall.Name)
-                end
+    for i, targetCFrame in ipairs(TARGET_CFRAMES) do
+        local targetPos = targetCFrame.Position
+        print(string.format("\n🔍 Поиск [%d] - Точная позиция: %.5f, %.5f, %.5f", 
+            i, targetPos.X, targetPos.Y, targetPos.Z))
+        
+        local stall = findExactMarketStall(targetCFrame)
+        
+        if stall then
+            local success = buyMarketStall(stall)
+            if success then
+                print("✅ УСПЕХ: Куплен MarketStall [" .. i .. "]: " .. stall.Name)
+                boughtAny = true
+            else
+                print("❌ ОШИБКА покупки: " .. stall.Name)
             end
+        else
+            print("❌ Точное совпадение не найдено для позиции [" .. i .. "]")
         end
     end
     
     return boughtAny
 end
 
--- Пытаемся купить ЛЮБЫЕ лавки (если целевые не находятся)
-function tryBuyAnyStall()
-    local stalls = getAllStalls()
-    if #stalls == 0 then return false end
-
-    -- Пробуем купить первые 5 лавок
-    for i = 1, math.min(5, #stalls) do
-        local success = buyStall(stalls[i])
-        if success then
-            print("✅ Куплена случайная лавка: " .. stalls[i].Name)
-            return true
+-- Дебаг: показать все точные позиции в Interactable
+function debugAllExactPositions()
+    local interactables = workspace:FindFirstChild("Interactable")
+    if not interactables then return end
+    
+    print("\n=== ДЕБАГ: ВСЕ ТОЧНЫЕ ПОЗИЦИИ ===")
+    for i, obj in ipairs(interactables:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("AnchorPart") then
+            local anchor = obj.AnchorPart
+            local pos = anchor.Position
+            
+            print(string.format("%d: %s", i, obj.Name))
+            print(string.format("   Позиция: %.8f, %.8f, %.8f", pos.X, pos.Y, pos.Z))
+            
+            -- Также выведем компоненты вращения для полного CFrame
+            local r11, r12, r13, r21, r22, r23, r31, r32, r33 = anchor.CFrame:GetComponents()
+            print(string.format("   Вращение: %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f", 
+                r11, r12, r13, r21, r22, r23, r31, r32, r33))
+            print("   ---")
         end
     end
-    
-    return false
+    print("==================================")
 end
 
 -- Основная функция покупки
@@ -114,21 +147,12 @@ function attemptStallPurchase()
     local currentTime = os.time()
     
     if currentTime - lastStallCheck >= STALL_CHECK_INTERVAL then
-        print("\n🔄 Попытка покупки лавок...")
-        
-        -- Сначала пытаемся купить целевые лавки
-        local bought = tryBuyAllStalls()
-        
-        -- Если не нашли целевые, пробуем любые
-        if not bought then
-            print("Целевые лавки не найдены, пробуем любые...")
-            tryBuyAnyStall()
-        end
-        
+        print("\n" .. string.rep("=", 70))
+        print("🔄 Поиск точных CFrame совпадений...")
+        tryBuyTargetStalls()
+        print(string.rep("=", 70))
         lastStallCheck = currentTime
-        return true
     end
-    return false
 end
 
 -- Анти-АФК
@@ -149,7 +173,7 @@ function checkPlayers()
     print("👥 Игроков онлайн: " .. playerCount)
     
     if playerCount < MIN_PLAYERS then
-        print("Слишком мало игроков, ищу новый сервер...")
+        print("⚠️ Слишком мало игроков")
         return false
     end
     return true
@@ -167,7 +191,10 @@ end
 
 -- Главный цикл
 function main()
-    print("🎯 Скрипт запущен! Покупка каждые 2 секунды")
+    print("🎯 Скрипт запущен! Поиск точных CFrame совпадений")
+    
+    -- Покажем дебаг информацию
+    debugAllExactPositions()
     
     if handlePlaceTeleportation() then
         return
@@ -180,20 +207,17 @@ function main()
         
         -- Проверка игроков каждые 30 сек
         if currentTime - lastPlayerCheck >= CHECK_INTERVAL then
-            if not checkPlayers() then
-                wait(5)
-                -- Здесь можно добавить телепортацию на другой сервер
-            end
+            checkPlayers()
             lastPlayerCheck = currentTime
         end
         
-        -- ПОПЫТКА ПОКУПКИ КАЖДЫЕ 2 СЕКУНДЫ
+        -- Попытка покупки MarketStalls
         attemptStallPurchase()
         
         -- Анти-АФК
         antiAFK()
         
-        wait(0.1) -- Короткая пауза чтобы не грузить систему
+        wait(0.1)
     end
 end
 
