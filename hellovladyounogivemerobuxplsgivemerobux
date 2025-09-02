@@ -1,0 +1,213 @@
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+
+-- Конфигурация
+local CURRENT_PLACE_ID = game.PlaceId
+local TARGET_PLACE_ID = 14119723130
+local MAIN_PLACE_ID = 5233782396
+
+local TARGET_POSITIONS = {
+    Vector3.new(-115.76767, 31.4889774, -83.580658),
+    Vector3.new(-80.3615417, 31.4889774, -23.9790859),
+    Vector3.new(-85.1257629, 31.4889774, 0.639569223),
+    Vector3.new(-142.565216, 31.4889774, -92.6095505),
+    Vector3.new(-168.641525, 31.4889774, -90.8674011),
+    Vector3.new(-191.504898, 31.4889774, -81.1337967),
+    Vector3.new(-160.504944, 31.4889774, 46.381073),
+    Vector3.new(-134.42865, 31.4889774, 44.6389275),
+    Vector3.new(-187.302505, 31.4889774, 37.3521729),
+    Vector3.new(-111.565277, 31.4889774, 34.9053154)
+}
+
+local MIN_PLAYERS = 20
+local MAX_DISTANCE = 10
+local CHECK_INTERVAL = 30
+local STALL_CHECK_INTERVAL = 2
+
+-- Кэш переменных
+local localPlayer = Players.LocalPlayer
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local remotesFolder = replicatedStorage:WaitForChild("Remotes")
+local claimStallRemote = remotesFolder:WaitForChild("ClaimStall")
+
+local lastMouseMove = os.time()
+local lastPlayerCheck = 0
+local lastStallCheck = 0
+local interactablesCache = nil
+local stallsCache = nil
+local cacheTime = 0
+
+-- Оптимизированные функции
+function getServerInfo()
+    local success, result = pcall(function()
+        local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=50", CURRENT_PLACE_ID)
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    return success and result and result.data or {}
+end
+
+function teleportToBestServer()
+    local servers = getServerInfo()
+    local bestServer, maxPlayers = nil, 0
+    
+    for _, server in ipairs(servers) do
+        if server.playing and server.playing > maxPlayers and server.id ~= game.JobId then
+            maxPlayers = server.playing
+            bestServer = server
+        end
+    end
+    
+    if bestServer and maxPlayers >= MIN_PLAYERS then
+        TeleportService:TeleportToPlaceInstance(CURRENT_PLACE_ID, bestServer.id, localPlayer)
+        return true
+    end
+    return false
+end
+
+function antiAFK()
+    if os.time() - lastMouseMove >= 60 then
+        VirtualInputManager:SendMouseMoveEvent(
+            math.random(100, 500), 
+            math.random(100, 500), 
+            game
+        )
+        lastMouseMove = os.time()
+    end
+end
+
+function getStalls()
+    local currentTime = os.time()
+    
+    if not interactablesCache or currentTime - cacheTime > 10 then
+        interactablesCache = workspace:FindFirstChild("Interactable")
+        if interactablesCache then
+            stallsCache = interactablesCache:GetChildren()
+            cacheTime = currentTime
+        else
+            stallsCache = {}
+        end
+    end
+    
+    return stallsCache
+end
+
+function claimStall(stall)
+    if stall and stall:FindFirstChild("AnchorPart") then
+        local args = {stall.AnchorPart}
+        local success = pcall(function()
+            claimStallRemote:FireServer(unpack(args))
+        end)
+        return success
+    end
+    return false
+end
+
+function findAndClaimStalls()
+    local stalls = getStalls()
+    if #stalls == 0 then return end
+
+    for _, targetPos in ipairs(TARGET_POSITIONS) do
+        local closestStall, closestDistance = nil, MAX_DISTANCE
+        
+        for _, stall in ipairs(stalls) do
+            if stall:FindFirstChild("AnchorPart") then
+                local anchor = stall.AnchorPart
+                local distance = (anchor.Position - targetPos).Magnitude
+                
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestStall = stall
+                end
+            end
+        end
+
+        if closestStall then
+            local success = claimStall(closestStall)
+            if success then
+                print("✓ Захвачен: " .. closestStall.Name)
+                break -- Прерываем после успешного захвата
+            end
+        end
+    end
+end
+
+function checkPlayers()
+    local playerCount = #Players:GetPlayers()
+    print("Игроков: " .. playerCount)
+    
+    if playerCount < MIN_PLAYERS then
+        print("Мало игроков, телепортируемся...")
+        return teleportToBestServer()
+    end
+    return true
+end
+
+function handlePlaceTeleportation()
+    if CURRENT_PLACE_ID == MAIN_PLACE_ID then
+        print("Телепортируемся в мир...")
+        TeleportService:Teleport(TARGET_PLACE_ID, localPlayer)
+        return true
+    elseif CURRENT_PLACE_ID == TARGET_PLACE_ID then
+        print("В целевом мире, начинаем работу...")
+        return false
+    end
+    return false
+end
+
+-- Основной цикл
+function main()
+    print("Запуск скрипта...")
+    
+    if handlePlaceTeleportation() then
+        return
+    end
+
+    while RunService.Heartbeat:Wait() do
+        local currentTime = os.time()
+        
+        -- Проверка игроков
+        if currentTime - lastPlayerCheck >= CHECK_INTERVAL then
+            if not checkPlayers() then
+                wait(5)
+                continue
+            end
+            lastPlayerCheck = currentTime
+        end
+        
+        -- Захват стеллажей
+        if currentTime - lastStallCheck >= STALL_CHECK_INTERVAL then
+            findAndClaimStalls()
+            lastStallCheck = currentTime
+        end
+        
+        -- Анти-АФК
+        antiAFK()
+    end
+end
+
+-- Обработчики ошибок
+TeleportService.TeleportInitFailed:Connect(function()
+    warn("Ошибка телепортации, повтор через 10 сек...")
+    wait(10)
+    if CURRENT_PLACE_ID == MAIN_PLACE_ID then
+        TeleportService:Teleport(TARGET_PLACE_ID, localPlayer)
+    else
+        teleportToBestServer()
+    end
+end)
+
+localPlayer.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Failed then
+        warn("Телепортация не удалась")
+        wait(5)
+        main()
+    end
+end)
+
+-- Запуск
+coroutine.wrap(function()
+    pcall(main)
+end)()
