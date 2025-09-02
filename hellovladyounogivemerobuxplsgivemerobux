@@ -1,16 +1,13 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
--- Конфигурация
-local CURRENT_PLACE_ID = game.PlaceId
-local TARGET_PLACE_ID = 14119723130
-local MAIN_PLACE_ID = 5233782396
+local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes")
+local ClaimStall = MarketRemotes:WaitForChild("ClaimStall")
 
--- Точные CFrame целевых MarketStalls (как есть)
-local TARGET_CFRAMES = {
+local stallCFrames = {
     CFrame.new(-115.76767, 31.4889774, -83.580658, -0.882971644, -0.469426453, -1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, -0.469426453, 0.882971644, 5.40614128e-05),
     CFrame.new(-80.3615417, 31.4889774, -23.9790859, -0.0349992514, -0.999387324, 4.3451786e-05, -4.3451786e-05, 4.50015068e-05, 1, -0.999387324, 0.0349992514, -4.50611115e-05),
     CFrame.new(-85.1257629, 31.4889774, 0.639569223, 0.342006564, -0.939697623, -7.00354576e-06, -7.00354576e-06, -1.00135803e-05, 1, -0.939697623, -0.342006564, -1.00135803e-05),
@@ -23,205 +20,142 @@ local TARGET_CFRAMES = {
     CFrame.new(-111.565277, 31.4889774, 34.9053154, 0.78799355, -0.615683556, -1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, -0.615683556, -0.78799355, -4.12464142e-05)
 }
 
-local MIN_PLAYERS = 20
-local POSITION_TOLERANCE = 0.01 -- Очень маленькая погрешность для точных CFrame
-local ROTATION_TOLERANCE = 0.0001 -- Очень маленькая погрешность вращения
-local CHECK_INTERVAL = 30
-local STALL_CHECK_INTERVAL = 2
-
--- Кэш переменных
+local marketStalls = workspace:WaitForChild("Interactable"):WaitForChild("MarketStalls")
 local localPlayer = Players.LocalPlayer
-local claimStallRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimStall")
 
-local lastMouseMove = os.time()
-local lastStallCheck = 0
-
--- Функция для точного сравнения CFrame
-function isCFrameExact(cf1, cf2, posTolerance, rotTolerance)
-    -- Сравниваем позицию
-    local posDiff = (cf1.Position - cf2.Position).Magnitude
-    if posDiff > posTolerance then
-        return false, posDiff, 0
-    end
+-- Анти-AFK система
+local function setupAntiAFK()
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        -- Имитация движения мыши
+        VirtualInputManager:SendMouseMoveEvent(10, 10, game:GetService("Workspace"))
+        VirtualInputManager:SendMouseMoveEvent(20, 20, game:GetService("Workspace"))
+        
+        -- Имитация нажатия клавиш
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.W, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.W, false, game)
+        
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.A, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.A, false, game)
+    end)
     
-    -- Сравниваем вращение через все компоненты матрицы
-    local r11, r12, r13, r21, r22, r23, r31, r32, r33 = cf1:GetComponents()
-    local s11, s12, s13, s21, s22, s23, s31, s32, s33 = cf2:GetComponents()
-    
-    local rotDiff = math.abs(r11 - s11) + math.abs(r12 - s12) + math.abs(r13 - s13) +
-                   math.abs(r21 - s21) + math.abs(r22 - s22) + math.abs(r23 - s23) +
-                   math.abs(r31 - s31) + math.abs(r32 - s32) + math.abs(r33 - s33)
-    
-    return rotDiff <= rotTolerance, posDiff, rotDiff
+    return connection
 end
 
--- Функция для поиска точного MarketStall по CFrame
-function findExactMarketStall(targetCFrame)
-    local interactables = workspace:FindFirstChild("Interactable")
-    if not interactables then 
-        print("❌ Interactable не найден")
-        return nil 
+-- Получение информации о сервере
+local function getServerInfo(placeId)
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..placeId.."/servers/Public?limit=100"))
+    end)
+    
+    if success and result and result.data then
+        return result.data
+    end
+    return {}
+end
+
+-- Поиск сервера с максимальным онлайном
+local function findBestServer(placeId)
+    local servers = getServerInfo(placeId)
+    local bestServer = nil
+    local maxPlayers = 0
+    
+    for _, server in ipairs(servers) do
+        if server.playing and server.playing > maxPlayers and server.playing < server.maxPlayers then
+            maxPlayers = server.playing
+            bestServer = server
+        end
     end
     
-    for _, stall in ipairs(interactables:GetChildren()) do
-        if stall:IsA("Model") and stall:FindFirstChild("AnchorPart") then
-            local anchor = stall.AnchorPart
-            local isExact, posDiff, rotDiff = isCFrameExact(anchor.CFrame, targetCFrame, POSITION_TOLERANCE, ROTATION_TOLERANCE)
+    return bestServer
+end
+
+-- Телепортация на лучший сервер
+local function teleportToBestServer(targetPlaceId)
+    local bestServer = findBestServer(targetPlaceId)
+    if bestServer and bestServer.id then
+        TeleportService:TeleportToPlaceInstance(targetPlaceId, bestServer.id, localPlayer)
+        return true
+    end
+    return false
+end
+
+-- Проверка необходимости телепортации
+local function checkTeleportConditions()
+    local currentPlayers = #Players:GetPlayers()
+    
+    -- Если текущий плейс = 5233782396, телепортироваться в 14119723130
+    if game.PlaceId == 5233782396 then
+        print("Current place is 5233782396, teleporting to 14119723130...")
+        return teleportToBestServer(14119723130)
+    end
+    
+    -- Если игроков <= 20, найти сервер с максимальным онлайном
+    if currentPlayers <= 20 then
+        print("Only "..currentPlayers.." players online, searching for better server...")
+        return teleportToBestServer(game.PlaceId)
+    end
+    
+    return false
+end
+
+-- Основная функция
+local function main()
+    -- Запускаем анти-AFK
+    local antiAFKConnection = setupAntiAFK()
+    
+    while true do
+        -- Проверяем условия для телепортации
+        if checkTeleportConditions() then
+            print("Teleporting to better server...")
+            wait(5) -- Даем время для телепортации
+            break
+        end
+        
+        -- Пытаемся занять лавки
+        for _, stallCFrame in ipairs(stallCFrames) do
+            local anchorPart = findAnchorPartByCFrame(stallCFrame)
             
-            if isExact then
-                print(string.format("🎯 ТОЧНОЕ СОВПАДЕНИЕ: %s", stall.Name))
-                print(string.format("   Позиция: diff=%.6f, вращение: diff=%.8f", posDiff, rotDiff))
-                return stall
+            if anchorPart then
+                local args = {anchorPart}
+                ClaimStall:FireServer(unpack(args))
+                print("Attempted to claim stall at CFrame:", stallCFrame)
+            else
+                warn("AnchorPart not found for CFrame:", stallCFrame)
+            end
+            
+            wait(0.3)
+        end
+        
+        print("Completed cycle. Waiting 2 seconds before next attempt...")
+        wait(2)
+    end
+    
+    -- Отключаем анти-AFK при выходе
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+    end
+end
+
+-- Функция для поиска AnchorPart по CFrame
+local function findAnchorPartByCFrame(targetCFrame)
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            if child.CFrame == targetCFrame then
+                return child
             end
         end
     end
     return nil
 end
 
--- Покупка MarketStall
-function buyMarketStall(stall)
-    if stall and stall:FindFirstChild("AnchorPart") then
-        local args = {stall.AnchorPart}
-        local success, result = pcall(function()
-            claimStallRemote:FireServer(unpack(args))
-            return true
-        end)
-        return success
-    end
-    return false
+-- Запускаем основную функцию в защищенном режиме
+local success, errorMsg = pcall(main)
+if not success then
+    warn("Script error: "..errorMsg)
+    -- Перезапуск скрипта через 10 секунд при ошибке
+    wait(10)
+    main()
 end
-
--- Попытка покупки всех целевых MarketStalls
-function tryBuyTargetStalls()
-    local boughtAny = false
-    
-    for i, targetCFrame in ipairs(TARGET_CFRAMES) do
-        local targetPos = targetCFrame.Position
-        print(string.format("\n🔍 Поиск [%d] - Точная позиция: %.5f, %.5f, %.5f", 
-            i, targetPos.X, targetPos.Y, targetPos.Z))
-        
-        local stall = findExactMarketStall(targetCFrame)
-        
-        if stall then
-            local success = buyMarketStall(stall)
-            if success then
-                print("✅ УСПЕХ: Куплен MarketStall [" .. i .. "]: " .. stall.Name)
-                boughtAny = true
-            else
-                print("❌ ОШИБКА покупки: " .. stall.Name)
-            end
-        else
-            print("❌ Точное совпадение не найдено для позиции [" .. i .. "]")
-        end
-    end
-    
-    return boughtAny
-end
-
--- Дебаг: показать все точные позиции в Interactable
-function debugAllExactPositions()
-    local interactables = workspace:FindFirstChild("Interactable")
-    if not interactables then return end
-    
-    print("\n=== ДЕБАГ: ВСЕ ТОЧНЫЕ ПОЗИЦИИ ===")
-    for i, obj in ipairs(interactables:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("AnchorPart") then
-            local anchor = obj.AnchorPart
-            local pos = anchor.Position
-            
-            print(string.format("%d: %s", i, obj.Name))
-            print(string.format("   Позиция: %.8f, %.8f, %.8f", pos.X, pos.Y, pos.Z))
-            
-            -- Также выведем компоненты вращения для полного CFrame
-            local r11, r12, r13, r21, r22, r23, r31, r32, r33 = anchor.CFrame:GetComponents()
-            print(string.format("   Вращение: %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f", 
-                r11, r12, r13, r21, r22, r23, r31, r32, r33))
-            print("   ---")
-        end
-    end
-    print("==================================")
-end
-
--- Основная функция покупки
-function attemptStallPurchase()
-    local currentTime = os.time()
-    
-    if currentTime - lastStallCheck >= STALL_CHECK_INTERVAL then
-        print("\n" .. string.rep("=", 70))
-        print("🔄 Поиск точных CFrame совпадений...")
-        tryBuyTargetStalls()
-        print(string.rep("=", 70))
-        lastStallCheck = currentTime
-    end
-end
-
--- Анти-АФК
-function antiAFK()
-    if os.time() - lastMouseMove >= 60 then
-        VirtualInputManager:SendMouseMoveEvent(
-            math.random(100, 500), 
-            math.random(100, 500), 
-            game
-        )
-        lastMouseMove = os.time()
-    end
-end
-
--- Проверка игроков
-function checkPlayers()
-    local playerCount = #Players:GetPlayers()
-    print("👥 Игроков онлайн: " .. playerCount)
-    
-    if playerCount < MIN_PLAYERS then
-        print("⚠️ Слишком мало игроков")
-        return false
-    end
-    return true
-end
-
--- Телепортация между плейсами
-function handlePlaceTeleportation()
-    if CURRENT_PLACE_ID == MAIN_PLACE_ID then
-        print("🚀 Телепортируемся в мир...")
-        TeleportService:Teleport(TARGET_PLACE_ID, localPlayer)
-        return true
-    end
-    return false
-end
-
--- Главный цикл
-function main()
-    print("🎯 Скрипт запущен! Поиск точных CFrame совпадений")
-    
-    -- Покажем дебаг информацию
-    debugAllExactPositions()
-    
-    if handlePlaceTeleportation() then
-        return
-    end
-
-    local lastPlayerCheck = os.time()
-    
-    while true do
-        local currentTime = os.time()
-        
-        -- Проверка игроков каждые 30 сек
-        if currentTime - lastPlayerCheck >= CHECK_INTERVAL then
-            checkPlayers()
-            lastPlayerCheck = currentTime
-        end
-        
-        -- Попытка покупки MarketStalls
-        attemptStallPurchase()
-        
-        -- Анти-АФК
-        antiAFK()
-        
-        wait(0.1)
-    end
-end
-
--- Запуск
-coroutine.wrap(function()
-    pcall(main)
-end)()
