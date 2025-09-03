@@ -1,720 +1,326 @@
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-_G.Settings = {
-    autofarm = false,
-    toggleguikey = "z",
-    autodrink = false,
-    nightvision = false,
-    autotptoken = false,
-    nightnumber = 4
+local player = game:GetService("Players").LocalPlayer
+local uis = game:GetService("UserInputService")
+local ts = game:GetService("TweenService")
+local running = false
+local totalCoins = 0
+local startTime = 0
+local minimized = false
+local dragging = false
+local dragStartPos, frameStartPos
+
+-- Настройки
+local settings = {
+    delayBetweenCycles = 10,
+    iterationsPerCycle = 5000,
+    repeatsPerCoin = 25
 }
-local a = "Gusha Hub"
-local b = "CreatureOfSonoria.lua"
-function saveSettings()
-    local c = game:GetService("HttpService")
-    local d = c:JSONEncode(_G.Settings)
-    if writefile then
-        if isfolder(a) then
-            writefile(a .. "\\" .. b, d)
-        else
-            makefolder(a)
-            writefile(a .. "\\" .. b, d)
-        end
-    end
-end
-function loadSettings()
-    local c = game:GetService("HttpService")
-    if isfile(a .. "\\" .. b) then
-        _G.Settings = c:JSONDecode(readfile(a .. "\\" .. b))
-    end
-end
-loadSettings()
-local e = game:GetService("ReplicatedStorage")
-local f = game:GetService("VirtualInputManager")
-local g = game:GetService("Players")
-local h = game:GetService("VirtualUser")
-local i = game:GetService("TweenService")
-local j = g.LocalPlayer
-function HideGui()
-    local k = game.CoreGui:FindFirstChild("Orion")
-    local l
-    for m, n in pairs(k:GetChildren()) do
-        if m == 2 then
-            l = n
-        end
-    end
-    if k.Enabled then
-        l:TweenSize(UDim2.new(0, 0, 0, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
-        repeat
-            task.wait()
-        until l.Size.Y.Offset < 1
-        k.Enabled = false
+
+-- Создание интерфейса в фиолетовых тонах
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoFarmGUI"
+screenGui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 280) -- Увеличил размер
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(60, 30, 80)
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- Заголовок с кнопками управления (теперь можно dragging)
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35) -- Увеличил высоту
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(80, 40, 100)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0.6, 0, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "✨ Авто-Фарм Монет"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 16 -- Увеличил размер текста
+titleText.Parent = titleBar
+
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.new(0, 35, 0, 35) -- Увеличил размер
+minimizeButton.Position = UDim2.new(1, -70, 0, 0)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(120, 60, 150)
+minimizeButton.Text = "_"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.TextSize = 18 -- Увеличил размер текста
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Parent = titleBar
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 35, 0, 35) -- Увеличил размер
+closeButton.Position = UDim2.new(1, -35, 0, 0)
+closeButton.BackgroundColor3 = Color3.fromRGB(180, 60, 100)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 16 -- Увеличил размер текста
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = titleBar
+
+-- Контент
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, -35)
+contentFrame.Position = UDim2.new(0, 0, 0, 35)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- Кнопка управления
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.9, 0, 0, 45) -- Увеличил высоту
+toggleButton.Position = UDim2.new(0.05, 0, 0, 10)
+toggleButton.BackgroundColor3 = Color3.fromRGB(180, 80, 220)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "▶ ВКЛЮЧИТЬ (P)"
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 16 -- Увеличил размер текста
+toggleButton.Parent = contentFrame
+
+-- Статистика
+local statsLabel = Instance.new("TextLabel")
+statsLabel.Size = UDim2.new(0.9, 0, 0, 100) -- Увеличил высоту
+statsLabel.Position = UDim2.new(0.05, 0, 0, 65)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "📊 Статистика:\nСтатус: ❌ выключено\n💰 Монет: 0\n⏱ Время: 00:00:00\n⚡ Монет/час: 0"
+statsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+statsLabel.Font = Enum.Font.Gotham
+statsLabel.TextSize = 14 -- Увеличил размер текста
+statsLabel.TextYAlignment = Enum.TextYAlignment.Top
+statsLabel.Parent = contentFrame
+
+-- Настройки таймингов
+local settingsFrame = Instance.new("Frame")
+settingsFrame.Size = UDim2.new(0.9, 0, 0, 90) -- Увеличил высоту
+settingsFrame.Position = UDim2.new(0.05, 0, 0, 175)
+settingsFrame.BackgroundColor3 = Color3.fromRGB(70, 35, 90)
+settingsFrame.BorderSizePixel = 0
+settingsFrame.Parent = contentFrame
+
+local settingsTitle = Instance.new("TextLabel")
+settingsTitle.Size = UDim2.new(1, 0, 0, 25)
+settingsTitle.BackgroundTransparency = 1
+settingsTitle.Text = "⚙️ Настройки таймингов:"
+settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+settingsTitle.Font = Enum.Font.Gotham
+settingsTitle.TextSize = 14 -- Увеличил размер текста
+settingsTitle.Parent = settingsFrame
+
+local delayInput = Instance.new("TextBox")
+delayInput.Size = UDim2.new(0.45, 0, 0, 30) -- Увеличил высоту
+delayInput.Position = UDim2.new(0, 0, 0, 30)
+delayInput.BackgroundColor3 = Color3.fromRGB(50, 25, 65)
+delayInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+delayInput.Text = tostring(settings.delayBetweenCycles)
+delayInput.PlaceholderText = "Задержка (сек)"
+delayInput.Font = Enum.Font.Gotham
+delayInput.TextSize = 14 -- Увеличил размер текста
+delayInput.Parent = settingsFrame
+
+local iterationsInput = Instance.new("TextBox")
+iterationsInput.Size = UDim2.new(0.45, 0, 0, 30) -- Увеличил высоту
+iterationsInput.Position = UDim2.new(0.5, 5, 0, 30)
+iterationsInput.BackgroundColor3 = Color3.fromRGB(50, 25, 65)
+iterationsInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+iterationsInput.Text = tostring(settings.iterationsPerCycle)
+iterationsInput.PlaceholderText = "Итераций за цикл"
+iterationsInput.Font = Enum.Font.Gotham
+iterationsInput.TextSize = 14 -- Увеличил размер текста
+iterationsInput.Parent = settingsFrame
+
+-- Узор (декоративный элемент)
+local pattern = Instance.new("Frame")
+pattern.Size = UDim2.new(1, 0, 0, 6)
+pattern.Position = UDim2.new(0, 0, 1, -6)
+pattern.BackgroundColor3 = Color3.fromRGB(150, 70, 200)
+pattern.BorderSizePixel = 0
+pattern.Parent = mainFrame
+
+local pattern2 = Instance.new("Frame")
+pattern2.Size = UDim2.new(0, 6, 1, -35)
+pattern2.Position = UDim2.new(1, -6, 0, 35)
+pattern2.BackgroundColor3 = Color3.fromRGB(150, 70, 200)
+pattern2.BorderSizePixel = 0
+pattern2.Parent = mainFrame
+
+-- Функции
+local function toggleMinimize()
+    minimized = not minimized
+    
+    if minimized then
+        mainFrame.Size = UDim2.new(0, 400, 0, 35)
+        minimizeButton.Text = "□"
     else
-        l:TweenSize(UDim2.new(0, 615, 0, 344), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
-        repeat
-            task.wait()
-        until l.Size.Y.Offset > 1
-        k.Enabled = true
+        mainFrame.Size = UDim2.new(0, 400, 0, 280)
+        minimizeButton.Text = "_"
     end
 end
-spawn(
-    function()
-        j = game.Players.LocalPlayer
-        Mouse = j:GetMouse()
-        Mouse.KeyDown:connect(
-            function(o)
-                o = o:lower()
-                if o == _G.Settings.toggleguikey then
-                    task.spawn(HideGui)
-                end
-            end
+
+local function closeGUI()
+    screenGui:Destroy()
+end
+
+local function updateStats()
+    if not statsLabel then return end
+    
+    local elapsedTime = running and (os.time() - startTime) or 0
+    local hours = math.floor(elapsedTime / 3600)
+    local minutes = math.floor((elapsedTime % 3600) / 60)
+    local seconds = elapsedTime % 60
+    
+    local timeString = string.format("%02d:%02d:%02d", hours, minutes, seconds)
+    local coinsPerHour = elapsedTime > 0 and math.floor((totalCoins / elapsedTime) * 3600) or 0
+    
+    statsLabel.Text = string.format(
+        "📊 Статистика:\nСтатус: %s\n💰 Монет: %d\n⏱ Время: %s\n⚡ Монет/час: %d",
+        running and "✅ включено" or "❌ выключено",
+        totalCoins,
+        timeString,
+        coinsPerHour
+    )
+end
+
+local function toggleAutoFarm()
+    running = not running
+    
+    if running then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(220, 100, 100)
+        toggleButton.Text = "⏹ ВЫКЛЮЧИТЬ (P)"
+        startTime = os.time()
+        
+        -- Обновляем настройки из полей ввода
+        settings.delayBetweenCycles = tonumber(delayInput.Text) or 10
+        settings.iterationsPerCycle = tonumber(iterationsInput.Text) or 5000
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(180, 80, 220)
+        toggleButton.Text = "▶ ВКЛЮЧИТЬ (P)"
+    end
+    
+    updateStats()
+end
+
+-- Функции для перемещения окна
+local function startDrag()
+    dragging = true
+    dragStartPos = uis:GetMouseLocation()
+    frameStartPos = mainFrame.Position
+end
+
+local function endDrag()
+    dragging = false
+end
+
+local function updateDrag()
+    if dragging then
+        local mousePos = uis:GetMouseLocation()
+        local delta = mousePos - dragStartPos
+        mainFrame.Position = UDim2.new(
+            0, frameStartPos.X.Offset + delta.X,
+            0, frameStartPos.Y.Offset + delta.Y
         )
     end
-)
-j.Idled:Connect(
-    function()
-        h:ClickButton2(Vector2.new())
+end
+
+-- Обработчики событий
+minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+closeButton.MouseButton1Click:Connect(closeGUI)
+toggleButton.MouseButton1Click:Connect(toggleAutoFarm)
+
+-- Обработчики для перемещения окна
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        startDrag()
     end
-)
-local p = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
-local q = p:MakeWindow({Name = "Gusha Hub", HidePremium = true})
-local r = q:MakeTab({Name = "Main", PremiumOnly = false})
-local s = q:MakeTab({Name = "Creature Option", PremiumOnly = false})
-local t = q:MakeTab({Name = "Teleport", PremiumOnly = false})
-local u = q:MakeTab({Name = "Extra", PremiumOnly = false})
-local v = q:MakeTab({Name = "Setting", PremiumOnly = false})
-local w = q:MakeTab({Name = "Credits", PremiumOnly = false})
-r:AddToggle(
-    {
-        Name = "Afk Farm",
-        Default = _G.Settings.autofarm,
-        Callback = function(x)
-            _G.Settings.autofarm = x
-            saveSettings()
-            task.spawn(
-                function()
-                    while task.wait() do
-                        if not _G.Settings.autofarm then
-                            break
-                        end
-                        wait()
-                        if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                            local y
-                            for m, n in pairs(getloadedmodules()) do
-                                if n.Name == "MotionTracker" then
-                                    y = n
-                                end
-                            end
-                            task.spawn(
-                                function()
-                                    task.wait(0.1)
-                                    local CFrame =
-                                        CFrame.new(353.2420349121094, -268.8212585449219, -1111.9737548828125)
-                                    for z, A in pairs(debug.getupvalues(require(y))) do
-                                        if type(A) == "function" then
-                                            if getinfo(A).name == "TeleportTo" then
-                                                setupvalue(A, 3, CFrame)
-                                            end
-                                        end
-                                    end
-                                end
-                            )
-                        end
-                    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        endDrag()
+    end
+end)
+
+uis.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateDrag()
+    end
+end)
+
+uis.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.P then
+        toggleAutoFarm()
+    end
+end)
+
+-- Основной цикл фарма
+spawn(function()
+    while true do
+        wait(0.1)
+        
+        if running then
+            local coinsThisCycle = 0
+            
+            for i = 1, settings.iterationsPerCycle do
+                if not running then break end
+                
+                local args = {
+                    [1] = "SellGachaAsync",
+                    [2] = {
+                        [1] = "Momola",
+                        [2] = 0.5
+                    }
+                }
+                
+                player:WaitForChild("RemoteEvent"):FireServer(unpack(args))
+                
+                -- Считаем монеты (1 монета за каждые 25 повторов)
+                if i % settings.repeatsPerCoin == 0 then
+                    totalCoins = totalCoins + 1
+                    coinsThisCycle = coinsThisCycle + 1
                 end
-            )
-        end
-    }
-)
-r:AddToggle(
-    {
-        Name = "Token Farm",
-        Default = _G.Settings.autotptoken,
-        Callback = function(x)
-            _G.Settings.autotptoken = x
-            saveSettings()
-            task.spawn(
-                function()
-                    while task.wait() do
-                        if not _G.Settings.autotptoken then
-                            break
-                        end
-                        wait()
-                        if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                            local y
-                            local B = debug.getupvalues or getupvalues or getupvals
-                            local C = getloadedmodules or get_loaded_modules
-                            for m, n in pairs(C()) do
-                                if n.Name == "MotionTracker" then
-                                    y = n
-                                end
-                            end
-                            task.spawn(
-                                function()
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("ExplorerCapsule").CFrame
-                                            
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("LimitedCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("DietCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("MutateCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("GalaxyExplorerCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("MonsterExplorerCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("MonsterCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("MechaCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                    task.spawn(
-                                        function()
-                                            task.wait(0.1)
-                                            local CFrame =
-                                                game:GetService("Workspace"):FindFirstChild("SweetCapsule").CFrame
-                                            for z, A in pairs(B(require(y))) do
-                                                if type(A) == "function" then
-                                                    if getinfo(A).name == "TeleportTo" then
-                                                        setupvalue(A, 3, CFrame)
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    )
-                                end
-                            )
-                        end
-                    end
+                
+                -- Обновляем статистику каждые 100 итераций
+                if i % 100 == 0 then
+                    updateStats()
+                    wait()
                 end
-            )
-        end
-    }
-)
-r:AddButton(
-    {
-        Name = "Teleport to Place 1",
-        Callback = function()
-            local placeId = 5301474388  -- Replace this with the actual Place 1 ID
-            game:GetService("TeleportService"):Teleport(placeId)
-        end
-    }
-)
-r:AddButton(
-    {
-        Name = "Teleport to Place 2",
-        Callback = function()
-            local placeId = 14119723130  -- Replace this with the actual Place 1 ID
-            game:GetService("TeleportService"):Teleport(placeId)
-        end
-    }
-)
-            wait(2)
-            task.spawn(
-                function()
-                    task.wait(0.1)
-                    local CFrame = CFrame.new(-1010.4036254882812, 184.9303436279297, -1381.181396484375)
-                    for z, A in pairs(debug.getupvalues(require(y))) do
-                        if type(A) == "function" then
-                            if getinfo(A).name == "TeleportTo" then
-                                setupvalue(A, 3, CFrame)
-                            end
-                        end
-                    end
-                end
-            )
-            task.spawn(
-                function()
-                    task.wait(0.1)
-                    local CFrame = CFrame.new(893.381591796875, 276.25006103515625, -984.1700439453125)
-                    for z, A in pairs(debug.getupvalues(require(y))) do
-                        if type(A) == "function" then
-                            if getinfo(A).name == "TeleportTo" then
-                                setupvalue(A, 3, CFrame)
-                            end
-                        end
-                    end
-                end
-            )
-            wait(2)
-            task.spawn(
-                function()
-                    task.wait(0.1)
-                    local CFrame = CFrame.new(1610.789794921875, 243.11407470703125, 225.0277862548828)
-                    for z, A in pairs(debug.getupvalues(require(y))) do
-                        if type(A) == "function" then
-                            if getinfo(A).name == "TeleportTo" then
-                                setupvalue(A, 3, CFrame)
-                            end
-                        end
-                    end
-                end
-            )
-            task.spawn(
-                function()
-                    task.wait(0.1)
-                    local CFrame = CFrame.new(880.1900634765625, 573.5634155273438, -2595.145751953125)
-                    for z, A in pairs(debug.getupvalues(require(y))) do
-                        if type(A) == "function" then
-                            if getinfo(A).name == "TeleportTo" then
-                                setupvalue(A, 3, CFrame)
-                            end
-                        end
-                    end
-                end
-            )
-            wait(2)
-            task.spawn(
-                function()
-                    task.wait(0.1)
-                    local CFrame = CFrame.new(-2014.8013916015625, 216.9436798095703, 151.13536071777344)
-                    for z, A in pairs(debug.getupvalues(require(y))) do
-                        if type(A) == "function" then
-                            if getinfo(A).name == "TeleportTo" then
-                                setupvalue(A, 3, CFrame)
-                            end
-                        end
-                    end
-                end
-            )
-            wait(2)
-            task.spawn(
-                function()
-                    task.wait(0.1)
-                    local CFrame = CFrame.new(-265.4371032714844, 219.32887268066406, 1491.4090576171875)
-                    for z, A in pairs(debug.getupvalues(require(y))) do
-                        if type(A) == "function" then
-                            if getinfo(A).name == "TeleportTo" then
-                                setupvalue(A, 3, CFrame)
-                            end
-                        end
-                    end
-                end
-            )
-        end
-    }
-)
-r:AddLabel("Need Photovore and Toggle Auto Drink")
-r:AddLabel("Token Farm Need Load All Map Before")
-t:AddButton(
-    {
-        Name = "TP Desert Oasis",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(-1010.4036254882812, 184.9303436279297, -1381.181396484375)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
             end
-        end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP RedWood",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
+            
+            updateStats()
+            
+            if running then
+                -- Ждем перед следующим циклом
+                for waitTime = settings.delayBetweenCycles, 1, -1 do
+                    if not running then break end
+                    toggleButton.Text = "⏹ Пауза (" .. waitTime .. "s)"
+                    wait(1)
                 end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(893.381591796875, 276.25006103515625, -984.1700439453125)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
+                
+                if running then
+                    toggleButton.Text = "⏹ ВЫКЛЮЧИТЬ (P)"
+                end
             end
+        else
+            wait(1)
         end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP Swamp",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(1610.789794921875, 243.11407470703125, 225.0277862548828)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
-            end
-        end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP Tundra",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(880.1900634765625, 573.5634155273438, -2595.145751953125)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
-            end
-        end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP Dunes",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(-2014.8013916015625, 216.9436798095703, 151.13536071777344)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
-            end
-        end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP Plains",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(-265.4371032714844, 219.32887268066406, 1491.4090576171875)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
-            end
-        end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP Ocean",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(0, 0, 0)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
-            end
-        end
-    }
-)
-t:AddButton(
-    {
-        Name = "TP Farm",
-        Callback = function()
-            if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                local y
-                for m, n in pairs(getloadedmodules()) do
-                    if n.Name == "MotionTracker" then
-                        y = n
-                    end
-                end
-                task.spawn(
-                    function()
-                        task.wait(0.1)
-                        local CFrame = CFrame.new(-1099.4718017578125, 186, -779.5160522460938)
-                        for z, A in pairs(debug.getupvalues(require(y))) do
-                            if type(A) == "function" then
-                                if getinfo(A).name == "TeleportTo" then
-                                    setupvalue(A, 3, CFrame)
-                                end
-                            end
-                        end
-                    end
-                )
-            end
-        end
-    }
-)
-s:AddToggle(
-    {
-        Name = "Night Vision",
-        Default = _G.Settings.nightvision,
-        Callback = function(x)
-            _G.Settings.nightvision = x
-            saveSettings()
-            task.spawn(
-                function()
-                    while task.wait() do
-                        if not _G.Settings.nightvision then
-                            break
-                        end
-                        wait()
-                        if game:GetService("Players").LocalPlayer.PlayerGui.Character.Enabled == false then
-                            for m, n in ipairs(workspace.Dinosaurs:GetDescendants()) do
-                                if n.Name == "Nightvision" then
-                                    n.Value = _G.Settings.nightnumber
-                                end
-                            end
-                        end
-                    end
-                end
-            )
-        end
-    }
-)
-u:AddToggle(
-    {
-        Name = "Auto Drink",
-        Default = _G.Settings.autodrink,
-        Callback = function(x)
-            _G.Settings.autodrink = x
-            saveSettings()
-            task.spawn(
-                function()
-                    while task.wait(3) do
-                        if not _G.Settings.autodrink then
-                            break
-                        end
-                        wait()
-                        game:GetService("Players").LocalPlayer.RemoteEvent:FireServer("drink", workspace.Water.Model)
-                    end
-                end
-            )
-        end
-    }
-)
-u:AddToggle(
-    {
-        Name = "Rejoin If Kick",
-        Default = _G.Settings.autorejoin,
-        Callback = function(x)
-            _G.Settings.autorejoin = x
-            saveSettings()
-            task.spawn(
-                function()
-                    while task.wait(1) do
-                        if not _G.Settings.autorejoin then
-                            break
-                        end
-                        game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(
-                            function(D)
-                                if
-                                    D.Name == "ErrorPrompt" and D:FindFirstChild("MessageArea") and
-                                        D.MessageArea:FindFirstChild("ErrorFrame")
-                                 then
-                                    game:GetService("TeleportService"):Teleport(5233782396, LocalPlayer)
-                                end
-                            end
-                        )
-                    end
-                end
-            )
-        end
-    }
-)
-v:AddSlider(
-    {Name = "Night Vision", Default = _G.Settings.nightnumber, Min = 0, Max = 4, Callback = function(x)
-            _G.Settings.nightnumber = x
-            saveSettings()
-        end}
-)
-w:AddButton(
-    {Name = "Script by Gusha Hub", Callback = function()
-            setclipboard("https://vk.com/id543118927")
-        end}
-)
-w:AddButton(
-    {Name = "VK", Callback = function()
-            setclipboard("https://vk.com/id543118927")
-        end}
-)
-w:AddTextbox(
-    {Name = "Toggle Gui Key", Default = _G.Settings.toggleguikey, TextDisappear = false, Callback = function(x)
-            _G.Settings.toggleguikey = x
-            saveSettings()
-        end}
-)
-p:MakeNotification({Name = "Gusha Hub", Content = "Game: Creature Of Sonoria", Time = 15})
-p:Init()
+    end
+end)
+
+-- Анимация появления
+mainFrame.Size = UDim2.new(0, 400, 0, 35)
+wait(0.5)
+mainFrame.Size = UDim2.new(0, 400, 0, 280)
+
+print("✨ Авто-фарм загружен! Нажмите P для управления")
+print("💡 Можно перемещать окно, зажав заголовок")
