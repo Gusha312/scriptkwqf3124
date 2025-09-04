@@ -1,7 +1,6 @@
 local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local TeleportService = game:GetService("TeleportService")
 
 -- Настройки
 local FLY_SPEED = 17
@@ -9,18 +8,11 @@ local HEIGHT_OFFSET = 2
 local CHECK_INTERVAL = 0.1
 local REACH_DISTANCE = 2
 local COLLECT_EFFECT = true
-local PLACE_ID = 142823291
-local REJOIN_INTERVAL = 600 -- 10 минут в секундах
 
--- Таймер для перезахода
-local lastRejoinTime = os.time()
-
--- Функция для перезахода
-local function rejoinGame()
-    pcall(function()
-        TeleportService:Teleport(PLACE_ID)
-    end)
-end
+-- Инициализация
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
 -- Поиск ближайшей монеты
 local function findNearestCoin()
@@ -73,7 +65,7 @@ local function flyAndCollect(coin)
     local endPos = coin.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
     local distance = (endPos - startPos).Magnitude
     local duration = distance / FLY_SPEED
-
+    
     local connection
     connection = RunService.Heartbeat:Connect(function()
         if not coin or not coin.Parent then
@@ -98,21 +90,8 @@ local function flyAndCollect(coin)
     end)
 end
 
--- Инициализация
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
-
 -- Основной цикл
 while task.wait(CHECK_INTERVAL) do
-    -- Проверяем необходимость перезахода каждую секунду
-    if os.time() - lastRejoinTime >= REJOIN_INTERVAL then
-        lastRejoinTime = os.time()
-        rejoinGame()
-        -- Делаем небольшую паузу перед продолжением
-        task.wait(1)
-    end
-    
     if not character or not character.Parent then
         character = player.Character or player.CharacterAdded:Wait()
         humanoid = character:WaitForChild("Humanoid")
