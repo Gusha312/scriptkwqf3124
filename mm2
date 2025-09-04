@@ -8,11 +8,32 @@ local HEIGHT_OFFSET = 2
 local CHECK_INTERVAL = 0.1
 local REACH_DISTANCE = 2
 local COLLECT_EFFECT = true
+local REJOIN_INTERVAL = 1200 -- 10 минут в секундах
 
--- Инициализация
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
+-- Таймер для перезахода
+local lastRejoinTime = os.time()
+
+-- Функция для перезахода через серверный скрипт
+local function rejoinGame()
+    -- Создаем RemoteEvent для связи с сервером
+    local rejoinRemote = Instance.new("RemoteEvent")
+    rejoinRemote.Name = "AutoRejoinRemote"
+    rejoinRemote.Parent = player:FindFirstChildOfClass("PlayerGui") or wait()
+    
+    -- Отправляем запрос на сервер
+    rejoinRemote:FireServer()
+    
+    -- Альтернативный метод: перезагрузка через изменение места
+    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+end
+
+-- Проверка необходимости перезахода
+local function checkRejoin()
+    if os.time() - lastRejoinTime >= REJOIN_INTERVAL then
+        lastRejoinTime = os.time()
+        pcall(rejoinGame) -- Защищаем вызов
+    end
+end
 
 -- Поиск ближайшей монеты
 local function findNearestCoin()
@@ -65,7 +86,7 @@ local function flyAndCollect(coin)
     local endPos = coin.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
     local distance = (endPos - startPos).Magnitude
     local duration = distance / FLY_SPEED
-    
+
     local connection
     connection = RunService.Heartbeat:Connect(function()
         if not coin or not coin.Parent then
@@ -90,8 +111,16 @@ local function flyAndCollect(coin)
     end)
 end
 
+-- Инициализация
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
 -- Основной цикл
 while task.wait(CHECK_INTERVAL) do
+    -- Проверяем необходимость перезахода
+    pcall(checkRejoin)
+    
     if not character or not character.Parent then
         character = player.Character or player.CharacterAdded:Wait()
         humanoid = character:WaitForChild("Humanoid")
