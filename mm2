@@ -1,6 +1,7 @@
 local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
 
 -- Настройки
 local FLY_SPEED = 17
@@ -8,31 +9,17 @@ local HEIGHT_OFFSET = 2
 local CHECK_INTERVAL = 0.1
 local REACH_DISTANCE = 2
 local COLLECT_EFFECT = true
-local REJOIN_INTERVAL = 1200 -- 10 минут в секундах
+local PLACE_ID = 142823291
+local REJOIN_INTERVAL = 600 -- 10 минут в секундах
 
 -- Таймер для перезахода
 local lastRejoinTime = os.time()
 
--- Функция для перезахода через серверный скрипт
+-- Функция для перезахода
 local function rejoinGame()
-    -- Создаем RemoteEvent для связи с сервером
-    local rejoinRemote = Instance.new("RemoteEvent")
-    rejoinRemote.Name = "AutoRejoinRemote"
-    rejoinRemote.Parent = player:FindFirstChildOfClass("PlayerGui") or wait()
-    
-    -- Отправляем запрос на сервер
-    rejoinRemote:FireServer()
-    
-    -- Альтернативный метод: перезагрузка через изменение места
-    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
-end
-
--- Проверка необходимости перезахода
-local function checkRejoin()
-    if os.time() - lastRejoinTime >= REJOIN_INTERVAL then
-        lastRejoinTime = os.time()
-        pcall(rejoinGame) -- Защищаем вызов
-    end
+    pcall(function()
+        TeleportService:Teleport(PLACE_ID)
+    end)
 end
 
 -- Поиск ближайшей монеты
@@ -118,8 +105,13 @@ local rootPart = character:WaitForChild("HumanoidRootPart")
 
 -- Основной цикл
 while task.wait(CHECK_INTERVAL) do
-    -- Проверяем необходимость перезахода
-    pcall(checkRejoin)
+    -- Проверяем необходимость перезахода каждую секунду
+    if os.time() - lastRejoinTime >= REJOIN_INTERVAL then
+        lastRejoinTime = os.time()
+        rejoinGame()
+        -- Делаем небольшую паузу перед продолжением
+        task.wait(1)
+    end
     
     if not character or not character.Parent then
         character = player.Character or player.CharacterAdded:Wait()
