@@ -1,0 +1,197 @@
+while true do
+wait(5)
+local args = {
+	"Tier 1",
+	"Carrot"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Strawberry"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Blueberry"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Orange Tulip"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Tomato"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Corn"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Daffodil"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Watermelon"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Pumpkin"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Apple"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Bamboo"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Coconut"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Cactus"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Dragon Fruit"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Mango"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Grape"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Mushroom"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Pepper"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Cacao"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Beanstalk"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Ember Lily"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Sugar Apple"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Burning Bud"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Giant Pinecone"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Elder Strawberry"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Tier 1",
+	"Romanesco"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuySeedStock"):FireServer(unpack(args))
+local args = {
+	"Bug Egg"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(unpack(args))
+local args = {
+	"Mythical Egg"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(unpack(args))
+local args = {
+	"Legendary Egg"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(unpack(args))
+local args = {
+	"Common Egg"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(unpack(args))
+local args = {
+	"Uncommon Egg"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(unpack(args))
+local args = {
+	"Rare Egg"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyPetEgg"):FireServer(unpack(args))
+local args = {
+	"Trading Ticket"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Watering Can"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Basic Sprinkler"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Advanced Sprinkler"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Medium Toy"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Medium Treat"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Godly Sprinkler"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Master Sprinkler"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Grandmaster Sprinkler"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+local args = {
+	"Levelup Lollipop"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyGearStock"):FireServer(unpack(args))
+end
