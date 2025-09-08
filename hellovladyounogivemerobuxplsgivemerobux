@@ -447,7 +447,7 @@ local function main()
         end
         
         print("⏳ Цикл завершен. Ждем 2 секунды...")
-        wait(2)
+        wait(0.1)
     end
     
     if antiAFKConnection then
