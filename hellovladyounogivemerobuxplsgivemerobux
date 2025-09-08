@@ -377,6 +377,27 @@ local function checkTeleportConditions()
     return false
 end
 
+-- Функция для занятия лавки (исправленная)
+local function claimStall(anchorPart)
+    if not anchorPart or isTargetWorld then
+        return false
+    end
+    
+    local success, result = pcall(function()
+        -- Пытаемся занять лавку
+        ClaimStall:FireServer(anchorPart)
+        return true
+    end)
+    
+    if success then
+        print("✅ Успешно попытались занять лавку")
+        return true
+    else
+        warn("❌ Ошибка при занятии лавки: " .. tostring(result))
+        return false
+    end
+end
+
 -- Основная функция
 local function main()
     print("🎯 Скрипт запущен!")
@@ -419,6 +440,8 @@ local function main()
         end
         
         -- Основной цикл занятия лавок (только для обычных миров)
+        print("🔄 Начинаем цикл занятия лавок...")
+        
         for i, stallCFrame in ipairs(stallCFrames) do
             -- Проверяем условия телепортации перед каждой лавкой
             if checkTeleportConditions() then
@@ -429,25 +452,23 @@ local function main()
             local anchorPart = findAnchorPartByCFrame(stallCFrame)
             
             if anchorPart then
-                local args = {anchorPart}
-                local success, errorMsg = pcall(function()
-                    ClaimStall:FireServer(unpack(args))
-                end)
+                print("🔍 Найдена лавка #"..i..", пытаемся занять...")
+                local success = claimStall(anchorPart)
                 
                 if success then
-                    print("🔄 Попытка занять лавку #"..i)
+                    print("✅ Лавка #"..i.." успешно занята (или попытка сделана)")
                 else
-                    warn("❌ Ошибка при занятии лавки #"..i..": "..tostring(errorMsg))
+                    print("❌ Не удалось занять лавку #"..i)
                 end
             else
                 print("❌ Лавка #"..i.." не найдена")
             end
             
-            wait(0.3)
+            wait(0.5) -- Увеличил задержку для стабильности
         end
         
-        print("⏳ Цикл завершен. Ждем 2 секунды...")
-        wait(0.1)
+        print("⏳ Цикл занятия лавок завершен. Ждем 3 секунды...")
+        wait(3)
     end
     
     if antiAFKConnection then
