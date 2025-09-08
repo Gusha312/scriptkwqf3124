@@ -82,6 +82,33 @@ end
 
 local localPlayer = Players.LocalPlayer
 
+-- Безопасная функция для получения marketStalls (только для обычных миров)
+local function getMarketStalls()
+    if isTargetWorld then
+        return nil
+    end
+    
+    local success, result = pcall(function()
+        if not workspace:FindFirstChild("Interactable") then
+            return nil, "Interactable не найден"
+        end
+        
+        local interactable = workspace.Interactable
+        if not interactable:FindFirstChild("MarketStalls") then
+            return nil, "MarketStalls не найден"
+        end
+        
+        return interactable.MarketStalls
+    end)
+    
+    if success then
+        return result
+    else
+        warn("❌ Ошибка при получении MarketStalls: " .. tostring(result))
+        return nil
+    end
+end
+
 -- Функция отправки вебхука в Discord (только для обычных миров)
 local function sendDiscordWebhook()
     if isTargetWorld then
@@ -276,6 +303,57 @@ local function teleportToBestServer(targetPlaceId)
     end
 end
 
+-- Безопасный поиск AnchorPart по CFrame (только для обычных миров)
+local function findAnchorPartByCFrame(targetCFrame)
+    if isTargetWorld then
+        return nil
+    end
+    
+    local marketStalls = getMarketStalls()
+    if not marketStalls then
+        return nil
+    end
+    
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            local positionDiff = (child.CFrame.Position - targetCFrame.Position).Magnitude
+            if positionDiff < 1 then
+                return child
+            end
+        end
+    end
+    return nil
+end
+
+-- Проверка доступности лавок в мире (только для обычных миров)
+local function checkWorldForStalls()
+    if isTargetWorld then
+        return false
+    end
+    
+    local marketStalls = getMarketStalls()
+    if not marketStalls then
+        print("🌍 В этом мире нет лавок, пропускаем цикл...")
+        return false
+    end
+    
+    -- Дополнительная проверка на наличие AnchorPart
+    local hasAnchorParts = false
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            hasAnchorParts = true
+            break
+        end
+    end
+    
+    if not hasAnchorParts then
+        print("🔍 AnchorPart не найдены в MarketStalls")
+        return false
+    end
+    
+    return true
+end
+
 -- Улучшенная проверка условий телепортации
 local function checkTeleportConditions()
     local currentPlayers = #Players:GetPlayers()
@@ -333,8 +411,43 @@ local function main()
             continue
         end
         
-        print("⏳ Ожидание в обычном мире...")
-        wait(10)
+        -- Проверяем есть ли лавки в этом мире (только для обычных миров)
+        if not checkWorldForStalls() then
+            print("⏸️ Пропускаем цикл занятий лавок (мир без лавок)")
+            wait(10)
+            continue
+        end
+        
+        -- Основной цикл занятия лавок (только для обычных миров)
+        for i, stallCFrame in ipairs(stallCFrames) do
+            -- Проверяем условия телепортации перед каждой лавкой
+            if checkTeleportConditions() then
+                print("🔄 Телепортация запланирована, прерываем занятие лавок...")
+                break -- Выходим из цикла лавок
+            end
+            
+            local anchorPart = findAnchorPartByCFrame(stallCFrame)
+            
+            if anchorPart then
+                local args = {anchorPart}
+                local success, errorMsg = pcall(function()
+                    ClaimStall:FireServer(unpack(args))
+                end)
+                
+                if success then
+                    print("🔄 Попытка занять лавку #"..i)
+                else
+                    warn("❌ Ошибка при занятии лавки #"..i..": "..tostring(errorMsg))
+                end
+            else
+                print("❌ Лавка #"..i.." не найдена")
+            end
+            
+            wait(0.3)
+        end
+        
+        print("⏳ Цикл завершен. Ждем 2 секунды...")
+        wait(2)
     end
     
     if antiAFKConnection then
