@@ -375,6 +375,7 @@ local function findBestServer(placeId)
     end
 end
 
+-- Улучшенная функция телепортации на лучший сервер
 local function teleportToBestServer(targetPlaceId)
     local bestServer = findBestServer(targetPlaceId)
     
@@ -398,12 +399,13 @@ local function teleportToBestServer(targetPlaceId)
             TeleportService:Teleport(targetPlaceId, localPlayer)
         end)
         
-        if success then
-            print("✅ Обычная телепортация начата!")
-            return true
-        else
-            warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
-            return false
+                    if success then
+                print("✅ Обычная телепортация начата!")
+                return true
+            else
+                warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
+                return false
+            end
         end
     end
 end
@@ -558,6 +560,9 @@ local function main()
     if isTargetWorld then
         print("🔒 РЕЖИМ ТЕЛЕПОРТАЦИИ: Все функции кроме телепортации отключены")
     end
+    
+    -- Настраиваем обработчик команды /check
+    setupCheckCommand()
     
     local antiAFKConnection = setupAntiAFK()
     
