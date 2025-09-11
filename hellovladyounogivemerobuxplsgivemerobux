@@ -82,120 +82,6 @@ end
 
 local localPlayer = Players.LocalPlayer
 
--- Функция для получения данных об аккаунте
-local function getAccountData()
-    local success, data = pcall(function()
-        local coins = localPlayer.Data.Coins.Value
-        local reviveTokens = localPlayer.Data.Items.CreatureReviveToken.Value
-        local growthTokens = localPlayer.Data.Items.FullGrowToken.Value
-        
-        return {
-            coins = coins,
-            reviveTokens = reviveTokens,
-            growthTokens = growthTokens
-        }
-    end)
-    
-    if success then
-        return data
-    else
-        warn("❌ Ошибка при получении данных аккаунта: " .. tostring(data))
-        return {
-            coins = 0,
-            reviveTokens = 0,
-            growthTokens = 0
-        }
-    end
-end
-
--- Функция отправки статистики в Discord
-local function sendCheckWebhook()
-    local accountData = getAccountData()
-    local playerName = localPlayer.Name
-    
-    local embed = {
-        {
-            title = "📊 ПРОВЕРКА АККАУНТА",
-            color = 5814783,
-            fields = {
-                {
-                    name = "🍄 Грибов",
-                    value = tostring(accountData.coins),
-                    inline = true
-                },
-                {
-                    name = "🔄 Токенов возрождения",
-                    value = tostring(accountData.reviveTokens),
-                    inline = true
-                },
-                {
-                    name = "🌱 Токенов макс. роста",
-                    value = tostring(accountData.growthTokens),
-                    inline = true
-                },
-                {
-                    name = "👤 Ник в Roblox",
-                    value = playerName,
-                    inline = false
-                }
-            },
-            footer = {
-                text = "Проверка по команде /check"
-            },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }
-    }
-    
-    local message = {
-        embeds = embed,
-        username = "Статистика бота",
-        avatar_url = "https://cdn.discordapp.com/emojis/1125274830327718010.webp?size=96&quality=lossless"
-    }
-    
-    local success, response = pcall(function()
-        local http = game:GetService("HttpService")
-        local response = request({
-            Url = DISCORD_WEBHOOK,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = http:JSONEncode(message)
-        })
-        return response
-    end)
-    
-    if success then
-        print("✅ Статистика отправлена в Discord!")
-        print("🍄 Грибов: "..accountData.coins)
-        print("🔄 Токенов возрождения: "..accountData.reviveTokens)
-        print("🌱 Токенов макс. роста: "..accountData.growthTokens)
-        return true
-    else
-        warn("❌ Ошибка отправки вебхука")
-        return false
-    end
-end
-
--- Обработчик команды /check
-local function setupCheckCommand()
-    local function onChatMessage(message, recipient, speaker)
-        if speaker == localPlayer and string.lower(message) == "/check" then
-            print("🔍 Получена команда /check - отправляю статистику...")
-            sendCheckWebhook()
-        end
-    end
-    
-    -- Подписываемся на события чата
-    if ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") then
-        local chatEvents = ReplicatedStorage.DefaultChatSystemChatEvents
-        if chatEvents:FindFirstChild("OnMessageDoneFiltering") then
-            chatEvents.OnMessageDoneFiltering.OnClientEvent:Connect(onChatMessage)
-            print("✅ Обработчик команды /check активирован")
-        end
-    end
-end
-
 -- Безопасная функция для получения marketStalls (только для обычных миров)
 local function getMarketStalls()
     if isTargetWorld then
@@ -230,7 +116,15 @@ local function sendDiscordWebhook()
         return false
     end
     
-    local accountData = getAccountData()
+    local success, coins = pcall(function()
+        return localPlayer.Data.Coins.Value
+    end)
+    
+    if not success then
+        warn("❌ Не удалось получить количество монет")
+        return false
+    end
+    
     local playerName = localPlayer.Name
     
     local embed = {
@@ -240,7 +134,7 @@ local function sendDiscordWebhook()
             fields = {
                 {
                     name = "🍄 Грибов",
-                    value = tostring(accountData.coins),
+                    value = tostring(coins),
                     inline = true
                 },
                 {
@@ -276,7 +170,7 @@ local function sendDiscordWebhook()
     end)
     
     if success then
-        print("✅ Статистика отправлена в Discord! Грибов: "..accountData.coins)
+        print("✅ Статистика отправлена в Discord! Грибов: "..coins)
         return true
     else
         warn("❌ Ошибка отправки вебхука")
@@ -399,13 +293,12 @@ local function teleportToBestServer(targetPlaceId)
             TeleportService:Teleport(targetPlaceId, localPlayer)
         end)
         
-                    if success then
-                print("✅ Обычная телепортация начата!")
-                return true
-            else
-                warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
-                return false
-            end
+        if success then
+            print("✅ Обычная телепортация начата!")
+            return true
+        else
+            warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
+            return false
         end
     end
 end
@@ -560,9 +453,6 @@ local function main()
     if isTargetWorld then
         print("🔒 РЕЖИМ ТЕЛЕПОРТАЦИИ: Все функции кроме телепортации отключены")
     end
-    
-    -- Настраиваем обработчик команды /check
-    setupCheckCommand()
     
     local antiAFKConnection = setupAntiAFK()
     
