@@ -255,13 +255,7 @@ local function sendDiscordWebhook()
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }
     }
-
-    local message = {
-        embeds = embed,
-        username = "Статистика бота",
-        avatar_url = "https://cdn.discordapp.com/emojis/1125274830327718010.webp?size=96&quality=lossless"
-    }
-
+    
     local message = {
         embeds = embed,
         username = "Статистика бота",
@@ -381,7 +375,6 @@ local function findBestServer(placeId)
     end
 end
 
--- Улучшенная функция телепортации на лучший сервер
 local function teleportToBestServer(targetPlaceId)
     local bestServer = findBestServer(targetPlaceId)
     
@@ -405,13 +398,12 @@ local function teleportToBestServer(targetPlaceId)
             TeleportService:Teleport(targetPlaceId, localPlayer)
         end)
         
-                    if success then
-                print("✅ Обычная телепортация начата!")
-                return true
-            else
-                warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
-                return false
-            end
+        if success then
+            print("✅ Обычная телепортация начата!")
+            return true
+        else
+            warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
+            return false
         end
     end
 end
@@ -566,9 +558,6 @@ local function main()
     if isTargetWorld then
         print("🔒 РЕЖИМ ТЕЛЕПОРТАЦИИ: Все функции кроме телепортации отключены")
     end
-    
-    -- Настраиваем обработчик команды /check
-    setupCheckCommand()
     
     local antiAFKConnection = setupAntiAFK()
     
