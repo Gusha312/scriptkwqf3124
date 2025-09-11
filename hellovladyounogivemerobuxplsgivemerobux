@@ -235,7 +235,7 @@ local function sendDiscordWebhook()
     
     local embed = {
         {
-            title = "📊 ПРОВЕРКА АККАУНТА",
+            title = "📊 СТАТИСТИКА",
             color = 5814783,
             fields = {
                 {
@@ -256,15 +256,16 @@ local function sendDiscordWebhook()
                 {
                     name = "👤 Ник в Roblox",
                     value = playerName,
-                    inline = false
+                    inline = true
                 }
             },
             footer = {
-                text = "АВТОМАТИЧЕСКАЯ СТАТИСТИКА!"
+                text = "Автоматическая статистика"
             },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }
     }
+
     local message = {
         embeds = embed,
         username = "Статистика бота",
