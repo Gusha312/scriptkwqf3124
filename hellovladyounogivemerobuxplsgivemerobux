@@ -375,7 +375,6 @@ local function findBestServer(placeId)
     end
 end
 
--- Улучшенная функция телепортации на лучший сервер
 local function teleportToBestServer(targetPlaceId)
     local bestServer = findBestServer(targetPlaceId)
     
@@ -396,4 +395,203 @@ local function teleportToBestServer(targetPlaceId)
         -- Если не нашли лучший сервер, используем обычную телепортацию
         print("🔄 Используем обычную телепортацию")
         local success, errorMsg = pcall(function()
-            TeleportService:Teleport(targetPlaceId, local
+            TeleportService:Teleport(targetPlaceId, localPlayer)
+        end)
+        
+        if success then
+            print("✅ Обычная телепортация начата!")
+            return true
+        else
+            warn("❌ Ошибка обычной телепортации: " .. tostring(errorMsg))
+            return false
+        end
+    end
+end
+
+-- Безопасный поиск AnchorPart по CFrame (только для обычных миров)
+local function findAnchorPartByCFrame(targetCFrame)
+    if isTargetWorld then
+        return nil
+    end
+    
+    local marketStalls = getMarketStalls()
+    if not marketStalls then
+        return nil
+    end
+    
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            local positionDiff = (child.CFrame.Position - targetCFrame.Position).Magnitude
+            if positionDiff < 1 then
+                return child
+            end
+        end
+    end
+    return nil
+end
+
+-- Проверка доступности лавок в мире (только для обычных миров)
+local function checkWorldForStalls()
+    if isTargetWorld then
+        return false
+    end
+    
+    local marketStalls = getMarketStalls()
+    if not marketStalls then
+        print("🌍 В этом мире нет лавок, пропускаем цикл...")
+        return false
+    end
+    
+    -- Дополнительная проверка на наличие AnchorPart
+    local hasAnchorParts = false
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            hasAnchorParts = true
+            break
+        end
+    end
+    
+    if not hasAnchorParts then
+        print("🔍 AnchorPart не найдены в MarketStalls")
+        return false
+    end
+    
+    return true
+end
+
+-- Улучшенная проверка условий телепортации
+local function checkTeleportConditions()
+    local currentPlayers = #Players:GetPlayers()
+    local currentPlaceId = game.PlaceId
+    
+    print("📍 Текущий плейс ID:", currentPlaceId)
+    print("👥 Игроков на сервере:", currentPlayers)
+    
+    -- Если текущий плейс = 5233782396, телепортироваться в 14119723130 на лучший сервер
+    if currentPlaceId == 5233782396 then
+        print("🚀 Обнаружен плейс 5233782396, ищем лучший сервер в 14119723130...")
+        return teleportToBestServer(14119723130)
+    end
+    
+    -- Если игроков <= 20, перезайти в игру на лучший сервер (только для обычных миров)
+    if currentPlayers <= 20 and not isTargetWorld then
+        print("🔁 Мало игроков ("..currentPlayers.."), ищем лучший сервер...")
+        return teleportToBestServer(currentPlaceId)
+    end
+    
+    return false
+end
+
+-- Функция для занятия лавки (бесконечные попытки)
+local function claimStall(anchorPart)
+    if not anchorPart or isTargetWorld then
+        return false
+    end
+    
+    local success, result = pcall(function()
+        -- Пытаемся занять лавку
+        ClaimStall:FireServer(anchorPart)
+        return true
+    end)
+    
+    if success then
+        print("✅ Попытка занять лавку")
+        return true
+    else
+        warn("❌ Ошибка при занятии лавки: " .. tostring(result))
+        return false
+    end
+end
+
+-- Основная функция занятия лавок (вечный цикл)
+local function claimStallsForever()
+    if isTargetWorld then
+        return
+    end
+    
+    print("♾️ Запуск бесконечного цикла занятия лавок...")
+    
+    while true do
+        -- Проверяем условия для телепортации
+        if checkTeleportConditions() then
+            print("🔄 Телепортация запланирована, прерываем занятие лавок...")
+            break
+        end
+        
+        -- Проверяем есть ли лавки в этом мире
+        if not checkWorldForStalls() then
+            print("⏸️ Пропускаем цикл занятий лавок (мир без лавок)")
+            wait(2)
+            continue
+        end
+        
+        -- Бесконечный цикл по всем лавкам
+        for i, stallCFrame in ipairs(stallCFrames) do
+            -- Проверяем условия телепортации перед каждой лавкой
+            if checkTeleportConditions() then
+                print("🔄 Телепортация запланирована, прерываем занятие лавок...")
+                break
+            end
+            
+            local anchorPart = findAnchorPartByCFrame(stallCFrame)
+            
+            if anchorPart then
+                claimStall(anchorPart)
+            else
+                print("❌ Лавка #"..i.." не найдена")
+            end
+            
+            wait(0.1) -- Минимальная задержка между попытками
+        end
+        
+        -- Очень короткая пауза между полными циклами
+        wait(0.5)
+    end
+end
+
+-- Основная функция
+local function main()
+    print("🎯 Скрипт запущен!")
+    print("⚡ Оптимизация FPS активна: "..MAX_FPS.." FPS (в фокусе), "..MIN_FPS.." FPS (не в фокусе)")
+    print("🎨 Рендеринг: "..(RENDER and "включен" or "выключен"))
+    
+    if isTargetWorld then
+        print("🔒 РЕЖИМ ТЕЛЕПОРТАЦИИ: Все функции кроме телепортации отключены")
+    end
+    
+    local antiAFKConnection = setupAntiAFK()
+    
+    -- Запускаем таймер вебхука только в обычных мирах
+    if not isTargetWorld then
+        coroutine.wrap(startWebhookTimer)()
+        sendDiscordWebhook()
+    end
+    
+    -- В мире 5233782396 только проверяем телепортацию
+    if isTargetWorld then
+        while true do
+            if checkTeleportConditions() then
+                break
+            end
+            wait(1)
+        end
+    else
+        -- В обычном мире запускаем бесконечное занятие лавок
+        claimStallsForever()
+    end
+    
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+    end
+    
+    print("📋 Ожидание завершения телепортации...")
+end
+
+-- Запуск
+local success, errorMsg = pcall(main)
+if not success then
+    warn("💥 Ошибка: "..errorMsg)
+    print("🔄 Перезапуск через 5 секунд...")
+    wait(5)
+    main()
+end
