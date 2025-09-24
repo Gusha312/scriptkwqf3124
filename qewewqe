@@ -66,7 +66,7 @@ local function sendToTelegram(chat_id, message)
     end
 end
 
--- Функция проверки новых сообщений в Telegram
+-- Функция проверки новых сообщений в Telegram (ИСПРАВЛЕННАЯ)
 local function checkTelegramMessages()
     local url = 'https://api.telegram.org/bot'
         .. TELEGRAM_BOT_TOKEN
@@ -80,11 +80,18 @@ local function checkTelegramMessages()
         })
     end)
 
-    if success and response.Body then
-        local data = HttpService:JSONDecode(response.Body)
-        if data.ok and data.result then
+    if success and response and response.Body then
+        local ok, data = pcall(function()
+            return HttpService:JSONDecode(response.Body)
+        end)
+        
+        if ok and data and data.ok and data.result then
             return data.result
+        else
+            warn("❌ Ошибка парсинга JSON или неверный формат ответа")
         end
+    else
+        warn("❌ Ошибка HTTP запроса: " .. tostring(response))
     end
     return {}
 end
@@ -326,7 +333,7 @@ while true do
         end
     end
 
-    wait(2) -- Уменьшил задержку до 2 секунд для быстрого响应
+    wait(2) 
 end
 
 print(
