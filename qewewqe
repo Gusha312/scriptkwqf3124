@@ -3,9 +3,9 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local HttpService = game:GetService('HttpService')
 
 local localPlayer = Players.LocalPlayer
-local TELEGRAM_BOT_TOKEN = '8499812762:AAHgYFVkfvCi6HL3HetOcYHuuaDfxVUINT0' -- Замените на ваш токен
+local TELEGRAM_BOT_TOKEN = '8499812762:AAHgYFVkfvCi6HL3HetOcYHuuaDfxVUINT0'
 
--- Список разрешенных существ для отображения (только эти существа будут показаны)
+-- Список разрешенных существ для отображения
 local ALLOWED_CREATURES = {
     'Asilvestrela',
     'Moluna',
@@ -20,33 +20,61 @@ local ALLOWED_CREATURES = {
     'Leurimess',
 }
 
--- Глобальная переменная для последнего update_id (сохраняется между перезапусками)
+-- Глобальная переменная для последнего update_id
 local lastUpdateId = 0
 
--- Функция для получения последнего update_id из файла или сервера
-local function loadLastUpdateId()
-    -- Попробуем получить из DataStore или другого хранилища
-    local success, savedId = pcall(function()
-        -- Если есть доступ к DataStore, можно использовать его
-        -- Или можно попробовать сохранить в другом месте
-        return 0 -- Пока возвращаем 0, чтобы получить все сообщения
-    end)
+-- Функция для безопасного логирования (избегаем проблем с кодировкой)
+local function safePrint(message)
+    -- Заменяем русские символы на английские аналоги для избежания проблем с кодировкой
+    local safeMessage = message
+        :gsub("📝", "[LOAD]")
+        :gsub("🔄", "[RESET]")
+        :gsub("🤖", "[BOT]")
+        :gsub("🔍", "[REQUEST]")
+        :gsub("📭", "[NO MSG]")
+        :gsub("✅", "[SUCCESS]")
+        :gsub("❌", "[ERROR]")
+        :gsub("📩", "[MESSAGE]")
+        :gsub("📊", "[STATS]")
+        :gsub("🛒", "[BUY]")
+        :gsub("💾", "[SAVE]")
+        :gsub("👤", "[PLAYER]")
+        :gsub("🍄", "[MUSHROOMS]")
+        :gsub("🐉", "[CREATURES]")
+        :gsub("🪙", "[TOKENS]")
     
-    return success and savedId or 0
+    -- Основные русские слова заменяем на английские
+    safeMessage = safeMessage
+        :gsub("Загружен", "Loaded")
+        :gsub("сброшен", "reset")
+        :gsub("запущен", "started")
+        :gsub("слушает", "listening")
+        :gsub("команды", "commands")
+        :gsub("Запрос", "Request")
+        :gsub("ошибка", "error")
+        :gsub("Получено", "Received")
+        :gsub("сообщен", "message")
+        :gsub("от", "from")
+        :gsub("Сохранен", "Saved")
+
+    print(safeMessage)
+end
+
+-- Функция для получения последнего update_id
+local function loadLastUpdateId()
+    return 0 -- Всегда начинаем с 0
 end
 
 -- Функция для сохранения последнего update_id
 local function saveLastUpdateId(updateId)
-    -- Сохраняем в глобальную переменную
     lastUpdateId = updateId
-    -- Здесь можно добавить сохранение в DataStore или другое хранилище
 end
 
 -- Загружаем последний update_id при старте
 lastUpdateId = loadLastUpdateId()
-print("📝 Загружен lastUpdateId: " .. lastUpdateId)
+safePrint("Loaded lastUpdateId: " .. lastUpdateId)
 
--- Функция проверки, нужно ли показывать это существо
+-- Функция проверки существ
 local function isCreatureAllowed(creatureName)
     for _, allowedCreature in ipairs(ALLOWED_CREATURES) do
         if creatureName == allowedCreature then
@@ -58,9 +86,7 @@ end
 
 -- Функция отправки сообщения в Telegram
 local function sendToTelegram(chat_id, message)
-    local url = 'https://api.telegram.org/bot'
-        .. TELEGRAM_BOT_TOKEN
-        .. '/sendMessage'
+    local url = 'https://api.telegram.org/bot' .. TELEGRAM_BOT_TOKEN .. '/sendMessage'
 
     local success, response = pcall(function()
         return request({
@@ -78,50 +104,39 @@ local function sendToTelegram(chat_id, message)
     end)
 
     if success then
-        print('✅ Сообщение отправлено в Telegram')
+        safePrint("Message sent to Telegram")
         return true
     else
-        warn(
-            '❌ Ошибка отправки в Telegram: '
-                .. tostring(response)
-        )
+        safePrint("Error sending to Telegram: " .. tostring(response))
         return false
     end
 end
 
--- Функция проверки новых сообщений в Telegram (ИСПРАВЛЕННАЯ)
+-- Функция проверки новых сообщений в Telegram
 local function checkTelegramMessages()
-    local url = 'https://api.telegram.org/bot'
-        .. TELEGRAM_BOT_TOKEN
-        .. '/getUpdates?offset='
-        .. (lastUpdateId + 1)
-        .. '&timeout=10' -- Добавляем timeout для длинных запросов
+    local url = 'https://api.telegram.org/bot' .. TELEGRAM_BOT_TOKEN .. '/getUpdates?offset=' .. (lastUpdateId + 1)
 
-    print("🔍 Запрос к Telegram API: offset=" .. (lastUpdateId + 1))
+    safePrint("Request to Telegram API: offset=" .. (lastUpdateId + 1))
 
     local success, response = pcall(function()
         return request({
             Url = url,
             Method = 'GET',
-            Headers = {
-                ['Content-Type'] = 'application/json'
-            }
         })
     end)
 
     if not success then
-        warn("❌ Ошибка HTTP запроса: " .. tostring(response))
+        safePrint("HTTP request error: " .. tostring(response))
         return {}
     end
 
     if not response or not response.Body then
-        warn("❌ Пустой ответ от сервера")
+        safePrint("Empty server response")
         return {}
     end
 
-    -- Проверяем, что тело ответа не пустое
     if response.Body == "" or response.Body == "{}" then
-        print("📭 Нет новых сообщений (пустой ответ)")
+        safePrint("No new messages (empty response)")
         return {}
     end
 
@@ -131,34 +146,33 @@ local function checkTelegramMessages()
     end)
 
     if not ok then
-        warn("❌ Ошибка парсинга JSON: " .. tostring(data))
-        warn("📄 Содержимое ответа: " .. response.Body)
+        safePrint("JSON parsing error")
         return {}
     end
 
     if not data then
-        warn("❌ Пустой data после парсинга")
+        safePrint("Empty data after parsing")
         return {}
     end
 
     if data.ok == false then
-        warn("❌ Ошибка от Telegram API: " .. tostring(data.description))
+        safePrint("Telegram API error: " .. tostring(data.description))
         return {}
     end
 
     if not data.ok or not data.result then
-        warn("❌ Неверный формат ответа от Telegram")
+        safePrint("Invalid response format from Telegram")
         return {}
     end
 
     if #data.result == 0 then
-        print("📭 Нет новых сообщений (result пустой)")
+        safePrint("No new messages (empty result)")
         return {}
     end
 
-    print("✅ Получено " .. #data.result .. " новых сообщений")
+    safePrint("Received " .. #data.result .. " new messages")
     
-    -- Находим максимальный update_id в полученных сообщениях
+    -- Находим максимальный update_id
     local maxUpdateId = lastUpdateId
     for _, update in ipairs(data.result) do
         if update.update_id > maxUpdateId then
@@ -169,13 +183,13 @@ local function checkTelegramMessages()
     -- Сохраняем новый update_id
     if maxUpdateId > lastUpdateId then
         saveLastUpdateId(maxUpdateId)
-        print("💾 Сохранен новый lastUpdateId: " .. maxUpdateId)
+        safePrint("Saved new lastUpdateId: " .. maxUpdateId)
     end
 
     return data.result
 end
 
--- Функция для получения данных из таблицы существ (только разрешенные существа)
+-- Функция для получения данных существ
 local function getCreaturesData(dataTable, includeZeros)
     local result = {}
 
@@ -186,9 +200,7 @@ local function getCreaturesData(dataTable, includeZeros)
                     if includeZeros or value.Value > 0 then
                         result[value.Name] = value.Value
                     end
-                elseif
-                    value:IsA('BoolValue') and (value.Value or includeZeros)
-                then
+                elseif value:IsA('BoolValue') and (value.Value or includeZeros) then
                     result[value.Name] = value.Value and '✓' or '✗'
                 end
             end
@@ -198,7 +210,7 @@ local function getCreaturesData(dataTable, includeZeros)
     return result
 end
 
--- Функция для получения данных из таблицы токенов (все токены)
+-- Функция для получения данных токенов
 local function getTokensData(dataTable)
     local result = {}
 
@@ -220,67 +232,54 @@ end
 -- Функция сбора статистики
 local function collectStats()
     local stats = {
-        mushrooms = localPlayer.Data.Coins.Value, -- Грибы
-        creatures = getCreaturesData(localPlayer.Data.Unlocks, true), -- Существа
-        tokens = getTokensData(localPlayer.Data.Items), -- Токены,
+        mushrooms = localPlayer.Data.Coins.Value,
+        creatures = getCreaturesData(localPlayer.Data.Unlocks, true),
+        tokens = getTokensData(localPlayer.Data.Items),
     }
     return stats
 end
 
 -- Функция форматирования статистики
 local function formatStats(stats)
-    local message = '📊 <b>Статистика аккаунта:</b>\n\n'
-    message = message .. '👤 <b>Игрок:</b> ' .. localPlayer.Name .. '\n'
-    message = message .. '🍄 <b>Грибы:</b> ' .. stats.mushrooms .. '\n\n'
+    local message = '<b>Account Statistics:</b>\n\n'
+    message = message .. '<b>Player:</b> ' .. localPlayer.Name .. '\n'
+    message = message .. '<b>Mushrooms:</b> ' .. stats.mushrooms .. '\n\n'
 
-    -- Существа (только разрешенные)
+    -- Существа
     if next(stats.creatures) then
-        message = message .. '🐉 <b>Существа:</b>\n'
+        message = message .. '<b>Creatures:</b>\n'
         for name, value in pairs(stats.creatures) do
             if type(value) == 'number' then
-                message = message
-                    .. '  • '
-                    .. name
-                    .. ': '
-                    .. tostring(value)
-                    .. '\n'
+                message = message .. '• ' .. name .. ': ' .. tostring(value) .. '\n'
             else
-                message = message .. '  • ' .. name .. ': ' .. value .. '\n'
+                message = message .. '• ' .. name .. ': ' .. value .. '\n'
             end
         end
         message = message .. '\n'
     else
-        message = message
-            .. '🐉 <b>Существа:</b> Нет данных по указанным существам\n\n'
+        message = message .. '<b>Creatures:</b> No data for specified creatures\n\n'
     end
 
     -- Токены
     if next(stats.tokens) then
-        message = message .. '🪙 <b>Токены:</b>\n'
+        message = message .. '<b>Tokens:</b>\n'
         for name, value in pairs(stats.tokens) do
-            message = message
-                .. '  • '
-                .. name
-                .. ': '
-                .. tostring(value)
-                .. '\n'
+            message = message .. '• ' .. name .. ': ' .. tostring(value) .. '\n'
         end
     else
-        message = message .. '🪙 <b>Токены:</b> Нет токенов\n'
+        message = message .. '<b>Tokens:</b> No tokens\n'
     end
 
     return message
 end
 
--- Функция покупки токенов (максимально ускоренная)
+-- Функция покупки токенов
 local function buyTokens(tokenName, amount)
-    local purchaseRemote = ReplicatedStorage:WaitForChild('Remotes')
-        :WaitForChild('PurchaseItemRemote')
+    local purchaseRemote = ReplicatedStorage:WaitForChild('Remotes'):WaitForChild('PurchaseItemRemote')
     local args = { tokenName }
     local successCount = 0
     local failedCount = 0
 
-    -- Супер быстрая покупка без задержек
     for i = 1, amount do
         local success, result = pcall(function()
             return purchaseRemote:InvokeServer(unpack(args))
@@ -290,39 +289,27 @@ local function buyTokens(tokenName, amount)
             successCount = successCount + 1
         else
             failedCount = failedCount + 1
-            if failedCount <= 3 then -- Ограничиваем спам ошибками
-                warn(
-                    '❌ Ошибка при покупке токена '
-                        .. tokenName
-                        .. ': '
-                        .. tostring(result)
-                )
+            if failedCount <= 3 then
+                safePrint("Error buying token " .. tokenName .. ": " .. tostring(result))
             end
         end
     end
 
-    print(
-        '✅ Куплено токенов '
-            .. tokenName
-            .. ': '
-            .. successCount
-            .. '/'
-            .. amount
-    )
+    safePrint("Bought tokens " .. tokenName .. ": " .. successCount .. "/" .. amount)
     return successCount, failedCount
 end
 
--- Функция для принудительного сброса lastUpdateId (если нужно получить все сообщения)
+-- Функция для сброса lastUpdateId
 local function resetLastUpdateId()
     lastUpdateId = 0
     saveLastUpdateId(0)
-    print("🔄 LastUpdateId сброшен до 0")
+    safePrint("LastUpdateId reset to 0")
 end
 
--- Сбрасываем lastUpdateId при старте, чтобы получить все сообщения
+-- Сбрасываем lastUpdateId при старте
 resetLastUpdateId()
 
-print("🤖 Telegram мониторинг запущен! Бот теперь слушает команды /stats и /buy")
+safePrint("Telegram monitoring started! Bot is now listening to /stats and /buy commands")
 
 -- Основной цикл проверки сообщений
 while true do
@@ -333,103 +320,63 @@ while true do
             if update.message and update.message.text then
                 local text = update.message.text
                 local chat_id = update.message.chat.id
-                local username = update.message.from.username
-                    or update.message.from.first_name
+                local username = update.message.from.username or update.message.from.first_name
 
-                print("📩 Получено сообщение от " .. username .. ": " .. text)
+                safePrint("Received message from " .. username .. ": " .. text)
 
-                -- Команда /stats (не чувствительна к регистру)
+                -- Команда /stats
                 if text:lower() == '/stats' then
-                    print(
-                        '📊 Получена команда /stats от '
-                            .. username
-                    )
+                    safePrint("Received /stats command from " .. username)
 
-                    -- Собираем и отправляем статистику
                     local stats = collectStats()
                     local message = formatStats(stats)
                     sendToTelegram(chat_id, message)
 
-                -- Команда /buy (сохраняем оригинальный регистр названия токена)
-                elseif
-                    text:sub(1, 1) == '/'
-                    and text:sub(1, 5):lower() == '/buy '
-                then
-                    print(
-                        '🛒 Получена команда покупки от '
-                            .. username
-                    )
+                -- Команда /buy
+                elseif text:sub(1, 1) == '/' and text:sub(1, 5):lower() == '/buy ' then
+                    safePrint("Received buy command from " .. username)
 
-                    -- Парсим команду покупки (сохраняем оригинальный регистр)
                     local parts = {}
                     for part in text:gmatch('%S+') do
                         table.insert(parts, part)
                     end
 
                     if #parts >= 3 then
-                        local tokenName = parts[2] -- Сохраняем оригинальный регистр!
+                        local tokenName = parts[2]
                         local amount = tonumber(parts[3])
 
                         if amount and amount > 0 then
-                            sendToTelegram(
-                                chat_id,
-                                '🛒 <b>Начинаю покупку...</b>\nТокен: '
-                                    .. tokenName
-                                    .. '\nКоличество: '
-                                    .. amount
-                            )
+                            sendToTelegram(chat_id, '<b>Starting purchase...</b>\nToken: ' .. tokenName .. '\nAmount: ' .. amount)
 
-                            -- Выполняем покупку
-                            local boughtCount, failedCount =
-                                buyTokens(tokenName, amount)
+                            local boughtCount, failedCount = buyTokens(tokenName, amount)
 
-                            -- Отправляем результат
-                            local resultMessage =
-                                '✅ <b>Покупка завершена!</b>\n'
-                            resultMessage = resultMessage
-                                .. 'Токен: '
-                                .. tokenName
-                                .. '\n'
-                            resultMessage = resultMessage
-                                .. 'Запрошено: '
-                                .. amount
-                                .. '\n'
-                            resultMessage = resultMessage
-                                .. 'Успешно куплено: '
-                                .. boughtCount
-                                .. '\n'
+                            local resultMessage = '<b>Purchase completed!</b>\n'
+                            resultMessage = resultMessage .. 'Token: ' .. tokenName .. '\n'
+                            resultMessage = resultMessage .. 'Requested: ' .. amount .. '\n'
+                            resultMessage = resultMessage .. 'Successfully bought: ' .. boughtCount .. '\n'
 
                             if failedCount > 0 then
-                                resultMessage = resultMessage
-                                    .. '❌ Не удалось купить: '
-                                    .. failedCount
-                                    .. '\n'
+                                resultMessage = resultMessage .. 'Failed to buy: ' .. failedCount .. '\n'
                             end
 
                             sendToTelegram(chat_id, resultMessage)
                         else
-                            sendToTelegram(
-                                chat_id,
-                                '❌ <b>Ошибка!</b>\nНеверное количество. Используйте: /buy НазваниеТокена Количество'
-                            )
+                            sendToTelegram(chat_id, '<b>Error!</b>\nInvalid amount. Use: /buy TokenName Amount')
                         end
                     else
-                        sendToTelegram(
-                            chat_id,
-                            '❌ <b>Ошибка формата!</b>\nИспользуйте: /buy НазваниеТокена Количество\nПример: /buy RandomStoredCreatureToken 100'
-                        )
+                        sendToTelegram(chat_id, '<b>Format error!</b>\nUse: /buy TokenName Amount\nExample: /buy RandomStoredCreatureToken 100')
                     end
                 
-                -- Команда /reset для сброса lastUpdateId (для отладки)
+                -- Команда /reset для отладки
                 elseif text:lower() == '/reset' then
                     resetLastUpdateId()
-                    sendToTelegram(chat_id, "🔄 LastUpdateId сброшен. Теперь буду получать все новые сообщения.")
+                    sendToTelegram(chat_id, "LastUpdateId reset. Now I will receive all new messages.")
                 end
             end
         end
     else
-        warn("❌ Ошибка в checkTelegramMessages: " .. tostring(messages))
+        safePrint("Error in checkTelegramMessages: " .. tostring(messages))
     end
 
-    wait(3) -- Уменьшил задержку до 3 секунд
+    wait(3)
 end
