@@ -1,0 +1,334 @@
+local Players = game:GetService('Players')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local HttpService = game:GetService('HttpService')
+
+local localPlayer = Players.LocalPlayer
+local TELEGRAM_BOT_TOKEN = '8499812762:AAHgYFVkfvCi6HL3HetOcYHuuaDfxVUINT0' -- Замените на ваш токен
+
+-- Список разрешенных существ для отображения (только эти существа будут показаны)
+local ALLOWED_CREATURES = {
+    'Asilvestrela',
+    'Moluna',
+    'Starlit',
+    'Voletexius',
+    'Elarickkeir',
+    'Empiterium',
+    'Erridea',
+    'Eskarlor',
+    'Golgaroth',
+    'Jhiggo-Jangl',
+    'Leurimess',
+}
+
+-- Глобальная переменная для последнего update_id (сохраняется между перезапусками)
+local lastUpdateId = 0
+
+-- Функция проверки, нужно ли показывать это существо
+local function isCreatureAllowed(creatureName)
+    for _, allowedCreature in ipairs(ALLOWED_CREATURES) do
+        if creatureName == allowedCreature then
+            return true
+        end
+    end
+    return false
+end
+
+-- Функция отправки сообщения в Telegram
+local function sendToTelegram(chat_id, message)
+    local url = 'https://api.telegram.org/bot'
+        .. TELEGRAM_BOT_TOKEN
+        .. '/sendMessage'
+
+    local success, response = pcall(function()
+        return request({
+            Url = url,
+            Method = 'POST',
+            Headers = {
+                ['Content-Type'] = 'application/json',
+            },
+            Body = HttpService:JSONEncode({
+                chat_id = chat_id,
+                text = message,
+                parse_mode = 'HTML',
+            }),
+        })
+    end)
+
+    if success then
+        print('✅ Сообщение отправлено в Telegram')
+        return true
+    else
+        warn(
+            '❌ Ошибка отправки в Telegram: '
+                .. tostring(response)
+        )
+        return false
+    end
+end
+
+-- Функция проверки новых сообщений в Telegram
+local function checkTelegramMessages()
+    local url = 'https://api.telegram.org/bot'
+        .. TELEGRAM_BOT_TOKEN
+        .. '/getUpdates?offset='
+        .. (lastUpdateId + 1)
+
+    local success, response = pcall(function()
+        return request({
+            Url = url,
+            Method = 'GET',
+        })
+    end)
+
+    if success and response.Body then
+        local data = HttpService:JSONDecode(response.Body)
+        if data.ok and data.result then
+            return data.result
+        end
+    end
+    return {}
+end
+
+-- Функция для получения данных из таблицы существ (только разрешенные существа)
+local function getCreaturesData(dataTable, includeZeros)
+    local result = {}
+
+    if dataTable then
+        for _, value in pairs(dataTable:GetChildren()) do
+            if isCreatureAllowed(value.Name) then
+                if value:IsA('IntValue') or value:IsA('NumberValue') then
+                    if includeZeros or value.Value > 0 then
+                        result[value.Name] = value.Value
+                    end
+                elseif
+                    value:IsA('BoolValue') and (value.Value or includeZeros)
+                then
+                    result[value.Name] = value.Value and '✓' or '✗'
+                end
+            end
+        end
+    end
+
+    return result
+end
+
+-- Функция для получения данных из таблицы токенов (все токены)
+local function getTokensData(dataTable)
+    local result = {}
+
+    if dataTable then
+        for _, value in pairs(dataTable:GetChildren()) do
+            if value:IsA('IntValue') or value:IsA('NumberValue') then
+                if value.Value > 0 then
+                    result[value.Name] = value.Value
+                end
+            elseif value:IsA('BoolValue') and value.Value then
+                result[value.Name] = '✓'
+            end
+        end
+    end
+
+    return result
+end
+
+-- Функция сбора статистики
+local function collectStats()
+    local stats = {
+        mushrooms = localPlayer.Data.Coins.Value, -- Грибы
+        creatures = getCreaturesData(localPlayer.Data.Unlocks, true), -- Существа
+        tokens = getTokensData(localPlayer.Data.Items), -- Токены
+    }
+    return stats
+end
+
+-- Функция форматирования статистики
+local function formatStats(stats)
+    local message = '📊 <b>Статистика аккаунта:</b>\n\n'
+    message = message .. '👤 <b>Игрок:</b> ' .. localPlayer.Name .. '\n'
+    message = message .. '🍄 <b>Грибы:</b> ' .. stats.mushrooms .. '\n\n'
+
+    -- Существа (только разрешенные)
+    if next(stats.creatures) then
+        message = message .. '🐉 <b>Существа:</b>\n'
+        for name, value in pairs(stats.creatures) do
+            if type(value) == 'number' then
+                message = message
+                    .. '  • '
+                    .. name
+                    .. ': '
+                    .. tostring(value)
+                    .. '\n'
+            else
+                message = message .. '  • ' .. name .. ': ' .. value .. '\n'
+            end
+        end
+        message = message .. '\n'
+    else
+        message = message
+            .. '🐉 <b>Существа:</b> Нет данных по указанным существам\n\n'
+    end
+
+    -- Токены
+    if next(stats.tokens) then
+        message = message .. '🪙 <b>Токены:</b>\n'
+        for name, value in pairs(stats.tokens) do
+            message = message
+                .. '  • '
+                .. name
+                .. ': '
+                .. tostring(value)
+                .. '\n'
+        end
+    else
+        message = message .. '🪙 <b>Токены:</b> Нет токенов\n'
+    end
+
+    return message
+end
+
+-- Функция покупки токенов (максимально ускоренная)
+local function buyTokens(tokenName, amount)
+    local purchaseRemote = ReplicatedStorage:WaitForChild('Remotes')
+        :WaitForChild('PurchaseItemRemote')
+    local args = { tokenName }
+    local successCount = 0
+    local failedCount = 0
+
+    -- Супер быстрая покупка без задержек
+    for i = 1, amount do
+        local success, result = pcall(function()
+            return purchaseRemote:InvokeServer(unpack(args))
+        end)
+
+        if success then
+            successCount = successCount + 1
+        else
+            failedCount = failedCount + 1
+            if failedCount <= 3 then -- Ограничиваем спам ошибками
+                warn(
+                    '❌ Ошибка при покупке токена '
+                        .. tokenName
+                        .. ': '
+                        .. tostring(result)
+                )
+            end
+        end
+    end
+
+    print(
+        '✅ Куплено токенов '
+            .. tokenName
+            .. ': '
+            .. successCount
+            .. '/'
+            .. amount
+    )
+    return successCount, failedCount
+end
+
+-- Основной цикл проверки сообщений
+while true do
+    local messages = checkTelegramMessages()
+
+    for _, update in ipairs(messages) do
+        if update.update_id > lastUpdateId then
+            lastUpdateId = update.update_id
+
+            if update.message and update.message.text then
+                local text = update.message.text
+                local chat_id = update.message.chat.id
+                local username = update.message.from.username
+                    or update.message.from.first_name
+
+                -- Команда /stats (не чувствительна к регистру)
+                if text:lower() == '/stats' then
+                    print(
+                        '📊 Получена команда /stats от '
+                            .. username
+                    )
+
+                    -- Собираем и отправляем статистику
+                    local stats = collectStats()
+                    local message = formatStats(stats)
+                    sendToTelegram(chat_id, message)
+
+                -- Команда /buy (сохраняем оригинальный регистр названия токена)
+                elseif
+                    text:sub(1, 1) == '/'
+                    and text:sub(1, 5):lower() == '/buy '
+                then
+                    print(
+                        '🛒 Получена команда покупки от '
+                            .. username
+                    )
+
+                    -- Парсим команду покупки (сохраняем оригинальный регистр)
+                    local parts = {}
+                    for part in text:gmatch('%S+') do
+                        table.insert(parts, part)
+                    end
+
+                    if #parts >= 3 then
+                        local tokenName = parts[2] -- Сохраняем оригинальный регистр!
+                        local amount = tonumber(parts[3])
+
+                        if amount and amount > 0 then
+                            sendToTelegram(
+                                chat_id,
+                                '🛒 <b>Начинаю покупку...</b>\nТокен: '
+                                    .. tokenName
+                                    .. '\nКоличество: '
+                                    .. amount
+                            )
+
+                            -- Выполняем покупку
+                            local boughtCount, failedCount =
+                                buyTokens(tokenName, amount)
+
+                            -- Отправляем результат
+                            local resultMessage =
+                                '✅ <b>Покупка завершена!</b>\n'
+                            resultMessage = resultMessage
+                                .. 'Токен: '
+                                .. tokenName
+                                .. '\n'
+                            resultMessage = resultMessage
+                                .. 'Запрошено: '
+                                .. amount
+                                .. '\n'
+                            resultMessage = resultMessage
+                                .. 'Успешно куплено: '
+                                .. boughtCount
+                                .. '\n'
+
+                            if failedCount > 0 then
+                                resultMessage = resultMessage
+                                    .. '❌ Не удалось купить: '
+                                    .. failedCount
+                                    .. '\n'
+                            end
+
+                            sendToTelegram(chat_id, resultMessage)
+                        else
+                            sendToTelegram(
+                                chat_id,
+                                '❌ <b>Ошибка!</b>\nНеверное количество. Используйте: /buy НазваниеТокена Количество'
+                            )
+                        end
+                    else
+                        sendToTelegram(
+                            chat_id,
+                            '❌ <b>Ошибка формата!</b>\nИспользуйте: /buy НазваниеТокена Количество\nПример: /buy RandomStoredCreatureToken 100'
+                        )
+                    end
+                end
+            end
+        end
+    end
+
+    wait(2) -- Уменьшил задержку до 2 секунд для быстрого响应
+end
+
+print(
+    '🤖 Telegram мониторинг запущен! Бот теперь слушает команды /stats и /buy'
+)
