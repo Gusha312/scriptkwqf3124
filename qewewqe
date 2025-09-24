@@ -23,6 +23,29 @@ local ALLOWED_CREATURES = {
 -- Глобальная переменная для последнего update_id (сохраняется между перезапусками)
 local lastUpdateId = 0
 
+-- Функция для получения последнего update_id из файла или сервера
+local function loadLastUpdateId()
+    -- Попробуем получить из DataStore или другого хранилища
+    local success, savedId = pcall(function()
+        -- Если есть доступ к DataStore, можно использовать его
+        -- Или можно попробовать сохранить в другом месте
+        return 0 -- Пока возвращаем 0, чтобы получить все сообщения
+    end)
+    
+    return success and savedId or 0
+end
+
+-- Функция для сохранения последнего update_id
+local function saveLastUpdateId(updateId)
+    -- Сохраняем в глобальную переменную
+    lastUpdateId = updateId
+    -- Здесь можно добавить сохранение в DataStore или другое хранилище
+end
+
+-- Загружаем последний update_id при старте
+lastUpdateId = loadLastUpdateId()
+print("📝 Загружен lastUpdateId: " .. lastUpdateId)
+
 -- Функция проверки, нужно ли показывать это существо
 local function isCreatureAllowed(creatureName)
     for _, allowedCreature in ipairs(ALLOWED_CREATURES) do
@@ -66,14 +89,15 @@ local function sendToTelegram(chat_id, message)
     end
 end
 
--- Функция проверки новых сообщений в Telegram (ПЕРЕПИСАННАЯ)
+-- Функция проверки новых сообщений в Telegram (ИСПРАВЛЕННАЯ)
 local function checkTelegramMessages()
     local url = 'https://api.telegram.org/bot'
         .. TELEGRAM_BOT_TOKEN
         .. '/getUpdates?offset='
         .. (lastUpdateId + 1)
+        .. '&timeout=10' -- Добавляем timeout для длинных запросов
 
-    print("🔍 Запрос к Telegram API: " .. url)
+    print("🔍 Запрос к Telegram API: offset=" .. (lastUpdateId + 1))
 
     local success, response = pcall(function()
         return request({
@@ -97,7 +121,7 @@ local function checkTelegramMessages()
 
     -- Проверяем, что тело ответа не пустое
     if response.Body == "" or response.Body == "{}" then
-        print("📭 Нет новых сообщений")
+        print("📭 Нет новых сообщений (пустой ответ)")
         return {}
     end
 
@@ -124,11 +148,30 @@ local function checkTelegramMessages()
 
     if not data.ok or not data.result then
         warn("❌ Неверный формат ответа от Telegram")
-        warn("📄 Ответ: " .. HttpService:JSONEncode(data))
         return {}
     end
 
-    print("✅ Получено " .. #data.result .. " сообщений")
+    if #data.result == 0 then
+        print("📭 Нет новых сообщений (result пустой)")
+        return {}
+    end
+
+    print("✅ Получено " .. #data.result .. " новых сообщений")
+    
+    -- Находим максимальный update_id в полученных сообщениях
+    local maxUpdateId = lastUpdateId
+    for _, update in ipairs(data.result) do
+        if update.update_id > maxUpdateId then
+            maxUpdateId = update.update_id
+        end
+    end
+    
+    -- Сохраняем новый update_id
+    if maxUpdateId > lastUpdateId then
+        saveLastUpdateId(maxUpdateId)
+        print("💾 Сохранен новый lastUpdateId: " .. maxUpdateId)
+    end
+
     return data.result
 end
 
@@ -179,7 +222,7 @@ local function collectStats()
     local stats = {
         mushrooms = localPlayer.Data.Coins.Value, -- Грибы
         creatures = getCreaturesData(localPlayer.Data.Unlocks, true), -- Существа
-        tokens = getTokensData(localPlayer.Data.Items), -- Токены
+        tokens = getTokensData(localPlayer.Data.Items), -- Токены,
     }
     return stats
 end
@@ -269,103 +312,118 @@ local function buyTokens(tokenName, amount)
     return successCount, failedCount
 end
 
+-- Функция для принудительного сброса lastUpdateId (если нужно получить все сообщения)
+local function resetLastUpdateId()
+    lastUpdateId = 0
+    saveLastUpdateId(0)
+    print("🔄 LastUpdateId сброшен до 0")
+end
+
+-- Сбрасываем lastUpdateId при старте, чтобы получить все сообщения
+resetLastUpdateId()
+
+print("🤖 Telegram мониторинг запущен! Бот теперь слушает команды /stats и /buy")
+
 -- Основной цикл проверки сообщений
 while true do
     local success, messages = pcall(checkTelegramMessages)
     
     if success then
         for _, update in ipairs(messages) do
-            if update.update_id > lastUpdateId then
-                lastUpdateId = update.update_id
+            if update.message and update.message.text then
+                local text = update.message.text
+                local chat_id = update.message.chat.id
+                local username = update.message.from.username
+                    or update.message.from.first_name
 
-                if update.message and update.message.text then
-                    local text = update.message.text
-                    local chat_id = update.message.chat.id
-                    local username = update.message.from.username
-                        or update.message.from.first_name
+                print("📩 Получено сообщение от " .. username .. ": " .. text)
 
-                    -- Команда /stats (не чувствительна к регистру)
-                    if text:lower() == '/stats' then
-                        print(
-                            '📊 Получена команда /stats от '
-                                .. username
-                        )
+                -- Команда /stats (не чувствительна к регистру)
+                if text:lower() == '/stats' then
+                    print(
+                        '📊 Получена команда /stats от '
+                            .. username
+                    )
 
-                        -- Собираем и отправляем статистику
-                        local stats = collectStats()
-                        local message = formatStats(stats)
-                        sendToTelegram(chat_id, message)
+                    -- Собираем и отправляем статистику
+                    local stats = collectStats()
+                    local message = formatStats(stats)
+                    sendToTelegram(chat_id, message)
 
-                    -- Команда /buy (сохраняем оригинальный регистр названия токена)
-                    elseif
-                        text:sub(1, 1) == '/'
-                        and text:sub(1, 5):lower() == '/buy '
-                    then
-                        print(
-                            '🛒 Получена команда покупки от '
-                                .. username
-                        )
+                -- Команда /buy (сохраняем оригинальный регистр названия токена)
+                elseif
+                    text:sub(1, 1) == '/'
+                    and text:sub(1, 5):lower() == '/buy '
+                then
+                    print(
+                        '🛒 Получена команда покупки от '
+                            .. username
+                    )
 
-                        -- Парсим команду покупки (сохраняем оригинальный регистр)
-                        local parts = {}
-                        for part in text:gmatch('%S+') do
-                            table.insert(parts, part)
-                        end
+                    -- Парсим команду покупки (сохраняем оригинальный регистр)
+                    local parts = {}
+                    for part in text:gmatch('%S+') do
+                        table.insert(parts, part)
+                    end
 
-                        if #parts >= 3 then
-                            local tokenName = parts[2] -- Сохраняем оригинальный регистр!
-                            local amount = tonumber(parts[3])
+                    if #parts >= 3 then
+                        local tokenName = parts[2] -- Сохраняем оригинальный регистр!
+                        local amount = tonumber(parts[3])
 
-                            if amount and amount > 0 then
-                                sendToTelegram(
-                                    chat_id,
-                                    '🛒 <b>Начинаю покупку...</b>\nТокен: '
-                                        .. tokenName
-                                        .. '\nКоличество: '
-                                        .. amount
-                                )
-
-                                -- Выполняем покупку
-                                local boughtCount, failedCount =
-                                    buyTokens(tokenName, amount)
-
-                                -- Отправляем результат
-                                local resultMessage =
-                                    '✅ <b>Покупка завершена!</b>\n'
-                                resultMessage = resultMessage
-                                    .. 'Токен: '
+                        if amount and amount > 0 then
+                            sendToTelegram(
+                                chat_id,
+                                '🛒 <b>Начинаю покупку...</b>\nТокен: '
                                     .. tokenName
-                                    .. '\n'
-                                resultMessage = resultMessage
-                                    .. 'Запрошено: '
+                                    .. '\nКоличество: '
                                     .. amount
-                                    .. '\n'
+                            )
+
+                            -- Выполняем покупку
+                            local boughtCount, failedCount =
+                                buyTokens(tokenName, amount)
+
+                            -- Отправляем результат
+                            local resultMessage =
+                                '✅ <b>Покупка завершена!</b>\n'
+                            resultMessage = resultMessage
+                                .. 'Токен: '
+                                .. tokenName
+                                .. '\n'
+                            resultMessage = resultMessage
+                                .. 'Запрошено: '
+                                .. amount
+                                .. '\n'
+                            resultMessage = resultMessage
+                                .. 'Успешно куплено: '
+                                .. boughtCount
+                                .. '\n'
+
+                            if failedCount > 0 then
                                 resultMessage = resultMessage
-                                    .. 'Успешно куплено: '
-                                    .. boughtCount
+                                    .. '❌ Не удалось купить: '
+                                    .. failedCount
                                     .. '\n'
-
-                                if failedCount > 0 then
-                                    resultMessage = resultMessage
-                                        .. '❌ Не удалось купить: '
-                                        .. failedCount
-                                        .. '\n'
-                                end
-
-                                sendToTelegram(chat_id, resultMessage)
-                            else
-                                sendToTelegram(
-                                    chat_id,
-                                    '❌ <b>Ошибка!</b>\nНеверное количество. Используйте: /buy НазваниеТокена Количество'
-                                )
                             end
+
+                            sendToTelegram(chat_id, resultMessage)
                         else
                             sendToTelegram(
                                 chat_id,
-                                '❌ <b>Ошибка формата!</b>\nИспользуйте: /buy НазваниеТокена Количество\nПример: /buy RandomStoredCreatureToken 100'
+                                '❌ <b>Ошибка!</b>\nНеверное количество. Используйте: /buy НазваниеТокена Количество'
                             )
                         end
+                    else
+                        sendToTelegram(
+                            chat_id,
+                            '❌ <b>Ошибка формата!</b>\nИспользуйте: /buy НазваниеТокена Количество\nПример: /buy RandomStoredCreatureToken 100'
+                        )
                     end
+                
+                -- Команда /reset для сброса lastUpdateId (для отладки)
+                elseif text:lower() == '/reset' then
+                    resetLastUpdateId()
+                    sendToTelegram(chat_id, "🔄 LastUpdateId сброшен. Теперь буду получать все новые сообщения.")
                 end
             end
         end
@@ -373,9 +431,5 @@ while true do
         warn("❌ Ошибка в checkTelegramMessages: " .. tostring(messages))
     end
 
-    wait(5) -- Увеличил задержку до 5 секунд для стабильности
+    wait(3) -- Уменьшил задержку до 3 секунд
 end
-
-print(
-    '🤖 Telegram мониторинг запущен! Бот теперь слушает команды /stats и /buy'
-)
