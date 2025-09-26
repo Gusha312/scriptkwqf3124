@@ -1,0 +1,126 @@
+if game.PlaceId == 108533757090220 then
+    while true do
+        wait(1)
+        local args = {
+            "map_back_garden"
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("LobbySetMap_6"):InvokeServer(unpack(args))
+    end
+else
+    while true do
+        wait(0.001)
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("RestartGame"):InvokeServer()
+        local args = {
+            "dif_insane"
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceDifficultyVote"):InvokeServer(unpack(args))
+        local args = {
+            2
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("ChangeTickSpeed"):InvokeServer(unpack(args))
+        local args = {
+            "y"
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("SkipWave"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-847.1143798828125, 61.93030548095703, -164.15541076660156, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-847.1143798828125, 61.93030548095703, -164.15541076660156)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-838.0433349609375, 61.93030548095703, -163.39935302734375, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-838.0433349609375, 61.93030548095703, -163.39935302734375)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-846.8692016601562, 61.93030548095703, -158.74111938476562, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-846.8692016601562, 61.93030548095703, -158.74111938476562)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-837.935546875, 61.93030548095703, -158.54673767089844, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-837.935546875, 61.93030548095703, -158.54673767089844)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-846.7890625, 61.93030548095703, -153.6201171875, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-846.7890625, 61.93030548095703, -153.6201171875)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-837.8056030273438, 61.93030548095703, -153.87525939941406, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-837.8056030273438, 61.93030548095703, -153.87525939941406)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-846.8126831054688, 61.93030548095703, -149.4365997314453, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-846.8126831054688, 61.93030548095703, -149.4365997314453)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-837.3920288085938, 61.93030548095703, -148.96823120117188, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-837.3920288085938, 61.93030548095703, -148.96823120117188)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-846.6450805664062, 61.93030548095703, -144.38687133789062, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-846.6450805664062, 61.93030548095703, -144.38687133789062)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+        local args = {
+            "unit_sakura",
+            {
+                Valid = true,
+                Rotation = 0,
+                CF = CFrame.new(-837.8812866210938, 61.93030548095703, -142.3817138671875, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                Position = vector.create(-837.8812866210938, 61.93030548095703, -142.3817138671875)
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunctions"):WaitForChild("PlaceUnit"):InvokeServer(unpack(args))
+    end
+end
