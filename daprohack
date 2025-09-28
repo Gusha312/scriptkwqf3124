@@ -123,7 +123,7 @@ local function findFoodNode()
         camera:FindFirstChild('DragonfruitModel'),
     }
 
-    -- Если есть спецмодель, телепортируемся к ней
+    -- Если есть спецмодель, используем ее
     for _, model in ipairs(specialModels) do
         if model and model:FindFirstChild('Handle') then
             return model.Handle
@@ -144,17 +144,10 @@ local function findFoodNode()
     return nil
 end
 
--- Функция для телепортации
-local function teleportToFoodNode()
-    local target = findFoodNode() -- Ищем цель для телепортации
-    if
-        target
-        and game.Players.LocalPlayer.Character
-        and game.Players.LocalPlayer.Character:FindFirstChild('HumanoidRootPart')
-    then
-        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame
-            * CFrame.new(0, 0, 2) -- Телепортируемся немного перед целью
-
+-- Функция для запуска спама звуковыми запросами
+local function startSoundSpam()
+    local target = findFoodNode() -- Ищем цель для звукового спама
+    if target then
         -- Запускаем спам звуковыми запросами к этому фрукту
         if soundSpamCoroutine then
             coroutine.close(soundSpamCoroutine)
@@ -176,7 +169,7 @@ end
 -- Автоматически запускаем фарминг при выполнении скрипта
 teleportCoroutine = coroutine.create(function()
     while isFarming do
-        teleportToFoodNode() -- Телепортируем игрока
+        startSoundSpam() -- Запускаем спам звуковыми запросами
         local VirtualInputManager = game:GetService('VirtualInputManager')
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/cos"))()
         task.wait(2)
@@ -195,11 +188,8 @@ farmButton.MouseButton1Click:Connect(function()
         farmButton.Text = 'Stop Farming'
         teleportCoroutine = coroutine.create(function()
             while isFarming do
-                teleportToFoodNode() -- Телепортируем игрока
+                startSoundSpam() -- Запускаем спам звуковыми запросами
                 local VirtualInputManager = game:GetService('VirtualInputManager')
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1) -- Нажатие
-                task.wait(0.8) -- Короткая задержка
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1) -- Отпускание
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
                 task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
