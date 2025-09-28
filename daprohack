@@ -118,9 +118,9 @@ local function findFoodNode()
     -- Проверяем специальные модели в камере
     local camera = game:GetService('Workspace').Camera
     local specialModels = {
-        camera:FindFirstChild('JuniperBerryModel'),
-        camera:FindFirstChild('LimeModel'),
-        camera:FindFirstChild('DragonfruitModel'),
+        camera:FindFirstChild('AvacadoModel'),
+        camera:FindFirstChild('CoconutModel'),
+        camera:FindFirstChild('CacaoBeanModel'),
     }
 
     -- Если есть спецмодель, телепортируемся к ней
