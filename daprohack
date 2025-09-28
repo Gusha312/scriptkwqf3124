@@ -21,6 +21,79 @@ local soundSpamCoroutine
 local coconutCheckCoroutine
 local autoSellCoroutine
 
+-- Координаты для BillboardPart
+local billboardPositions = {
+    CFrame.new(-724.562744, 28.387001, 610.656982, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228),
+    CFrame.new(-819.596069, 330.706512, -86.8510437, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228),
+    CFrame.new(-256.833496, 419.179352, -897.405762, 0.999830544, 0.00587132527, 0.0174459964, -0.006898141, 0.998210907, 0.0593918972, -0.0170660764, -0.0595021807, 0.99808228),
+    CFrame.new(198.083801, 563.870239, -2109.92749, -1, 0, 0, 0, 1, 0, 0, 0, -1)
+}
+
+-- Функция для создания виртуального BillboardPart
+local function createVirtualBillboardPart(cframe)
+    local part = Instance.new("Part")
+    part.Name = "VirtualBillboardPart"
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 1 -- Невидимый
+    part.Size = Vector3.new(2, 2, 2)
+    part.CFrame = cframe
+    part.Parent = workspace
+    
+    return part
+end
+
+-- Функция для спама звуковыми запросами (обновленная)
+local function spamSoundRequests(targetPart)
+    while isFarming and targetPart do
+        local args = {
+            'Breath',
+            'Destructibles',
+            targetPart,
+        }
+        game
+            :GetService('Players').LocalPlayer.Character
+            :WaitForChild('Dragons')
+            :WaitForChild('1')
+            :WaitForChild('Remotes')
+            :WaitForChild('PlaySoundRemote')
+            :FireServer(unpack(args))
+        wait(0.3)
+        wait(0.1)
+    end
+end
+
+-- Функция для спама звуковыми запросами к BillboardPart
+local function spamSoundRequestsToBillboard()
+    while isFarming do
+        -- Используем первую позицию из списка
+        local targetCFrame = billboardPositions[1]
+        
+        -- Создаем временный виртуальный Part для цели
+        local virtualPart = createVirtualBillboardPart(targetCFrame)
+        
+        local args = {
+            'Breath',
+            'Destructibles',
+            virtualPart,
+        }
+        
+        game
+            :GetService('Players').LocalPlayer.Character
+            :WaitForChild('Dragons')
+            :WaitForChild('1')
+            :WaitForChild('Remotes')
+            :WaitForChild('PlaySoundRemote')
+            :FireServer(unpack(args))
+        
+        -- Удаляем виртуальный Part после использования
+        virtualPart:Destroy()
+        
+        wait(0.3)
+        wait(0.1)
+    end
+end
+
 -- Получаем текущий PlaceId
 local currentPlaceId = game.PlaceId
 
@@ -93,55 +166,6 @@ local function autoSellItems()
     end
 end
 
--- Функция для спама звуковыми запросами
-local function spamSoundRequests(targetPart)
-    while isFarming and targetPart do
-        local args = {
-            'Breath',
-            'Destructibles',
-            targetPart,
-        }
-        game
-            :GetService('Players').LocalPlayer.Character
-            :WaitForChild('Dragons')
-            :WaitForChild('1')
-            :WaitForChild('Remotes')
-            :WaitForChild('PlaySoundRemote')
-            :FireServer(unpack(args))
-        wait(0.3)
-        wait(0.1)
-    end
-end
-
--- Функция для удаления фруктов
-local function removeFruits()
-    -- Удаляем специальные модели в камере
-    local camera = game:GetService('Workspace').Camera
-    local specialModels = {
-        camera:FindFirstChild('JuniperBerryModel'),
-        camera:FindFirstChild('LimeModel'),
-        camera:FindFirstChild('DragonfruitModel'),
-    }
-
-    for _, model in ipairs(specialModels) do
-        if model then
-            model:Destroy()
-        end
-    end
-
-    -- Удаляем обычные узлы еды
-    local foodNodes = workspace.Interactions.Nodes.Food:GetChildren()
-    for _, foodNode in ipairs(foodNodes) do
-        if
-            foodNode:FindFirstChild('BillboardPart')
-            and foodNode.BillboardPart.Health
-            and foodNode.BillboardPart.Health.Value > 1
-        then
-            foodNode:Destroy()
-        end
-    end
-end
-
 -- Функция для поиска подходящего узла еды
 local function findFoodNode()
     -- Проверяем специальные модели в камере
@@ -152,7 +176,7 @@ local function findFoodNode()
         camera:FindFirstChild('DragonfruitModel'),
     }
 
-    -- Если есть спецмодель, используем ее
+    -- Если есть спецмодель, телепортируемся к ней
     for _, model in ipairs(specialModels) do
         if model and model:FindFirstChild('Handle') then
             return model.Handle
@@ -173,16 +197,39 @@ local function findFoodNode()
     return nil
 end
 
--- Функция для запуска спама звуковыми запросами
-local function startSoundSpam()
-    local target = findFoodNode() -- Ищем цель для звукового спама
-    if target then
+-- Функция для телепортации
+local function teleportToFoodNode()
+    local target = findFoodNode() -- Ищем цель для телепортации
+    if
+        target
+        and game.Players.LocalPlayer.Character
+        and game.Players.LocalPlayer.Character:FindFirstChild('HumanoidRootPart')
+    then
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = target.CFrame
+            * CFrame.new(0, 0, 2) -- Телепортируемся немного перед целью
+
         -- Запускаем спам звуковыми запросами к этому фрукту
         if soundSpamCoroutine then
             coroutine.close(soundSpamCoroutine)
         end
         soundSpamCoroutine = coroutine.create(spamSoundRequests)
         coroutine.resume(soundSpamCoroutine, target)
+    end
+end
+
+-- Функция для телепортации к BillboardPart
+local function teleportToBillboard()
+    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild('HumanoidRootPart') then
+        -- Используем первую позицию из списка
+        local targetCFrame = billboardPositions[1]
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = targetCFrame
+        
+        -- Запускаем спам звуковыми запросами к BillboardPart
+        if soundSpamCoroutine then
+            coroutine.close(soundSpamCoroutine)
+        end
+        soundSpamCoroutine = coroutine.create(spamSoundRequestsToBillboard)
+        coroutine.resume(soundSpamCoroutine)
     end
 end
 
@@ -198,15 +245,15 @@ end
 -- Автоматически запускаем фарминг при выполнении скрипта
 teleportCoroutine = coroutine.create(function()
     while isFarming do
-        -- Сначала удаляем мешающие фрукты
-        removeFruits()
-        
-        -- Затем запускаем спам звуковыми запросами
-        startSoundSpam()
+        -- Пытаемся найти обычную еду, если нет - используем BillboardPart
+        local target = findFoodNode()
+        if target then
+            teleportToFoodNode()
+        else
+            teleportToBillboard()
+        end
         
         local VirtualInputManager = game:GetService('VirtualInputManager')
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/cos"))()
-        task.wait(2)
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
@@ -222,11 +269,13 @@ farmButton.MouseButton1Click:Connect(function()
         farmButton.Text = 'Stop Farming'
         teleportCoroutine = coroutine.create(function()
             while isFarming do
-                -- Сначала удаляем мешающие фрукты
-                removeFruits()
-                
-                -- Затем запускаем спам звуковыми запросами
-                startSoundSpam()
+                -- Пытаемся найти обычную еду, если нет - используем BillboardPart
+                local target = findFoodNode()
+                if target then
+                    teleportToFoodNode()
+                else
+                    teleportToBillboard()
+                end
                 
                 local VirtualInputManager = game:GetService('VirtualInputManager')
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
