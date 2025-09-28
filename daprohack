@@ -113,6 +113,35 @@ local function spamSoundRequests(targetPart)
     end
 end
 
+-- Функция для удаления фруктов
+local function removeFruits()
+    -- Удаляем специальные модели в камере
+    local camera = game:GetService('Workspace').Camera
+    local specialModels = {
+        camera:FindFirstChild('JuniperBerryModel'),
+        camera:FindFirstChild('LimeModel'),
+        camera:FindFirstChild('DragonfruitModel'),
+    }
+
+    for _, model in ipairs(specialModels) do
+        if model then
+            model:Destroy()
+        end
+    end
+
+    -- Удаляем обычные узлы еды
+    local foodNodes = workspace.Interactions.Nodes.Food:GetChildren()
+    for _, foodNode in ipairs(foodNodes) do
+        if
+            foodNode:FindFirstChild('BillboardPart')
+            and foodNode.BillboardPart.Health
+            and foodNode.BillboardPart.Health.Value > 1
+        then
+            foodNode:Destroy()
+        end
+    end
+end
+
 -- Функция для поиска подходящего узла еды
 local function findFoodNode()
     -- Проверяем специальные модели в камере
@@ -169,7 +198,12 @@ end
 -- Автоматически запускаем фарминг при выполнении скрипта
 teleportCoroutine = coroutine.create(function()
     while isFarming do
-        startSoundSpam() -- Запускаем спам звуковыми запросами
+        -- Сначала удаляем мешающие фрукты
+        removeFruits()
+        
+        -- Затем запускаем спам звуковыми запросами
+        startSoundSpam()
+        
         local VirtualInputManager = game:GetService('VirtualInputManager')
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Gusha312/scriptkwqf3124/refs/heads/main/cos"))()
         task.wait(2)
@@ -188,7 +222,12 @@ farmButton.MouseButton1Click:Connect(function()
         farmButton.Text = 'Stop Farming'
         teleportCoroutine = coroutine.create(function()
             while isFarming do
-                startSoundSpam() -- Запускаем спам звуковыми запросами
+                -- Сначала удаляем мешающие фрукты
+                removeFruits()
+                
+                -- Затем запускаем спам звуковыми запросами
+                startSoundSpam()
+                
                 local VirtualInputManager = game:GetService('VirtualInputManager')
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
                 task.wait(0.1)
