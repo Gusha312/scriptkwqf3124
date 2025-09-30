@@ -104,7 +104,7 @@ local function spamSoundRequests(targetPart)
         game
             :GetService('Players').LocalPlayer.Character
             :WaitForChild('Dragons')
-            :WaitForChild('1')
+            :WaitForChild('1000')
             :WaitForChild('Remotes')
             :WaitForChild('PlaySoundRemote')
             :FireServer(unpack(args))
