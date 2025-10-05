@@ -29,12 +29,7 @@ local targetCFrame = CFrame.new(
 local function setupAntiAFK()
     local connection
     connection = game:GetService("RunService").Heartbeat:Connect(function()
-        VirtualInputManager:SendKeyEvent(true, "W", false, game)
-        wait(0.1)
-        VirtualInputManager:SendKeyEvent(false, "W", false, game)
-        VirtualInputManager:SendKeyEvent(true, "S", false, game)
-        wait(0.1)
-        VirtualInputManager:SendKeyEvent(false, "S", false, game)
+        print("F")
     end)
     
     return connection
