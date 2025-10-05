@@ -1,0 +1,241 @@
+-- Поместить в StarterPlayerScripts
+local Players = game:GetService('Players')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local VirtualInputManager = game:GetService('VirtualInputManager')
+local localPlayer = Players.LocalPlayer
+
+-- Настройки слотов
+local currentSlot = 1
+local maxSlots = 3
+local slotNames = {"Slot1", "Slot2", "Slot3"}
+
+-- Координаты для телепортации
+local targetCFrame = CFrame.new(
+    -1264.38, -- X
+    398.41, -- Y
+    -907.47, -- Z
+    -0.268428504,
+    0,
+    -0.963299632, -- Rotation components
+    0,
+    1,
+    0,
+    0.963299632,
+    0,
+    -0.268428504
+)
+
+-- Анти-АФК система
+local function setupAntiAFK()
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        VirtualInputManager:SendKeyEvent(true, "W", false, game)
+        wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, "W", false, game)
+        VirtualInputManager:SendKeyEvent(true, "S", false, game)
+        wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, "S", false, game)
+    end)
+    
+    return connection
+end
+
+-- Функция телепортации
+local function teleportToCoordinates()
+    local character = localPlayer.Character
+    if not character then
+        warn('Персонаж не найден!')
+        return false
+    end
+
+    local humanoidRootPart = character:FindFirstChild('HumanoidRootPart')
+    if not humanoidRootPart then
+        warn('HumanoidRootPart не найден!')
+        return false
+    end
+
+    -- Телепортация
+    humanoidRootPart.CFrame = targetCFrame
+    print('Успешно телепортирован к координатам!')
+    print('X: -1264.38, Y: 398.41, Z: -907.47')
+    return true
+end
+
+-- Функция для питания (еда и вода)
+local function feedCharacter()
+    local foodInteractions = workspace:WaitForChild('Interactions'):WaitForChild('Food')
+    local lakeInteractions = workspace:WaitForChild('Interactions'):WaitForChild('Lakes')
+    
+    for i = 1, 20 do
+        -- Кормление едой
+        local foodChildren = foodInteractions:GetChildren()
+        if i <= #foodChildren then
+            local foodArgs = { foodChildren[i] }
+            ReplicatedStorage
+                :WaitForChild('Remotes')
+                :WaitForChild('Food')
+                :FireServer(unpack(foodArgs))
+        end
+        
+        -- Питье воды
+        local lakeChildren = lakeInteractions:GetChildren()
+        if i <= #lakeChildren then
+            local drinkArgs = { lakeChildren[i] }
+            ReplicatedStorage
+                :WaitForChild('Remotes')
+                :WaitForChild('DrinkRemote')
+                :FireServer(unpack(drinkArgs))
+        end
+    end
+end
+
+-- Функция для получения текущего возраста
+local function getCurrentAge()
+    local success, result = pcall(function()
+        return localPlayer.PlayerGui.Data[slotNames[currentSlot]].Age.Value
+    end)
+    return success and result or 0
+end
+
+-- Функция деспавна и отключения слота
+local function despawnAndDisableSlot()
+    print("Достигнут максимальный слот (" .. maxSlots .. "). Деспавним и отключаем...")
+    
+    -- Деспавн текущего слота
+    ReplicatedStorage
+        :WaitForChild('Remotes')
+        :WaitForChild('DespawnRemote')
+        :InvokeServer()
+    
+    wait(2)
+    
+    -- Создаем новый слот Korathos
+    local createArgs = {'Korathos'}
+    ReplicatedStorage
+        :WaitForChild('Remotes')
+        :WaitForChild('CreateSlotRemote')
+        :InvokeServer(unpack(createArgs))
+    
+    -- Переходим к следующему слоту
+    currentSlot = currentSlot + 1
+    
+    if currentSlot <= maxSlots then
+        -- Спавним в следующий слот
+        local spawnArgs = {slotNames[currentSlot]}
+        ReplicatedStorage
+            :WaitForChild('Remotes')
+            :WaitForChild('SpawnRemote')
+            :InvokeServer(unpack(spawnArgs))
+        
+        wait(1)
+        
+        -- Телепортируемся
+        teleportToCoordinates()
+        return true
+    else
+        print("Все слоты заполнены. Останавливаем скрипт.")
+        return false
+    end
+end
+
+-- Функция для случая когда возраст НЕ равен 100
+local function ageNot100Script()
+    print("Слот " .. currentSlot .. " - возраст не равен 100. Запускаем цикл питания...")
+    
+    -- Запускаем анти-АФК
+    local antiAFKConnection = setupAntiAFK()
+    
+    -- Телепортируемся к координатам
+    teleportToCoordinates()
+    
+    -- Выполняем питание
+    feedCharacter()
+    
+    -- Запускаем повторение каждые 3 минуты (180 секунд)
+    while true do
+        -- Проверяем возраст перед каждым выполнением
+        local age = getCurrentAge()
+        if age == 100 then
+            break
+        end
+        
+        wait(140) -- Ждем 3 минуты
+        
+        -- Проверяем возраст снова
+        age = getCurrentAge()
+        if age ~= 100 then
+            teleportToCoordinates()
+            feedCharacter()
+            print("Слот " .. currentSlot .. " - цикл питания выполнен. Следующее выполнение через 3 минуты.")
+        else
+            break
+        end
+    end
+    
+    -- Отключаем анти-АФК
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+    end
+end
+
+-- Основная функция
+local function executeMainScript()
+    -- Запускаем анти-АФК на все время работы скрипта
+    local mainAntiAFK = setupAntiAFK()
+    
+    while currentSlot <= maxSlots do
+        -- Ждем пока GUI загрузится
+        wait(2)
+        
+        -- Создаем слот Korathos если нужно
+        local createArgs = {'Korathos'}
+        ReplicatedStorage
+            :WaitForChild('Remotes')
+            :WaitForChild('CreateSlotRemote')
+            :InvokeServer(unpack(createArgs))
+        
+        -- Спавним в текущий слот
+        local spawnArgs = {slotNames[currentSlot]}
+        ReplicatedStorage
+            :WaitForChild('Remotes')
+            :WaitForChild('SpawnRemote')
+            :InvokeServer(unpack(spawnArgs))
+        
+        wait(1)
+        
+        -- Получаем значение возраста
+        local age = getCurrentAge()
+        
+        if age == 100 then
+            -- Если возраст равен 100, переходим к следующему слоту
+            local continue = despawnAndDisableSlot()
+            if not continue then
+                break
+            end
+        else
+            -- Если возраст не равен 100, запускаем цикл питания
+            ageNot100Script()
+            
+            -- После завершения цикла питания проверяем возраст и переходим к следующему слоту
+            local finalAge = getCurrentAge()
+            if finalAge == 100 then
+                local continue = despawnAndDisableSlot()
+                if not continue then
+                    break
+                end
+            end
+        end
+        
+        wait(1)
+    end
+    
+    -- Отключаем анти-АФК когда все слоты заполнены
+    if mainAntiAFK then
+        mainAntiAFK:Disconnect()
+    end
+    
+    print("Скрипт завершил работу. Все " .. maxSlots .. " слотов заполнены.")
+end
+
+-- Запускаем основной скрипт
+executeMainScript()
