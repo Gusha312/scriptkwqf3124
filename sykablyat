@@ -1,7 +1,6 @@
 -- Поместить в StarterPlayerScripts
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local VirtualInputManager = game:GetService('VirtualInputManager')
 local localPlayer = Players.LocalPlayer
 
 -- Настройки слотов
@@ -25,18 +24,8 @@ local targetCFrame = CFrame.new(
     -0.268428504
 )
 
--- Анти-АФК система
-local function setupAntiAFK()
-    local connection
-    connection = game:GetService("RunService").Heartbeat:Connect(function()
-        print("F")
-    end)
-    
-    return connection
-end
-
--- Функция телепортации
-local function teleportToCoordinates()
+-- Функция рандомной телепортации вокруг целевой точки
+local function randomTeleportToCoordinates()
     local character = localPlayer.Character
     if not character then
         warn('Персонаж не найден!')
@@ -49,10 +38,18 @@ local function teleportToCoordinates()
         return false
     end
 
+    -- Генерируем случайное смещение от целевой точки
+    local randomOffsetX = math.random(-10, 10) -- Случайное смещение по X от -10 до 10
+    local randomOffsetZ = math.random(-10, 10) -- Случайное смещение по Z от -10 до 10
+    
+    -- Создаем новую CFrame со случайным смещением
+    local randomCFrame = targetCFrame + Vector3.new(randomOffsetX, 0, randomOffsetZ)
+    
     -- Телепортация
-    humanoidRootPart.CFrame = targetCFrame
-    print('Успешно телепортирован к координатам!')
-    print('X: -1264.38, Y: 398.41, Z: -907.47')
+    humanoidRootPart.CFrame = randomCFrame
+    print('Успешно телепортирован к случайным координатам!')
+    print('Базовые координаты: X: 2780.06, Y: 246.98, Z: -702.53')
+    print('Случайное смещение: X: ' .. randomOffsetX .. ', Z: ' .. randomOffsetZ)
     return true
 end
 
@@ -61,7 +58,7 @@ local function feedCharacter()
     local foodInteractions = workspace:WaitForChild('Interactions'):WaitForChild('Food')
     local lakeInteractions = workspace:WaitForChild('Interactions'):WaitForChild('Lakes')
     
-    for i = 1, 22 do
+    for i = 1, 20 do
         -- Кормление едой
         local foodChildren = foodInteractions:GetChildren()
         if i <= #foodChildren then
@@ -125,7 +122,7 @@ local function despawnAndDisableSlot()
         wait(1)
         
         -- Телепортируемся
-        teleportToCoordinates()
+        randomTeleportToCoordinates()
         return true
     else
         print("Все слоты заполнены. Останавливаем скрипт.")
@@ -137,11 +134,8 @@ end
 local function ageNot100Script()
     print("Слот " .. currentSlot .. " - возраст не равен 100. Запускаем цикл питания...")
     
-    -- Запускаем анти-АФК
-    local antiAFKConnection = setupAntiAFK()
-    
-    -- Телепортируемся к координатам
-    teleportToCoordinates()
+    -- Телепортируемся к случайным координатам
+    randomTeleportToCoordinates()
     
     -- Выполняем питание
     feedCharacter()
@@ -154,30 +148,22 @@ local function ageNot100Script()
             break
         end
         
-        wait(25) -- Ждем 3 минуты
+        wait(180) -- Ждем 3 минуты
         
         -- Проверяем возраст снова
         age = getCurrentAge()
         if age ~= 100 then
-            teleportToCoordinates()
+            randomTeleportToCoordinates()
             feedCharacter()
             print("Слот " .. currentSlot .. " - цикл питания выполнен. Следующее выполнение через 3 минуты.")
         else
             break
         end
     end
-    
-    -- Отключаем анти-АФК
-    if antiAFKConnection then
-        antiAFKConnection:Disconnect()
-    end
 end
 
 -- Основная функция
 local function executeMainScript()
-    -- Запускаем анти-АФК на все время работы скрипта
-    local mainAntiAFK = setupAntiAFK()
-    
     while currentSlot <= maxSlots do
         -- Ждем пока GUI загрузится
         wait(2)
@@ -222,11 +208,6 @@ local function executeMainScript()
         end
         
         wait(1)
-    end
-    
-    -- Отключаем анти-АФК когда все слоты заполнены
-    if mainAntiAFK then
-        mainAntiAFK:Disconnect()
     end
     
     print("Скрипт завершил работу. Все " .. maxSlots .. " слотов заполнены.")
