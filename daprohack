@@ -210,6 +210,21 @@ teleportCoroutine = coroutine.create(function()
         }
         game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
         task.wait(0.2)
+        task.wait(0.4)
+        local args = {
+            'Breath',
+            'Destructibles',
+            foodNodes,
+        }
+        game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
+        task.wait(0.4)
+        local args = {
+            'Breath',
+            'Destructibles',
+            foodNodes,
+        }
+        game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
+        task.wait(0.2)
     end
 end)
 coroutine.resume(teleportCoroutine)
