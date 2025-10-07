@@ -192,21 +192,21 @@ teleportCoroutine = coroutine.create(function()
         local args = {
             'Breath',
             'Destructibles',
-            foodNodes,
+            targetPart,
         }
         game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
         task.wait(0.4)
         local args = {
             'Breath',
             'Destructibles',
-            foodNodes,
+            targetPart,
         }
         game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
         task.wait(0.4)
         local args = {
             'Breath',
             'Destructibles',
-            foodNodes,
+            targetPart,
         }
         game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
         task.wait(0.2)
@@ -214,14 +214,14 @@ teleportCoroutine = coroutine.create(function()
         local args = {
             'Breath',
             'Destructibles',
-            foodNodes,
+            targetPart,
         }
         game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
         task.wait(0.4)
         local args = {
             'Breath',
             'Destructibles',
-            foodNodes,
+            targetPart,
         }
         game:GetService('Players').LocalPlayer.Character:WaitForChild('Dragons'):WaitForChild('1'):WaitForChild('Remotes'):WaitForChild('PlaySoundRemote'):FireServer(unpack(args))
         task.wait(0.2)
