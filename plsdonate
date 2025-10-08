@@ -1,6 +1,6 @@
 --[[
-    Ultra Low FPS Pls Donate Auto Farm
-    Fixed Teleport to Booth
+    Pls Donate Auto Farm
+    Basic Version - No Optimization
 ]]
 
 -- Check if already loaded
@@ -9,12 +9,7 @@ if getgenv().PlsDonateLoaded then
 end
 getgenv().PlsDonateLoaded = true
 
--- Disable everything possible
-if setfpscap then 
-    setfpscap(5) 
-end
-
--- Fast startup with minimal checks
+-- Fast startup
 if not game:IsLoaded() then 
     game.Loaded:Wait() 
 end
@@ -24,11 +19,7 @@ if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then
     return 
 end
 
--- Disable rendering completely
-local RunService = game:GetService("RunService")
-RunService:Set3dRenderingEnabled(false)
-
--- Minimal services only
+-- Services
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TPService = game:GetService("TeleportService")
@@ -38,7 +29,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local newRaisedFormat = LocalPlayer.leaderstats.Raised
 
--- Find remotes properly
+-- Find remotes
 local Remotes
 for _, v in pairs(ReplicatedStorage:GetChildren()) do
     if v.Name:find('Remote') and v:IsA('ModuleScript') then
@@ -58,14 +49,14 @@ if not Remotes then
     return
 end
 
--- Ultra lightweight anti-AFK
+-- Anti-AFK
 local VirtualUser = game:GetService('VirtualUser')
 LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
--- Hardcoded settings for maximum performance
+-- Settings
 local SETTINGS = {
     webhookBox = "https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob",
     boothPosition = 3,
@@ -143,7 +134,7 @@ local function keepTryingServerHop()
     return false
 end
 
--- FIXED Webhook function
+-- Webhook function
 local function webhook(raised, donor)
     local httprequest = (syn and syn.request) or http and http.request or http_request or request
     if not httprequest then 
@@ -189,7 +180,7 @@ local function webhook(raised, donor)
     end
 end
 
--- FIXED Booth finder - more reliable
+-- Booth finder
 local function findUnclaimedBooth()
     local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI:FindFirstChild("BoothUI")
     
@@ -207,7 +198,6 @@ local function findUnclaimedBooth()
     
     print("Searching for unclaimed booth...")
     
-    -- Check all booths more carefully
     for _, booth in pairs(boothUI:GetChildren()) do
         if booth:IsA("Frame") and booth.Name:find("BoothUI") then
             local details = booth:FindFirstChild("Details")
@@ -228,7 +218,7 @@ local function findUnclaimedBooth()
     return nil
 end
 
--- FIXED Booth claim with verification
+-- Booth claim
 local function claimBooth(boothId)
     if not boothId or not Remotes then 
         print("Invalid booth ID or no Remotes")
@@ -243,9 +233,8 @@ local function claimBooth(boothId)
     
     if success then
         print("Booth claim request sent, verifying...")
-        task.wait(1) -- Wait for verification
+        task.wait(1)
         
-        -- Verify booth was actually claimed
         local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI.BoothUI
                       or LocalPlayer.PlayerGui.MapUIContainer.MapUI.BoothUI
         
@@ -269,7 +258,7 @@ local function claimBooth(boothId)
     return false
 end
 
--- FIXED Teleport to booth - SIMPLE VERSION
+-- Teleport to booth
 local function teleportToBooth(boothId)
     local character = LocalPlayer.Character
     if not character then 
@@ -287,19 +276,15 @@ local function teleportToBooth(boothId)
     
     print("Looking for booth interaction: " .. boothId)
     
-    -- Find the booth interaction part
     for _, interact in pairs(workspace.BoothInteractions:GetChildren()) do
         if interact:GetAttribute("BoothSlot") == boothId then
             print("Found booth interaction at: " .. tostring(interact.Position))
             
-            -- SIMPLE TELEPORT - just set CFrame directly
             local targetCFrame = interact.CFrame * CFrame.new(SETTINGS.boothPosition, 0, 0)
             print("Teleporting to: " .. tostring(targetCFrame.Position))
             
-            -- Set CFrame directly (bypasses any movement restrictions)
             rootPart.CFrame = targetCFrame
             
-            -- Wait a bit and verify
             task.wait(0.5)
             
             local distance = (rootPart.Position - interact.Position).Magnitude
@@ -319,7 +304,7 @@ local function teleportToBooth(boothId)
     return false
 end
 
--- FIXED Donation tracker
+-- Donation tracker
 local lastRaised = newRaisedFormat.Value
 local donationConnection
 donationConnection = newRaisedFormat.Changed:Connect(function()
@@ -329,7 +314,6 @@ donationConnection = newRaisedFormat.Changed:Connect(function()
     if donationAmount > 0 then
         print("Donation detected: " .. donationAmount .. " R$")
         
-        -- Find donor
         local donor = "Unknown"
         local localChar = LocalPlayer.Character
         if localChar then
@@ -358,24 +342,21 @@ donationConnection = newRaisedFormat.Changed:Connect(function()
     end
 end)
 
--- Main function with better error handling
+-- Main function
 local function main()
     print("Script starting...")
     
-    -- Wait for character
     if not LocalPlayer.Character then
         print("Waiting for character...")
         LocalPlayer.CharacterAdded:Wait()
-        task.wait(1) -- Wait for character to fully load
+        task.wait(1)
     end
     
-    -- Make sure we have humanoid
     if not LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
         print("Waiting for humanoid...")
         repeat task.wait() until LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     end
     
-    -- Check if need to server hop
     local currentPlayers = #Players:GetPlayers()
     print("Current players: " .. currentPlayers)
     
@@ -387,7 +368,6 @@ local function main()
     
     print("Good player count (" .. currentPlayers .. "), finding booth...")
     
-    -- Try to claim booth with retries
     local boothId = findUnclaimedBooth()
     
     if boothId then
@@ -399,8 +379,6 @@ local function main()
             
             if teleportSuccess then
                 print("Ready for donations! Booth: " .. boothId)
-                
-                -- Test webhook
                 print("Testing webhook...")
                 webhook(1, "TestDonor")
             else
@@ -414,34 +392,7 @@ local function main()
     end
 end
 
--- Disable graphics completely
-task.spawn(function()
-    pcall(function()
-        for _, obj in pairs(game:GetDescendants()) do
-            if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
-                obj.Material = "Plastic"
-                if obj:IsA("Part") then
-                    obj.Reflectance = 0
-                end
-            elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                obj:Destroy()
-            elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
-                obj:Destroy()
-            end
-        end
-    end)
-end)
-
--- Reduce game settings
-task.spawn(function()
-    pcall(function()
-        local Lighting = game:GetService("Lighting")
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 100000
-    end)
-end)
-
--- Start with absolute minimum overhead
+-- Start
 task.defer(main)
 
 -- Clean up when leaving
