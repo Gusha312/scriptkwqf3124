@@ -1,6 +1,6 @@
 --[[
     Ultra Low FPS Pls Donate Auto Farm
-    Fixed Booth Claim + Webhook
+    Fixed Teleport to Booth
 ]]
 
 -- Check if already loaded
@@ -251,11 +251,15 @@ local function claimBooth(boothId)
         
         if boothUI then
             local claimedBooth = boothUI:FindFirstChild("BoothUI" .. boothId)
-            if claimedBooth and claimedBooth.Details.Owner.Text:find(LocalPlayer.DisplayName) then
-                print("Booth successfully claimed and verified!")
-                return true
+            if claimedBooth and claimedBooth.Details and claimedBooth.Details.Owner then
+                if claimedBooth.Details.Owner.Text:find(LocalPlayer.DisplayName) then
+                    print("Booth successfully claimed and verified!")
+                    return true
+                else
+                    print("Booth claim verification failed - Owner: " .. claimedBooth.Details.Owner.Text)
+                end
             else
-                print("Booth claim verification failed")
+                print("Claimed booth not found in UI")
             end
         end
     else
@@ -265,27 +269,54 @@ local function claimBooth(boothId)
     return false
 end
 
--- Fast positioning
-local function positionAtBooth(boothId)
+-- FIXED Teleport to booth - SIMPLE VERSION
+local function teleportToBooth(boothId)
     local character = LocalPlayer.Character
     if not character then 
         print("No character found")
-        return 
+        return false
     end
     
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
     local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then 
-        print("No HumanoidRootPart found")
-        return 
+    
+    if not humanoid or not rootPart then 
+        print("No humanoid or root part found")
+        return false
     end
     
+    print("Looking for booth interaction: " .. boothId)
+    
+    -- Find the booth interaction part
     for _, interact in pairs(workspace.BoothInteractions:GetChildren()) do
         if interact:GetAttribute("BoothSlot") == boothId then
-            rootPart.CFrame = interact.CFrame * CFrame.new(SETTINGS.boothPosition, 0, 0)
-            print("Positioned at booth: " .. boothId)
-            break
+            print("Found booth interaction at: " .. tostring(interact.Position))
+            
+            -- SIMPLE TELEPORT - just set CFrame directly
+            local targetCFrame = interact.CFrame * CFrame.new(SETTINGS.boothPosition, 0, 0)
+            print("Teleporting to: " .. tostring(targetCFrame.Position))
+            
+            -- Set CFrame directly (bypasses any movement restrictions)
+            rootPart.CFrame = targetCFrame
+            
+            -- Wait a bit and verify
+            task.wait(0.5)
+            
+            local distance = (rootPart.Position - interact.Position).Magnitude
+            print("Teleport completed. Distance to booth: " .. math.floor(distance))
+            
+            if distance < 10 then
+                print("Successfully teleported to booth!")
+                return true
+            else
+                print("Teleport may have failed, distance too far: " .. distance)
+                return false
+            end
         end
     end
+    
+    print("Booth interaction not found for slot: " .. boothId)
+    return false
 end
 
 -- FIXED Donation tracker
@@ -335,6 +366,13 @@ local function main()
     if not LocalPlayer.Character then
         print("Waiting for character...")
         LocalPlayer.CharacterAdded:Wait()
+        task.wait(1) -- Wait for character to fully load
+    end
+    
+    -- Make sure we have humanoid
+    if not LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        print("Waiting for humanoid...")
+        repeat task.wait() until LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     end
     
     -- Check if need to server hop
@@ -351,18 +389,23 @@ local function main()
     
     -- Try to claim booth with retries
     local boothId = findUnclaimedBooth()
-    local claimed = false
     
     if boothId then
-        claimed = claimBooth(boothId)
+        local claimed = claimBooth(boothId)
         
         if claimed then
-            positionAtBooth(boothId)
-            print("Ready for donations! Booth: " .. boothId)
+            print("Attempting to teleport to booth...")
+            local teleportSuccess = teleportToBooth(boothId)
             
-            -- Test webhook
-            print("Testing webhook...")
-            webhook(1, "TestDonor")
+            if teleportSuccess then
+                print("Ready for donations! Booth: " .. boothId)
+                
+                -- Test webhook
+                print("Testing webhook...")
+                webhook(1, "TestDonor")
+            else
+                print("Failed to teleport to booth, but booth is claimed")
+            end
         else
             print("Failed to claim booth after verification")
         end
