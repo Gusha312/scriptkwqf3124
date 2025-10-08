@@ -1,23 +1,11 @@
 --[[
-    Pls Donate Auto Farm
-    Basic Version - No Optimization
+    Optimized Pls Donate Auto Farm
+    Fixed Booth Claim Version
 ]]
 
--- Check if already loaded
-if getgenv().PlsDonateLoaded then
-    return
-end
-getgenv().PlsDonateLoaded = true
+repeat task.wait() until game:IsLoaded()
 
--- Fast startup
-if not game:IsLoaded() then 
-    game.Loaded:Wait() 
-end
-
-if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then 
-    getgenv().PlsDonateLoaded = false
-    return 
-end
+if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
 -- Services
 local Players = game:GetService("Players")
@@ -25,380 +13,216 @@ local HttpService = game:GetService("HttpService")
 local TPService = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Core variables
-local LocalPlayer = Players.LocalPlayer
-local newRaisedFormat = LocalPlayer.leaderstats.Raised
-
--- Find remotes
+-- Variables
 local Remotes
-for _, v in pairs(ReplicatedStorage:GetChildren()) do
-    if v.Name:find('Remote') and v:IsA('ModuleScript') then
-        local suc, result = pcall(function() 
-            return require(v) 
-        end)
-        if suc and type(result) == "table" and result.Event then
-            Remotes = result
-            break
-        end
-    end
-end
+local uid = Players.LocalPlayer.UserId
+local newRaisedFormat = Players.LocalPlayer:WaitForChild('leaderstats'):WaitForChild('Raised')
+local httprequest = (syn and syn.request) or http and http.request or http_request or (fluxus and fluxus.request) or request
 
-if not Remotes then
-    warn("Failed to find Remotes!")
-    getgenv().PlsDonateLoaded = false
-    return
+-- Find Remotes
+for _,v in next, ReplicatedStorage:GetChildren() do
+    if v.Name:find('Remote') and v:IsA('ModuleScript') then
+        local suc = pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end)
+        if suc then Remotes = require(v); break end
+    end
 end
 
 -- Anti-AFK
 local VirtualUser = game:GetService('VirtualUser')
-LocalPlayer.Idled:Connect(function()
+Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
 -- Settings
-local SETTINGS = {
+getgenv().settings = {
     webhookBox = "https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob",
-    boothPosition = 3,
-    targetPlayers = 26
+    webhookToggle = true,
+    serverHopToggle = true,
+    serverHopDelay = 15,
+    boothPosition = 3
 }
 
--- Check if need to hop (less than or equal to 10 players)
-local function shouldServerHop()
-    return #Players:GetPlayers() <= 10
+-- Webhook Function
+local function webhook(raised, donor)
+    if not getgenv().settings.webhookToggle then return end
+    local url = getgenv().settings.webhookBox
+    if not url or url == "" then return end
+    
+    local embed = {
+        title = Players.LocalPlayer.Name .. " 💸 just got donated!",
+        description = string.format("**%d R$** by **%s**\n• Total: %d R$", raised, donor, newRaisedFormat.Value),
+        color = 0x2ECC71,
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+    
+    local payload = HttpService:JSONEncode({embeds = {embed}})
+    httprequest({
+        Url = url,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = payload
+    })
 end
 
--- Find server with exactly 26 players
-local function findTargetServer()
-    local PlaceId = game.PlaceId
-    local httprequest = (syn and syn.request) or http and http.request or http_request or request
+-- Server Hop Function
+local function serverHop()
+    local PlaceId = 8737602449
+    local servers = {}
     
     local req = httprequest({
         Url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Desc&limit=100"
     })
     
-    if not req or not req.Body then return nil end
-    
-    local success, body = pcall(function()
-        return HttpService:JSONDecode(req.Body)
-    end)
-    
-    if not success or not body or not body.data then return nil end
-    
-    local targetServers = {}
-    
-    for _, server in ipairs(body.data) do
-        if server.playing == SETTINGS.targetPlayers and server.id ~= game.JobId then
-            table.insert(targetServers, server.id)
-        end
-    end
-    
-    if #targetServers > 0 then
-        return targetServers[math.random(1, #targetServers)]
-    end
-    
-    return nil
-end
-
--- Keep trying to join target server
-local function keepTryingServerHop()
-    local attempts = 0
-    local maxAttempts = 50
-    
-    while attempts < maxAttempts do
-        attempts += 1
-        print("Attempting to find server with " .. SETTINGS.targetPlayers .. " players... (" .. attempts .. "/" .. maxAttempts .. ")")
-        
-        local targetServerId = findTargetServer()
-        
-        if targetServerId then
-            print("Found target server, teleporting...")
-            local success = pcall(function()
-                TPService:TeleportToPlaceInstance(game.PlaceId, targetServerId, LocalPlayer)
-            end)
-            
-            if success then
-                print("Successfully teleported to target server!")
-                return true
-            else
-                print("Teleport failed, retrying...")
+    local body = HttpService:JSONDecode(req.Body)
+    if body and body.data then
+        for _, server in ipairs(body.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                table.insert(servers, server.id)
             end
-        else
-            print("No server with " .. SETTINGS.targetPlayers .. " players found, waiting...")
         end
-        
-        wait(3)
     end
     
-    print("Failed to find target server after " .. maxAttempts .. " attempts")
-    return false
-end
-
--- Webhook function
-local function webhook(raised, donor)
-    local httprequest = (syn and syn.request) or http and http.request or http_request or request
-    if not httprequest then 
-        print("HTTP request not available")
-        return 
-    end
-    
-    local embed = {
-        title = LocalPlayer.Name .. " 💸 Donation",
-        description = string.format("**%d R$** by **%s**\nTotal: **%d R$**", raised, donor, newRaisedFormat.Value),
-        color = 0x00FF00,
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }
-    
-    local success, payload = pcall(function()
-        return HttpService:JSONEncode({
-            embeds = {embed},
-            username = "Pls Donate Notifier",
-            avatar_url = "https://tr.rbxcdn.com/5c6bfb615d90b8b71b3d4b8e3d5d1f3a/420/420/Image/Png"
-        })
-    end)
-    
-    if not success then
-        print("Failed to encode webhook payload")
-        return
-    end
-    
-    local response = pcall(function()
-        return httprequest({
-            Url = SETTINGS.webhookBox,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = payload
-        })
-    end)
-    
-    if response then
-        print("Webhook sent successfully! Donation: " .. raised .. " from " .. donor)
+    if #servers > 0 then
+        TPService:TeleportToPlaceInstance(PlaceId, servers[math.random(1, #servers)], Players.LocalPlayer)
     else
-        print("Failed to send webhook")
+        TPService:Teleport(PlaceId)
     end
 end
 
--- Booth finder
+-- Booth Functions
 local function findUnclaimedBooth()
-    local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI:FindFirstChild("BoothUI")
-    
-    if not boothUI then 
-        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-        local mapContainer = playerGui:WaitForChild("MapUIContainer")
-        local mapUI = mapContainer:WaitForChild("MapUI")
-        boothUI = mapUI:WaitForChild("BoothUI")
+    local boothUI
+    if workspace:FindFirstChild("MapUI") then
+        boothUI = workspace.MapUI:FindFirstChild("BoothUI")
+    else
+        local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+        boothUI = playerGui:WaitForChild("MapUIContainer"):WaitForChild("MapUI"):WaitForChild("BoothUI")
     end
     
-    if not boothUI then 
-        print("BoothUI not found!")
-        return nil 
-    end
+    if not boothUI then return nil end
     
-    print("Searching for unclaimed booth...")
-    
-    for _, booth in pairs(boothUI:GetChildren()) do
-        if booth:IsA("Frame") and booth.Name:find("BoothUI") then
-            local details = booth:FindFirstChild("Details")
-            if details then
-                local owner = details:FindFirstChild("Owner")
-                if owner and owner.Text == "unclaimed" then
-                    local boothNum = booth.Name:match("%d+")
-                    if boothNum then
-                        print("Found unclaimed booth: " .. boothNum)
-                        return tonumber(boothNum)
-                    end
-                end
+    for _, booth in ipairs(boothUI:GetChildren()) do
+        if booth:FindFirstChild("Details") and booth.Details:FindFirstChild("Owner") then
+            if booth.Details.Owner.Text == "unclaimed" then
+                return tonumber(booth.Name:match("%d+"))
             end
         end
     end
-    
-    print("No unclaimed booths found")
     return nil
 end
 
--- Booth claim
 local function claimBooth(boothId)
-    if not boothId or not Remotes then 
-        print("Invalid booth ID or no Remotes")
-        return false 
-    end
+    if not boothId then return false end
     
-    print("Attempting to claim booth: " .. boothId)
-    
-    local success, result = pcall(function()
-        return Remotes.Event("ClaimBooth"):InvokeServer(boothId)
+    local success = pcall(function()
+        Remotes.Event("ClaimBooth"):InvokeServer(boothId)
     end)
     
     if success then
-        print("Booth claim request sent, verifying...")
+        -- Verify claim
         task.wait(1)
-        
-        local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI.BoothUI
-                      or LocalPlayer.PlayerGui.MapUIContainer.MapUI.BoothUI
-        
-        if boothUI then
-            local claimedBooth = boothUI:FindFirstChild("BoothUI" .. boothId)
-            if claimedBooth and claimedBooth.Details and claimedBooth.Details.Owner then
-                if claimedBooth.Details.Owner.Text:find(LocalPlayer.DisplayName) then
-                    print("Booth successfully claimed and verified!")
-                    return true
-                else
-                    print("Booth claim verification failed - Owner: " .. claimedBooth.Details.Owner.Text)
-                end
-            else
-                print("Claimed booth not found in UI")
-            end
+        local boothUI
+        if workspace:FindFirstChild("MapUI") then
+            boothUI = workspace.MapUI.BoothUI
+        else
+            boothUI = Players.LocalPlayer.PlayerGui.MapUIContainer.MapUI.BoothUI
         end
-    else
-        print("Booth claim failed: " .. tostring(result))
+        
+        local claimedBooth = boothUI:FindFirstChild("BoothUI" .. boothId)
+        if claimedBooth and claimedBooth.Details.Owner.Text:find(Players.LocalPlayer.DisplayName) then
+            return true
+        end
     end
     
     return false
 end
 
--- Teleport to booth
-local function teleportToBooth(boothId)
-    local character = LocalPlayer.Character
-    if not character then 
-        print("No character found")
-        return false
-    end
+local function positionAtBooth(boothId)
+    local character = Players.LocalPlayer.Character
+    if not character then return end
     
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     
-    if not humanoid or not rootPart then 
-        print("No humanoid or root part found")
-        return false
-    end
+    if not humanoid or not rootPart then return end
     
-    print("Looking for booth interaction: " .. boothId)
-    
-    for _, interact in pairs(workspace.BoothInteractions:GetChildren()) do
+    -- Find booth interaction part
+    for _, interact in ipairs(workspace.BoothInteractions:GetChildren()) do
         if interact:GetAttribute("BoothSlot") == boothId then
-            print("Found booth interaction at: " .. tostring(interact.Position))
-            
-            local targetCFrame = interact.CFrame * CFrame.new(SETTINGS.boothPosition, 0, 0)
-            print("Teleporting to: " .. tostring(targetCFrame.Position))
-            
-            rootPart.CFrame = targetCFrame
-            
-            task.wait(0.5)
-            
-            local distance = (rootPart.Position - interact.Position).Magnitude
-            print("Teleport completed. Distance to booth: " .. math.floor(distance))
-            
-            if distance < 10 then
-                print("Successfully teleported to booth!")
-                return true
-            else
-                print("Teleport may have failed, distance too far: " .. distance)
-                return false
-            end
+            local offset = CFrame.new(getgenv().settings.boothPosition, 0, 0)
+            rootPart.CFrame = interact.CFrame * offset
+            break
         end
     end
-    
-    print("Booth interaction not found for slot: " .. boothId)
-    return false
 end
 
--- Donation tracker
-local lastRaised = newRaisedFormat.Value
-local donationConnection
-donationConnection = newRaisedFormat.Changed:Connect(function()
-    local newRaised = newRaisedFormat.Value
-    local donationAmount = newRaised - lastRaised
+-- Main Execution
+local function main()
+    -- Wait for game to fully load
+    task.wait(3)
     
-    if donationAmount > 0 then
-        print("Donation detected: " .. donationAmount .. " R$")
+    local boothId = findUnclaimedBooth()
+    if not boothId then 
+        warn("No unclaimed booth found, server hopping...")
+        serverHop()
+        return
+    end
+    
+    print("Found unclaimed booth:", boothId)
+    
+    if claimBooth(boothId) then
+        print("Successfully claimed booth:", boothId)
+        positionAtBooth(boothId)
         
-        local donor = "Unknown"
-        local localChar = LocalPlayer.Character
-        if localChar then
-            local localRoot = localChar:FindFirstChild("HumanoidRootPart")
-            if localRoot then
-                local localPos = localRoot.Position
-                
-                for _, player in Players:GetPlayers() do
-                    if player ~= LocalPlayer then
-                        local playerChar = player.Character
-                        if playerChar then
-                            local playerRoot = playerChar:FindFirstChild("HumanoidRootPart")
-                            if playerRoot and (playerRoot.Position - localPos).Magnitude < 20 then
-                                donor = player.Name
-                                break
+        -- Setup donation tracking
+        local lastRaised = newRaisedFormat.Value
+        newRaisedFormat.Changed:Connect(function()
+            local newRaised = newRaisedFormat.Value
+            local donationAmount = newRaised - lastRaised
+            
+            if donationAmount > 0 then
+                -- Find donor
+                local donor = "Unknown"
+                local localChar = Players.LocalPlayer.Character
+                if localChar and localChar:FindFirstChild("HumanoidRootPart") then
+                    local localPos = localChar.HumanoidRootPart.Position
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if player ~= Players.LocalPlayer and player.Character then
+                            local playerChar = player.Character
+                            if playerChar:FindFirstChild("HumanoidRootPart") then
+                                local playerPos = playerChar.HumanoidRootPart.Position
+                                local distance = (playerPos - localPos).Magnitude
+                                if distance < 20 then
+                                    donor = player.Name
+                                    break
+                                end
                             end
                         end
                     end
                 end
+                
+                -- Send webhook
+                webhook(donationAmount, donor)
+                lastRaised = newRaised
+                
+                print("Donation received:", donationAmount, "from", donor)
             end
+        end)
+        
+        -- Auto server hop
+        if getgenv().settings.serverHopToggle then
+            print("Server hopping in", getgenv().settings.serverHopDelay, "minutes")
+            task.wait(getgenv().settings.serverHopDelay * 60)
+            serverHop()
         end
         
-        print("Sending webhook for donation from: " .. donor)
-        webhook(donationAmount, donor)
-        lastRaised = newRaised
-    end
-end)
-
--- Main function
-local function main()
-    print("Script starting...")
-    
-    if not LocalPlayer.Character then
-        print("Waiting for character...")
-        LocalPlayer.CharacterAdded:Wait()
-        task.wait(1)
-    end
-    
-    if not LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        print("Waiting for humanoid...")
-        repeat task.wait() until LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    end
-    
-    local currentPlayers = #Players:GetPlayers()
-    print("Current players: " .. currentPlayers)
-    
-    if shouldServerHop() then
-        print("Too few players (" .. currentPlayers .. "), searching for server with " .. SETTINGS.targetPlayers .. " players...")
-        keepTryingServerHop()
-        return
-    end
-    
-    print("Good player count (" .. currentPlayers .. "), finding booth...")
-    
-    local boothId = findUnclaimedBooth()
-    
-    if boothId then
-        local claimed = claimBooth(boothId)
-        
-        if claimed then
-            print("Attempting to teleport to booth...")
-            local teleportSuccess = teleportToBooth(boothId)
-            
-            if teleportSuccess then
-                print("Ready for donations! Booth: " .. boothId)
-                print("Testing webhook...")
-                webhook(1, "TestDonor")
-            else
-                print("Failed to teleport to booth, but booth is claimed")
-            end
-        else
-            print("Failed to claim booth after verification")
-        end
     else
-        print("No booth available")
+        warn("Failed to claim booth, server hopping...")
+        serverHop()
     end
 end
 
--- Start
-task.defer(main)
-
--- Clean up when leaving
-game:BindToClose(function()
-    if donationConnection then
-        donationConnection:Disconnect()
-    end
-    getgenv().PlsDonateLoaded = false
-end)
+-- Start the script
+main()
