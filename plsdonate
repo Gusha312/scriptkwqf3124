@@ -1,6 +1,6 @@
 --[[
     Optimized Pls Donate Auto Farm
-    Fixed Booth Claim Version
+    Fixed Booth Claim Version with Random Position
 ]]
 
 repeat task.wait() until game:IsLoaded()
@@ -40,7 +40,8 @@ getgenv().settings = {
     webhookToggle = true,
     serverHopToggle = true,
     serverHopDelay = 15,
-    boothPosition = 3
+    boothPosition = 3,
+    randomOffsetRange = 4 -- Максимальное смещение от лавки
 }
 
 -- Webhook Function
@@ -150,8 +151,16 @@ local function positionAtBooth(boothId)
     -- Find booth interaction part
     for _, interact in ipairs(workspace.BoothInteractions:GetChildren()) do
         if interact:GetAttribute("BoothSlot") == boothId then
-            local offset = CFrame.new(getgenv().settings.boothPosition, 0, 0)
-            rootPart.CFrame = interact.CFrame * offset
+            -- Генерируем случайное смещение
+            local randomX = math.random(-getgenv().settings.randomOffsetRange * 100, getgenv().settings.randomOffsetRange * 100) / 100
+            local randomZ = math.random(-getgenv().settings.randomOffsetRange * 100, getgenv().settings.randomOffsetRange * 100) / 100
+            
+            -- Базовая позиция + случайное смещение
+            local baseOffset = CFrame.new(getgenv().settings.boothPosition, 0, 0)
+            local randomOffset = CFrame.new(randomX, 0, randomZ)
+            
+            rootPart.CFrame = interact.CFrame * baseOffset * randomOffset
+            print(string.format("Positioned at booth %d with random offset: X=%.2f, Z=%.2f", boothId, randomX, randomZ))
             break
         end
     end
