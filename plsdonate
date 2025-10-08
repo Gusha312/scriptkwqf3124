@@ -1,6 +1,6 @@
 --[[
     Ultra Low FPS Pls Donate Auto Farm
-    Smart Server Hop to 26 Players
+    Fixed Booth Claim + Webhook
 ]]
 
 -- Check if already loaded
@@ -38,18 +38,24 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local newRaisedFormat = LocalPlayer.leaderstats.Raised
 
--- Find remotes quickly
+-- Find remotes properly
 local Remotes
 for _, v in pairs(ReplicatedStorage:GetChildren()) do
     if v.Name:find('Remote') and v:IsA('ModuleScript') then
         local suc, result = pcall(function() 
             return require(v) 
         end)
-        if suc and result.Event then
+        if suc and type(result) == "table" and result.Event then
             Remotes = result
             break
         end
     end
+end
+
+if not Remotes then
+    warn("Failed to find Remotes!")
+    getgenv().PlsDonateLoaded = false
+    return
 end
 
 -- Ultra lightweight anti-AFK
@@ -63,7 +69,7 @@ end)
 local SETTINGS = {
     webhookBox = "https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob",
     boothPosition = 3,
-    targetPlayers = 26 -- Целевое количество игроков
+    targetPlayers = 26
 }
 
 -- Check if need to hop (less than or equal to 10 players)
@@ -106,7 +112,7 @@ end
 -- Keep trying to join target server
 local function keepTryingServerHop()
     local attempts = 0
-    local maxAttempts = 50 -- Максимум попыток
+    local maxAttempts = 50
     
     while attempts < maxAttempts do
         attempts += 1
@@ -130,41 +136,60 @@ local function keepTryingServerHop()
             print("No server with " .. SETTINGS.targetPlayers .. " players found, waiting...")
         end
         
-        wait(3) -- Wait 3 seconds before retry
+        wait(3)
     end
     
     print("Failed to find target server after " .. maxAttempts .. " attempts")
     return false
 end
 
--- Non-blocking webhook
+-- FIXED Webhook function
 local function webhook(raised, donor)
-    task.spawn(function()
-        local httprequest = (syn and syn.request) or http and http.request or http_request or request
-        if not httprequest then return end
-        
-        local embed = {
-            title = LocalPlayer.Name .. " 💸",
-            description = string.format("**%d R$** by **%s**", raised, donor),
-            color = 0x2ECC71
-        }
-        
-        local success, payload = pcall(function()
-            return HttpService:JSONEncode({embeds = {embed}})
-        end)
-        
-        if success then
-            pcall(httprequest, {
-                Url = SETTINGS.webhookBox,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = payload
-            })
-        end
+    local httprequest = (syn and syn.request) or http and http.request or http_request or request
+    if not httprequest then 
+        print("HTTP request not available")
+        return 
+    end
+    
+    local embed = {
+        title = LocalPlayer.Name .. " 💸 Donation",
+        description = string.format("**%d R$** by **%s**\nTotal: **%d R$**", raised, donor, newRaisedFormat.Value),
+        color = 0x00FF00,
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+    
+    local success, payload = pcall(function()
+        return HttpService:JSONEncode({
+            embeds = {embed},
+            username = "Pls Donate Notifier",
+            avatar_url = "https://tr.rbxcdn.com/5c6bfb615d90b8b71b3d4b8e3d5d1f3a/420/420/Image/Png"
+        })
     end)
+    
+    if not success then
+        print("Failed to encode webhook payload")
+        return
+    end
+    
+    local response = pcall(function()
+        return httprequest({
+            Url = SETTINGS.webhookBox,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = payload
+        })
+    end)
+    
+    if response then
+        print("Webhook sent successfully! Donation: " .. raised .. " from " .. donor)
+    else
+        print("Failed to send webhook")
+    end
 end
 
--- Minimal booth finder
+-- FIXED Booth finder - more reliable
 local function findUnclaimedBooth()
     local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI:FindFirstChild("BoothUI")
     
@@ -175,36 +200,66 @@ local function findUnclaimedBooth()
         boothUI = mapUI:WaitForChild("BoothUI")
     end
     
-    if not boothUI then return nil end
+    if not boothUI then 
+        print("BoothUI not found!")
+        return nil 
+    end
     
-    -- Check only first 5 booths
-    local children = boothUI:GetChildren()
-    for i = 1, math.min(5, #children) do
-        local booth = children[i]
-        if booth and booth:FindFirstChild("Details") then
-            local details = booth.Details
-            if details:FindFirstChild("Owner") and details.Owner.Text == "unclaimed" then
-                local boothNum = booth.Name:match("%d+")
-                if boothNum then
-                    return tonumber(boothNum)
+    print("Searching for unclaimed booth...")
+    
+    -- Check all booths more carefully
+    for _, booth in pairs(boothUI:GetChildren()) do
+        if booth:IsA("Frame") and booth.Name:find("BoothUI") then
+            local details = booth:FindFirstChild("Details")
+            if details then
+                local owner = details:FindFirstChild("Owner")
+                if owner and owner.Text == "unclaimed" then
+                    local boothNum = booth.Name:match("%d+")
+                    if boothNum then
+                        print("Found unclaimed booth: " .. boothNum)
+                        return tonumber(boothNum)
+                    end
                 end
             end
         end
     end
+    
+    print("No unclaimed booths found")
     return nil
 end
 
--- Quick booth claim
+-- FIXED Booth claim with verification
 local function claimBooth(boothId)
-    if not boothId or not Remotes then return false end
+    if not boothId or not Remotes then 
+        print("Invalid booth ID or no Remotes")
+        return false 
+    end
     
-    local success = pcall(function()
-        Remotes.Event("ClaimBooth"):InvokeServer(boothId)
+    print("Attempting to claim booth: " .. boothId)
+    
+    local success, result = pcall(function()
+        return Remotes.Event("ClaimBooth"):InvokeServer(boothId)
     end)
     
     if success then
-        task.wait(0.3) -- Minimal wait
-        return true
+        print("Booth claim request sent, verifying...")
+        task.wait(1) -- Wait for verification
+        
+        -- Verify booth was actually claimed
+        local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI.BoothUI
+                      or LocalPlayer.PlayerGui.MapUIContainer.MapUI.BoothUI
+        
+        if boothUI then
+            local claimedBooth = boothUI:FindFirstChild("BoothUI" .. boothId)
+            if claimedBooth and claimedBooth.Details.Owner.Text:find(LocalPlayer.DisplayName) then
+                print("Booth successfully claimed and verified!")
+                return true
+            else
+                print("Booth claim verification failed")
+            end
+        end
+    else
+        print("Booth claim failed: " .. tostring(result))
     end
     
     return false
@@ -213,20 +268,27 @@ end
 -- Fast positioning
 local function positionAtBooth(boothId)
     local character = LocalPlayer.Character
-    if not character then return end
+    if not character then 
+        print("No character found")
+        return 
+    end
     
     local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
+    if not rootPart then 
+        print("No HumanoidRootPart found")
+        return 
+    end
     
     for _, interact in pairs(workspace.BoothInteractions:GetChildren()) do
         if interact:GetAttribute("BoothSlot") == boothId then
             rootPart.CFrame = interact.CFrame * CFrame.new(SETTINGS.boothPosition, 0, 0)
+            print("Positioned at booth: " .. boothId)
             break
         end
     end
 end
 
--- Ultra lightweight donation tracker
+-- FIXED Donation tracker
 local lastRaised = newRaisedFormat.Value
 local donationConnection
 donationConnection = newRaisedFormat.Changed:Connect(function()
@@ -234,15 +296,44 @@ donationConnection = newRaisedFormat.Changed:Connect(function()
     local donationAmount = newRaised - lastRaised
     
     if donationAmount > 0 then
-        webhook(donationAmount, "Donor")
+        print("Donation detected: " .. donationAmount .. " R$")
+        
+        -- Find donor
+        local donor = "Unknown"
+        local localChar = LocalPlayer.Character
+        if localChar then
+            local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+            if localRoot then
+                local localPos = localRoot.Position
+                
+                for _, player in Players:GetPlayers() do
+                    if player ~= LocalPlayer then
+                        local playerChar = player.Character
+                        if playerChar then
+                            local playerRoot = playerChar:FindFirstChild("HumanoidRootPart")
+                            if playerRoot and (playerRoot.Position - localPos).Magnitude < 20 then
+                                donor = player.Name
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        print("Sending webhook for donation from: " .. donor)
+        webhook(donationAmount, donor)
         lastRaised = newRaised
     end
 end)
 
--- Main function with smart server hop
+-- Main function with better error handling
 local function main()
+    print("Script starting...")
+    
     -- Wait for character
     if not LocalPlayer.Character then
+        print("Waiting for character...")
         LocalPlayer.CharacterAdded:Wait()
     end
     
@@ -258,16 +349,25 @@ local function main()
     
     print("Good player count (" .. currentPlayers .. "), finding booth...")
     
-    -- Quick attempt to claim booth
+    -- Try to claim booth with retries
     local boothId = findUnclaimedBooth()
+    local claimed = false
     
-    if boothId and claimBooth(boothId) then
-        print("Booth claimed successfully: " .. boothId)
-        positionAtBooth(boothId)
-        print("Ready for donations!")
+    if boothId then
+        claimed = claimBooth(boothId)
         
+        if claimed then
+            positionAtBooth(boothId)
+            print("Ready for donations! Booth: " .. boothId)
+            
+            -- Test webhook
+            print("Testing webhook...")
+            webhook(1, "TestDonor")
+        else
+            print("Failed to claim booth after verification")
+        end
     else
-        print("Failed to claim booth, but staying on server")
+        print("No booth available")
     end
 end
 
