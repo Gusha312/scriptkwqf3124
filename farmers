@@ -10,6 +10,7 @@ local args = {
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
 game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+wait(0.5)
 local args = {
     true,
     true,
