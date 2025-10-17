@@ -1,4 +1,4 @@
-wait(0.5)
+wait(2)
 local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
 
@@ -10,7 +10,7 @@ local args = {
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
 game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-wait(0.5)
+wait(0.1)
 local args = {
     true,
     true,
@@ -24,7 +24,6 @@ local ohNumber2 = 1
 
 game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote
     :InvokeServer(ohString1, ohNumber2)
-wait(1)
 local Players = game:GetService('Players')
 local TeleportService = game:GetService('TeleportService')
 
