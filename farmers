@@ -1,3 +1,4 @@
+wait(1)
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
@@ -10,7 +11,7 @@ local args = {
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
 game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-wait(0.1)
+wait(1)
 local args = {
     true,
     true,
