@@ -19,12 +19,13 @@ local args = {
 game:GetService('Players').LocalPlayer
     :WaitForChild('UpdateFavoritedRemote')
     :FireServer(unpack(args))
-
+wait(0.1)
 local ohString1 = 'Sochuri'
 local ohNumber2 = 1
 
 game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote
     :InvokeServer(ohString1, ohNumber2)
+wait(0.1)
 local Players = game:GetService('Players')
 local TeleportService = game:GetService('TeleportService')
 
