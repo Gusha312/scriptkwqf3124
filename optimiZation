@@ -1,0 +1,164 @@
+-- Ultra Optimization + GUI Only
+wait(1)
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- MAXIMUM OPTIMIZATION
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+-- Extreme performance settings
+settings().Rendering.QualityLevel = 1
+settings().Rendering.MeshCacheSize = 0
+settings().Rendering.EnableFRM = false
+settings().Rendering.EagerBulkExecution = false
+
+-- Remove all graphics
+Lighting.GlobalShadows = false
+Lighting.FantasySky.Enable = false
+Lighting.Brightness = 1
+Lighting.Ambient = Color3.new(1, 1, 1)
+Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+
+-- Remove lighting effects
+for _, obj in pairs(Lighting:GetChildren()) do
+    if obj:IsA("PostEffect") or obj:IsA("BlurEffect") or obj:IsA("SunRaysEffect") then
+        obj:Destroy()
+    end
+end
+
+-- Optimize map
+spawn(function()
+    wait(2)
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
+            obj:Destroy()
+        elseif obj:IsA("Part") and obj.Parent ~= Players.LocalPlayer then
+            pcall(function() obj.Material = Enum.Material.Plastic end)
+        end
+    end
+end)
+
+-- Create Simple GUI
+local function createSimpleGUI()
+    local player = Players.LocalPlayer
+    local PlayerGui = player:FindFirstChildOfClass("PlayerGui")
+    if not PlayerGui then return end
+
+    local oldGui = PlayerGui:FindFirstChild("UltraStatsGUI")
+    if oldGui then oldGui:Destroy() end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "UltraStatsGUI"
+    screenGui.DisplayOrder = 9999
+    screenGui.ResetOnSpawn = false
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 200, 0, 80)
+    mainFrame.Position = UDim2.new(0, 10, 0, 10)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    mainFrame.BackgroundTransparency = 0.3
+    mainFrame.BorderSizePixel = 0
+
+    local ticketsText = Instance.new("TextLabel")
+    ticketsText.Size = UDim2.new(1, 0, 0, 25)
+    ticketsText.Position = UDim2.new(0, 5, 0, 5)
+    ticketsText.BackgroundTransparency = 1
+    ticketsText.Text = "Тикетов: 0"
+    ticketsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ticketsText.TextSize = 14
+    ticketsText.TextXAlignment = Enum.TextXAlignment.Left
+    ticketsText.Font = Enum.Font.SourceSans
+    ticketsText.Parent = mainFrame
+
+    local pointsText = Instance.new("TextLabel")
+    pointsText.Size = UDim2.new(1, 0, 0, 25)
+    pointsText.Position = UDim2.new(0, 5, 0, 30)
+    pointsText.BackgroundTransparency = 1
+    pointsText.Text = "Тикет очков: 0"
+    pointsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    pointsText.TextSize = 14
+    pointsText.TextXAlignment = Enum.TextXAlignment.Left
+    pointsText.Font = Enum.Font.SourceSans
+    pointsText.Parent = mainFrame
+
+    local fpsText = Instance.new("TextLabel")
+    fpsText.Size = UDim2.new(1, 0, 0, 25)
+    fpsText.Position = UDim2.new(0, 5, 0, 55)
+    fpsText.BackgroundTransparency = 1
+    fpsText.Text = "FPS: 0"
+    fpsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fpsText.TextSize = 14
+    fpsText.TextXAlignment = Enum.TextXAlignment.Left
+    fpsText.Font = Enum.Font.SourceSans
+    fpsText.Parent = mainFrame
+
+    mainFrame.Parent = screenGui
+    screenGui.Parent = PlayerGui
+
+    -- FPS Counter
+    local fps = 0
+    local frames = 0
+    local lastTime = tick()
+
+    RunService.Heartbeat:Connect(function()
+        frames = frames + 1
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            fps = frames
+            frames = 0
+            lastTime = currentTime
+            fpsText.Text = "FPS: " .. fps
+        end
+    end)
+
+    -- Stats updater
+    local function updateStats()
+        pcall(function()
+            local dataFolder = player.PlayerGui.Data
+            local tickets = "N/A"
+            local ticketPoints = "N/A"
+            
+            if dataFolder and dataFolder:FindFirstChild("Tikits") then
+                tickets = tostring(dataFolder.Tikits.Value)
+            end
+            
+            if dataFolder and dataFolder:FindFirstChild("TikitPoints") then
+                ticketPoints = tostring(dataFolder.TikitPoints.Value)
+            end
+            
+            ticketsText.Text = "Тикетов: " .. tickets
+            pointsText.Text = "Тикет очков: " .. ticketPoints
+        end)
+    end
+
+    -- Auto update stats
+    spawn(function()
+        while screenGui.Parent do
+            updateStats()
+            wait(5)
+        end
+    end)
+
+    updateStats()
+    return screenGui
+end
+
+-- Create GUI
+createSimpleGUI()
+
+-- Continuous optimization in background
+spawn(function()
+    while wait(10) do
+        collectgarbage()
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+    end
+end)
