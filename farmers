@@ -1,7 +1,256 @@
-wait(100)
+-- Максимальная оптимизация производительности Roblox
+wait(0.1)
+
+-- Отключаем ненужные сервисы для экономии ресурсов
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- Настройки для максимальной производительности
+settings().Rendering.QualityLevel = 1
+settings().Rendering.MeshCacheSize = 0
+settings().Rendering.EnableFRM = false
+settings().Rendering.EagerBulkExecution = false
+
+-- Убираем графические эффекты
+game:GetService("Lighting").GlobalShadows = false
+game:GetService("Lighting").FantasySky.Enable = false
+game:GetService("Lighting").Technology = "Legacy"
+for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
+    if effect:IsA("PostEffect") then
+        effect.Enabled = false
+    end
+end
+
+-- Функция для отключения всех GUI
+local function disableAllGUI()
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    if player then
+        local PlayerGui = player:FindFirstChild("PlayerGui")
+        if PlayerGui then
+            -- Отключаем все ScreenGui
+            for _, gui in pairs(PlayerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") then
+                    gui.Enabled = false
+                end
+            end
+        end
+        
+        -- Отключаем CoreGui элементы
+        local CoreGui = game:GetService("CoreGui")
+        for _, gui in pairs(CoreGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Name ~= "RobloxGui" then
+                gui.Enabled = false
+            end
+        end
+    end
+end
+
+-- Функция для создания собственного GUI
+local function createStatsGUI()
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    local PlayerGui = player:FindFirstChild("PlayerGui")
+    
+    if not PlayerGui then return end
+    
+    -- Удаляем старый GUI если существует
+    local oldGui = PlayerGui:FindFirstChild("OptimizedStatsGUI")
+    if oldGui then
+        oldGui:Destroy()
+    end
+    
+    -- Создаем новый GUI
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "OptimizedStatsGUI"
+    screenGui.DisplayOrder = 10
+    screenGui.ResetOnSpawn = false
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 250, 0, 120)
+    frame.Position = UDim2.new(0, 10, 0, 10)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.BackgroundTransparency = 0.2
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    title.BorderSizePixel = 0
+    title.Text = "Статистика аккаунта"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBold
+    title.Parent = frame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.Parent = title
+    
+    -- Текст для тикетов
+    local ticketsLabel = Instance.new("TextLabel")
+    ticketsLabel.Size = UDim2.new(1, -20, 0, 25)
+    ticketsLabel.Position = UDim2.new(0, 10, 0, 35)
+    ticketsLabel.BackgroundTransparency = 1
+    ticketsLabel.Text = "Тикетов: 0"
+    ticketsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ticketsLabel.TextSize = 12
+    ticketsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ticketsLabel.Font = Enum.Font.Gotham
+    ticketsLabel.Parent = frame
+    
+    -- Текст для тикет очков
+    local ticketPointsLabel = Instance.new("TextLabel")
+    ticketPointsLabel.Size = UDim2.new(1, -20, 0, 25)
+    ticketPointsLabel.Position = UDim2.new(0, 10, 0, 60)
+    ticketPointsLabel.BackgroundTransparency = 1
+    ticketPointsLabel.Text = "Тикет очков: 0"
+    ticketPointsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ticketPointsLabel.TextSize = 12
+    ticketPointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ticketPointsLabel.Font = Enum.Font.Gotham
+    ticketPointsLabel.Parent = frame
+    
+    -- Кнопка обновления
+    local updateButton = Instance.new("TextButton")
+    updateButton.Size = UDim2.new(0, 100, 0, 25)
+    updateButton.Position = UDim2.new(0.5, -50, 0, 90)
+    updateButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    updateButton.BorderSizePixel = 0
+    updateButton.Text = "Обновить"
+    updateButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    updateButton.TextSize = 12
+    updateButton.Font = Enum.Font.Gotham
+    updateButton.Parent = frame
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 4)
+    buttonCorner.Parent = updateButton
+    
+    -- Функция обновления статистики
+    local function updateStats()
+        local tickets = 0
+        local ticketPoints = 0
+        
+        -- Получаем данные о тикетах
+        local success1, result1 = pcall(function()
+            return game:GetService("Players").LocalPlayer.PlayerGui.Data.Tikits.Value
+        end)
+        
+        if success1 then
+            tickets = result1
+        end
+        
+        -- Получаем данные о тикет очках
+        local success2, result2 = pcall(function()
+            return game:GetService("Players").LocalPlayer.PlayerGui.Data.TikitPoints.Value
+        end)
+        
+        if success2 then
+            ticketPoints = result2
+        end
+        
+        ticketsLabel.Text = "Тикетов: " .. tostring(tickets)
+        ticketPointsLabel.Text = "Тикет очков: " .. tostring(ticketPoints)
+    end
+    
+    -- Обновляем статистику при нажатии кнопки
+    updateButton.MouseButton1Click:Connect(updateStats)
+    
+    -- Авто-обновление каждые 5 секунд
+    spawn(function()
+        while screenGui.Parent do
+            updateStats()
+            wait(5)
+        end
+    end)
+    
+    screenGui.Parent = PlayerGui
+    
+    -- Первоначальное обновление
+    updateStats()
+    
+    return screenGui
+end
+
+-- Отключаем все GUI и создаем свой
+disableAllGUI()
+wait(0.1)
+createStatsGUI()
+
+-- Основной скрипт с задержками для стабильности
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+
+local ohString1 = 'CreatureEditor'
+local ohString2 = 'Sochuri'
+
+game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote
+    :InvokeServer(ohString1, ohString2)
+
+local args = {
+    "Slot1"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
+game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+
+wait(0.1)
+
+local args = {
+    true,
+    true,
+}
+game:GetService('Players').LocalPlayer
+    :WaitForChild('UpdateFavoritedRemote')
+    :FireServer(unpack(args))
+
+wait(0.1)
+
+local ohString1 = 'Sochuri'
+local ohNumber2 = 1
+
+game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote
+    :InvokeServer(ohString1, ohNumber2)
+
+wait(0.1)
+
+-- Дополнительные оптимизации перед телепортацией
+-- Очистка памяти
+collectgarbage()
+
 local Players = game:GetService('Players')
 local TeleportService = game:GetService('TeleportService')
 
 local placeId = 5233782396
+
+-- Функция для повторного создания GUI после телепорта
+local function recreateGUIAfterTeleport()
+    wait(3) -- Ждем загрузки нового места
+    
+    -- Повторяем оптимизации
+    settings().Rendering.QualityLevel = 1
+    game:GetService("Lighting").GlobalShadows = false
+    
+    -- Отключаем частицы
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
+            obj.Enabled = false
+        end
+    end
+    
+    -- Снова отключаем все GUI и создаем свой
+    disableAllGUI()
+    wait(0.5)
+    createStatsGUI()
+end
+
+-- Запускаем оптимизацию после телепорта
+spawn(recreateGUIAfterTeleport)
 
 TeleportService:Teleport(placeId)
