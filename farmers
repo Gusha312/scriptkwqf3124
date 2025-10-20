@@ -1,258 +1,275 @@
--- Максимальная оптимизация производительности Roblox
+-- Ultra Optimization Script for Roblox
 wait(1)
 
--- Ждем загрузки игры
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Настройки для максимальной производительности
+-- MAXIMUM OPTIMIZATION SETTINGS
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+-- Extreme performance settings
 settings().Rendering.QualityLevel = 1
 settings().Rendering.MeshCacheSize = 0
 settings().Rendering.EnableFRM = false
 settings().Rendering.EagerBulkExecution = false
+settings().Physics.PhysicsEnvironmentalThrottle = 2
 
--- Убираем графические эффекты
-game:GetService("Lighting").GlobalShadows = false
-game:GetService("Lighting").FantasySky.Enable = false
-game:GetService("Lighting").Technology = "Legacy"
-for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
-    if effect:IsA("PostEffect") then
-        effect.Enabled = false
+-- Remove all graphics
+Lighting.GlobalShadows = false
+Lighting.FantasySky.Enable = false
+Lighting.Brightness = 1
+Lighting.Ambient = Color3.new(1, 1, 1)
+Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+Lighting.ShadowSoftness = 0
+Lighting.GeographicLatitude = 0
+
+-- Remove all lighting effects
+for _, obj in pairs(Lighting:GetChildren()) do
+    if obj:IsA("PostEffect") or obj:IsA("BlurEffect") or obj:IsA("SunRaysEffect") or obj:IsA("ColorCorrectionEffect") then
+        obj:Destroy()
     end
 end
 
--- Функция для отключения ВСЕХ GUI
-local function disableAllGUI()
-    local player = game:GetService("Players").LocalPlayer
-    if player then
-        -- Отключаем PlayerGui
-        local PlayerGui = player:FindFirstChild("PlayerGui")
-        if PlayerGui then
-            for _, gui in pairs(PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") or gui:IsA("SurfaceGui") or gui:IsA("BillboardGui") then
-                    gui.Enabled = false
-                end
+-- Destroy unnecessary map parts
+spawn(function()
+    wait(2)
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Part") and not obj:IsA("BasePart") then
+            if obj.Name ~= "Baseplate" and obj.Parent ~= Players.LocalPlayer then
+                pcall(function() obj.Material = Enum.Material.Plastic end)
+                pcall(function() obj.Reflectance = 0 end)
             end
-        end
-        
-        -- Отключаем StarterGui
-        local StarterGui = game:GetService("StarterGui")
-        for _, gui in pairs(StarterGui:GetChildren()) do
-            if gui:IsA("ScreenGui") then
-                gui.Enabled = false
-            end
-        end
-        
-        -- Отключаем CoreGui (кроме чата)
-        local CoreGui = game:GetService("CoreGui")
-        for _, gui in pairs(CoreGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Name ~= "Chat" and gui.Name ~= "RobloxGui" then
-                gui.Enabled = false
-            end
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            obj:Destroy()
+        elseif obj:IsA("Decal") then
+            obj:Destroy()
+        elseif obj:IsA("Sound") then
+            obj:Destroy()
         end
     end
+end)
+
+-- Remove terrain if exists
+if Workspace:FindFirstChildOfClass("Terrain") then
+    Workspace:FindFirstChildOfClass("Terrain").Decoration = false
 end
 
--- Функция для создания собственного GUI
-local function createStatsGUI()
-    local player = game:GetService("Players").LocalPlayer
-    local PlayerGui = player:FindFirstChild("PlayerGui")
-    
-    if not PlayerGui then 
-        wait(1)
-        PlayerGui = player:FindFirstChild("PlayerGui")
-        if not PlayerGui then return end
-    end
-    
-    -- Удаляем старый GUI если существует
-    local oldGui = PlayerGui:FindFirstChild("OptimizedStatsGUI")
+-- Create Ultra Simple GUI
+local function createSimpleGUI()
+    local player = Players.LocalPlayer
+    local PlayerGui = player:FindFirstChildOfClass("PlayerGui")
+    if not PlayerGui then return end
+
+    -- Remove existing GUI if any
+    local oldGui = PlayerGui:FindFirstChild("UltraStatsGUI")
     if oldGui then
         oldGui:Destroy()
     end
-    
-    -- Создаем новый GUI
+
+    -- Create minimal GUI
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "OptimizedStatsGUI"
-    screenGui.DisplayOrder = 999
+    screenGui.Name = "UltraStatsGUI"
+    screenGui.DisplayOrder = 9999
     screenGui.ResetOnSpawn = false
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 250, 0, 120)
-    frame.Position = UDim2.new(0, 10, 0, 10)
-    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    frame.BorderSizePixel = 0
-    frame.BackgroundTransparency = 0.2
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = frame
-    
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    title.BorderSizePixel = 0
-    title.Text = "Статистика аккаунта"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 14
-    title.Font = Enum.Font.GothamBold
-    title.Parent = frame
-    
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 8)
-    titleCorner.Parent = title
-    
-    -- Текст для тикетов
-    local ticketsLabel = Instance.new("TextLabel")
-    ticketsLabel.Size = UDim2.new(1, -20, 0, 25)
-    ticketsLabel.Position = UDim2.new(0, 10, 0, 35)
-    ticketsLabel.BackgroundTransparency = 1
-    ticketsLabel.Text = "Тикетов: загрузка..."
-    ticketsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ticketsLabel.TextSize = 12
-    ticketsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ticketsLabel.Font = Enum.Font.Gotham
-    ticketsLabel.Parent = frame
-    
-    -- Текст для тикет очков
-    local ticketPointsLabel = Instance.new("TextLabel")
-    ticketPointsLabel.Size = UDim2.new(1, -20, 0, 25)
-    ticketPointsLabel.Position = UDim2.new(0, 10, 0, 60)
-    ticketPointsLabel.BackgroundTransparency = 1
-    ticketPointsLabel.Text = "Тикет очков: загрузка..."
-    ticketPointsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ticketPointsLabel.TextSize = 12
-    ticketPointsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ticketPointsLabel.Font = Enum.Font.Gotham
-    ticketPointsLabel.Parent = frame
-    
-    -- Кнопка обновления
-    local updateButton = Instance.new("TextButton")
-    updateButton.Size = UDim2.new(0, 100, 0, 25)
-    updateButton.Position = UDim2.new(0.5, -50, 0, 90)
-    updateButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    updateButton.BorderSizePixel = 0
-    updateButton.Text = "Обновить"
-    updateButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    updateButton.TextSize = 12
-    updateButton.Font = Enum.Font.Gotham
-    updateButton.Parent = frame
-    
-    local buttonCorner = Instance.new("UICorner")
-    buttonCorner.CornerRadius = UDim.new(0, 4)
-    buttonCorner.Parent = updateButton
-    
-    -- Функция обновления статистики
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 200, 0, 80)
+    mainFrame.Position = UDim2.new(0, 10, 0, 10)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    mainFrame.BackgroundTransparency = 0.3
+    mainFrame.BorderSizePixel = 0
+
+    local ticketsText = Instance.new("TextLabel")
+    ticketsText.Size = UDim2.new(1, 0, 0, 25)
+    ticketsText.Position = UDim2.new(0, 5, 0, 5)
+    ticketsText.BackgroundTransparency = 1
+    ticketsText.Text = "Тикетов: 0"
+    ticketsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ticketsText.TextSize = 14
+    ticketsText.TextXAlignment = Enum.TextXAlignment.Left
+    ticketsText.Font = Enum.Font.SourceSans
+    ticketsText.Parent = mainFrame
+
+    local pointsText = Instance.new("TextLabel")
+    pointsText.Size = UDim2.new(1, 0, 0, 25)
+    pointsText.Position = UDim2.new(0, 5, 0, 30)
+    pointsText.BackgroundTransparency = 1
+    pointsText.Text = "Тикет очков: 0"
+    pointsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    pointsText.TextSize = 14
+    pointsText.TextXAlignment = Enum.TextXAlignment.Left
+    pointsText.Font = Enum.Font.SourceSans
+    pointsText.Parent = mainFrame
+
+    local fpsText = Instance.new("TextLabel")
+    fpsText.Size = UDim2.new(1, 0, 0, 25)
+    fpsText.Position = UDim2.new(0, 5, 0, 55)
+    fpsText.BackgroundTransparency = 1
+    fpsText.Text = "FPS: 0"
+    fpsText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fpsText.TextSize = 14
+    fpsText.TextXAlignment = Enum.TextXAlignment.Left
+    fpsText.Font = Enum.Font.SourceSans
+    fpsText.Parent = mainFrame
+
+    mainFrame.Parent = screenGui
+    screenGui.Parent = PlayerGui
+
+    -- FPS Counter
+    local fps = 0
+    local frames = 0
+    local lastTime = tick()
+
+    RunService.Heartbeat:Connect(function()
+        frames = frames + 1
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            fps = frames
+            frames = 0
+            lastTime = currentTime
+            fpsText.Text = "FPS: " .. fps
+        end
+    end)
+
+    -- Stats updater
     local function updateStats()
-        local tickets = "N/A"
-        local ticketPoints = "N/A"
-        
-        -- Получаем данные о тикетах
         pcall(function()
-            local dataFolder = game:GetService("Players").LocalPlayer.PlayerGui.Data
+            -- Get tickets
+            local tickets = "N/A"
+            local dataFolder = player.PlayerGui.Data
             if dataFolder and dataFolder:FindFirstChild("Tikits") then
                 tickets = tostring(dataFolder.Tikits.Value)
             end
-        end)
-        
-        -- Получаем данные о тикет очках
-        pcall(function()
-            local dataFolder = game:GetService("Players").LocalPlayer.PlayerGui.Data
+            
+            -- Get ticket points
+            local ticketPoints = "N/A"
             if dataFolder and dataFolder:FindFirstChild("TikitPoints") then
                 ticketPoints = tostring(dataFolder.TikitPoints.Value)
             end
+            
+            ticketsText.Text = "Тикетов: " .. tickets
+            pointsText.Text = "Тикет очков: " .. ticketPoints
         end)
-        
-        ticketsLabel.Text = "Тикетов: " .. tickets
-        ticketPointsLabel.Text = "Тикет очков: " .. ticketPoints
     end
-    
-    -- Обновляем статистику при нажатии кнопки
-    updateButton.MouseButton1Click:Connect(updateStats)
-    
-    -- Авто-обновление каждые 10 секунд
+
+    -- Auto update every 5 seconds
     spawn(function()
         while screenGui.Parent do
             updateStats()
-            wait(10)
+            wait(5)
         end
     end)
-    
-    screenGui.Parent = PlayerGui
-    
-    -- Первоначальное обновление
-    wait(0.5)
+
+    -- Initial update
+    wait(1)
     updateStats()
-    
+
     return screenGui
 end
 
--- ОТКЛЮЧАЕМ ВСЕ GUI СРАЗУ
-disableAllGUI()
+-- Create GUI immediately
+createSimpleGUI()
 
--- СОЗДАЕМ СВОЙ GUI
-wait(0.5)
-createStatsGUI()
+-- MAIN SCRIPT EXECUTION
+wait(2)
 
--- ОСНОВНОЙ СКРИПТ
-wait(1)
+-- Execute main script with error handling
+local function safeExecute()
+    pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+    end)
+    wait(0.5)
 
--- Выполняем основной скрипт
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+    pcall(function()
+        local ohString1 = 'CreatureEditor'
+        local ohString2 = 'Sochuri'
+        game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+    end)
+    wait(0.5)
 
-local ohString1 = 'CreatureEditor'
-local ohString2 = 'Sochuri'
+    pcall(function()
+        local args = {"Slot1"}
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
+    end)
+    wait(0.5)
 
-game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+    pcall(function()
+        game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+    end)
+    wait(0.5)
 
-local args = {"Slot1"}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
-game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+    pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+    end)
+    wait(0.5)
 
-wait(0.5)
+    pcall(function()
+        local args = {true, true}
+        game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+    end)
+    wait(0.5)
 
-local args = {true, true}
-game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+    pcall(function()
+        local ohString1 = 'Sochuri'
+        local ohNumber2 = 1
+        game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+    end)
+    wait(0.5)
+end
 
-wait(0.5)
+-- Execute main script
+safeExecute()
 
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+-- Continuous optimization
+spawn(function()
+    while wait(10) do
+        -- Clean up memory
+        collectgarbage()
+        
+        -- Remove new particles/effects
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+    end
+end)
 
-wait(0.5)
+-- Teleportation with GUI preservation
+wait(2)
 
--- Телепортация
 local TeleportService = game:GetService('TeleportService')
 local placeId = 5233782396
 
--- Функция для восстановления GUI после телепорта
+-- Setup after teleport
 local function setupAfterTeleport()
-    -- Ждем загрузки нового места
     repeat wait() until game:IsLoaded()
     wait(3)
     
-    -- Повторяем оптимизации
+    -- Reapply optimizations
     settings().Rendering.QualityLevel = 1
-    game:GetService("Lighting").GlobalShadows = false
+    Lighting.GlobalShadows = false
     
-    -- Отключаем частицы
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
-            obj.Enabled = false
+    -- Remove map objects
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Part") and obj.Parent ~= Players.LocalPlayer then
+            pcall(function() obj.Material = Enum.Material.Plastic end)
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
+            pcall(function() obj:Destroy() end)
         end
     end
     
-    -- Снова отключаем все GUI и создаем свой
-    disableAllGUI()
+    -- Recreate GUI
     wait(1)
-    createStatsGUI()
+    createSimpleGUI()
 end
 
--- Запускаем настройку после телепорта
+-- Start setup coroutine
 spawn(setupAfterTeleport)
 
--- Выполняем телепортацию
+-- Perform teleport
 TeleportService:Teleport(placeId)
