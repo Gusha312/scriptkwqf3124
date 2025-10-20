@@ -1,11 +1,11 @@
--- Ultra Optimization Script for Roblox
+-- Ultra Optimization + GUI Only
 wait(1)
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- MAXIMUM OPTIMIZATION SETTINGS
+-- MAXIMUM OPTIMIZATION
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
@@ -16,7 +16,6 @@ settings().Rendering.QualityLevel = 1
 settings().Rendering.MeshCacheSize = 0
 settings().Rendering.EnableFRM = false
 settings().Rendering.EagerBulkExecution = false
-settings().Physics.PhysicsEnvironmentalThrottle = 2
 
 -- Remove all graphics
 Lighting.GlobalShadows = false
@@ -24,53 +23,35 @@ Lighting.FantasySky.Enable = false
 Lighting.Brightness = 1
 Lighting.Ambient = Color3.new(1, 1, 1)
 Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-Lighting.ShadowSoftness = 0
-Lighting.GeographicLatitude = 0
 
--- Remove all lighting effects
+-- Remove lighting effects
 for _, obj in pairs(Lighting:GetChildren()) do
-    if obj:IsA("PostEffect") or obj:IsA("BlurEffect") or obj:IsA("SunRaysEffect") or obj:IsA("ColorCorrectionEffect") then
+    if obj:IsA("PostEffect") or obj:IsA("BlurEffect") or obj:IsA("SunRaysEffect") then
         obj:Destroy()
     end
 end
 
--- Destroy unnecessary map parts
+-- Optimize map
 spawn(function()
     wait(2)
     for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Part") and not obj:IsA("BasePart") then
-            if obj.Name ~= "Baseplate" and obj.Parent ~= Players.LocalPlayer then
-                pcall(function() obj.Material = Enum.Material.Plastic end)
-                pcall(function() obj.Reflectance = 0 end)
-            end
-        elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+        if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
             obj:Destroy()
-        elseif obj:IsA("Decal") then
-            obj:Destroy()
-        elseif obj:IsA("Sound") then
-            obj:Destroy()
+        elseif obj:IsA("Part") and obj.Parent ~= Players.LocalPlayer then
+            pcall(function() obj.Material = Enum.Material.Plastic end)
         end
     end
 end)
 
--- Remove terrain if exists
-if Workspace:FindFirstChildOfClass("Terrain") then
-    Workspace:FindFirstChildOfClass("Terrain").Decoration = false
-end
-
--- Create Ultra Simple GUI
+-- Create Simple GUI
 local function createSimpleGUI()
     local player = Players.LocalPlayer
     local PlayerGui = player:FindFirstChildOfClass("PlayerGui")
     if not PlayerGui then return end
 
-    -- Remove existing GUI if any
     local oldGui = PlayerGui:FindFirstChild("UltraStatsGUI")
-    if oldGui then
-        oldGui:Destroy()
-    end
+    if oldGui then oldGui:Destroy() end
 
-    -- Create minimal GUI
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "UltraStatsGUI"
     screenGui.DisplayOrder = 9999
@@ -138,15 +119,14 @@ local function createSimpleGUI()
     -- Stats updater
     local function updateStats()
         pcall(function()
-            -- Get tickets
-            local tickets = "N/A"
             local dataFolder = player.PlayerGui.Data
+            local tickets = "N/A"
+            local ticketPoints = "N/A"
+            
             if dataFolder and dataFolder:FindFirstChild("Tikits") then
                 tickets = tostring(dataFolder.Tikits.Value)
             end
             
-            -- Get ticket points
-            local ticketPoints = "N/A"
             if dataFolder and dataFolder:FindFirstChild("TikitPoints") then
                 ticketPoints = tostring(dataFolder.TikitPoints.Value)
             end
@@ -156,7 +136,7 @@ local function createSimpleGUI()
         end)
     end
 
-    -- Auto update every 5 seconds
+    -- Auto update stats
     spawn(function()
         while screenGui.Parent do
             updateStats()
@@ -164,73 +144,17 @@ local function createSimpleGUI()
         end
     end)
 
-    -- Initial update
-    wait(1)
     updateStats()
-
     return screenGui
 end
 
--- Create GUI immediately
+-- Create GUI
 createSimpleGUI()
 
--- MAIN SCRIPT EXECUTION
-wait(2)
-
--- Execute main script with error handling
-local function safeExecute()
-    pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
-    end)
-    wait(0.5)
-
-    pcall(function()
-        local ohString1 = 'CreatureEditor'
-        local ohString2 = 'Sochuri'
-        game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
-    end)
-    wait(0.5)
-
-    pcall(function()
-        local args = {"Slot1"}
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
-    end)
-    wait(0.5)
-
-    pcall(function()
-        game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-    end)
-    wait(0.5)
-
-    pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-    end)
-    wait(0.5)
-
-    pcall(function()
-        local args = {true, true}
-        game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
-    end)
-    wait(0.5)
-
-    pcall(function()
-        local ohString1 = 'Sochuri'
-        local ohNumber2 = 1
-        game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
-    end)
-    wait(0.5)
-end
-
--- Execute main script
-safeExecute()
-
--- Continuous optimization
+-- Continuous optimization in background
 spawn(function()
     while wait(10) do
-        -- Clean up memory
         collectgarbage()
-        
-        -- Remove new particles/effects
         for _, obj in pairs(Workspace:GetDescendants()) do
             if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
                 pcall(function() obj:Destroy() end)
@@ -238,38 +162,3 @@ spawn(function()
         end
     end
 end)
-
--- Teleportation with GUI preservation
-wait(2)
-
-local TeleportService = game:GetService('TeleportService')
-local placeId = 5233782396
-
--- Setup after teleport
-local function setupAfterTeleport()
-    repeat wait() until game:IsLoaded()
-    wait(3)
-    
-    -- Reapply optimizations
-    settings().Rendering.QualityLevel = 1
-    Lighting.GlobalShadows = false
-    
-    -- Remove map objects
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Part") and obj.Parent ~= Players.LocalPlayer then
-            pcall(function() obj.Material = Enum.Material.Plastic end)
-        elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") then
-            pcall(function() obj:Destroy() end)
-        end
-    end
-    
-    -- Recreate GUI
-    wait(1)
-    createSimpleGUI()
-end
-
--- Start setup coroutine
-spawn(setupAfterTeleport)
-
--- Perform teleport
-TeleportService:Teleport(placeId)
