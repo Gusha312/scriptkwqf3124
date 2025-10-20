@@ -1,31 +1,4 @@
-wait(0.1)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
-local ohString1 = 'CreatureEditor'
-local ohString2 = 'Sochuri'
-
-game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote
-    :InvokeServer(ohString1, ohString2)
-local args = {
-	"Slot1"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
-game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-wait(0.1)
-local args = {
-    true,
-    true,
-}
-game:GetService('Players').LocalPlayer
-    :WaitForChild('UpdateFavoritedRemote')
-    :FireServer(unpack(args))
-wait(0.1)
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote
-    :InvokeServer(ohString1, ohNumber2)
-wait(0.1)
+wait(100)
 local Players = game:GetService('Players')
 local TeleportService = game:GetService('TeleportService')
 
