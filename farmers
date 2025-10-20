@@ -1,7 +1,7 @@
 -- Максимальная оптимизация производительности Roblox
-wait(0.1)
+wait(1)
 
--- Отключаем ненужные сервисы для экономии ресурсов
+-- Ждем загрузки игры
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
@@ -22,25 +22,32 @@ for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
     end
 end
 
--- Функция для отключения всех GUI
+-- Функция для отключения ВСЕХ GUI
 local function disableAllGUI()
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
+    local player = game:GetService("Players").LocalPlayer
     if player then
+        -- Отключаем PlayerGui
         local PlayerGui = player:FindFirstChild("PlayerGui")
         if PlayerGui then
-            -- Отключаем все ScreenGui
             for _, gui in pairs(PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") then
+                if gui:IsA("ScreenGui") or gui:IsA("SurfaceGui") or gui:IsA("BillboardGui") then
                     gui.Enabled = false
                 end
             end
         end
         
-        -- Отключаем CoreGui элементы
+        -- Отключаем StarterGui
+        local StarterGui = game:GetService("StarterGui")
+        for _, gui in pairs(StarterGui:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                gui.Enabled = false
+            end
+        end
+        
+        -- Отключаем CoreGui (кроме чата)
         local CoreGui = game:GetService("CoreGui")
         for _, gui in pairs(CoreGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Name ~= "RobloxGui" then
+            if gui:IsA("ScreenGui") and gui.Name ~= "Chat" and gui.Name ~= "RobloxGui" then
                 gui.Enabled = false
             end
         end
@@ -49,11 +56,14 @@ end
 
 -- Функция для создания собственного GUI
 local function createStatsGUI()
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
+    local player = game:GetService("Players").LocalPlayer
     local PlayerGui = player:FindFirstChild("PlayerGui")
     
-    if not PlayerGui then return end
+    if not PlayerGui then 
+        wait(1)
+        PlayerGui = player:FindFirstChild("PlayerGui")
+        if not PlayerGui then return end
+    end
     
     -- Удаляем старый GUI если существует
     local oldGui = PlayerGui:FindFirstChild("OptimizedStatsGUI")
@@ -64,7 +74,7 @@ local function createStatsGUI()
     -- Создаем новый GUI
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "OptimizedStatsGUI"
-    screenGui.DisplayOrder = 10
+    screenGui.DisplayOrder = 999
     screenGui.ResetOnSpawn = false
     
     local frame = Instance.new("Frame")
@@ -98,7 +108,7 @@ local function createStatsGUI()
     ticketsLabel.Size = UDim2.new(1, -20, 0, 25)
     ticketsLabel.Position = UDim2.new(0, 10, 0, 35)
     ticketsLabel.BackgroundTransparency = 1
-    ticketsLabel.Text = "Тикетов: 0"
+    ticketsLabel.Text = "Тикетов: загрузка..."
     ticketsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     ticketsLabel.TextSize = 12
     ticketsLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -110,7 +120,7 @@ local function createStatsGUI()
     ticketPointsLabel.Size = UDim2.new(1, -20, 0, 25)
     ticketPointsLabel.Position = UDim2.new(0, 10, 0, 60)
     ticketPointsLabel.BackgroundTransparency = 1
-    ticketPointsLabel.Text = "Тикет очков: 0"
+    ticketPointsLabel.Text = "Тикет очков: загрузка..."
     ticketPointsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     ticketPointsLabel.TextSize = 12
     ticketPointsLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -135,103 +145,94 @@ local function createStatsGUI()
     
     -- Функция обновления статистики
     local function updateStats()
-        local tickets = 0
-        local ticketPoints = 0
+        local tickets = "N/A"
+        local ticketPoints = "N/A"
         
         -- Получаем данные о тикетах
-        local success1, result1 = pcall(function()
-            return game:GetService("Players").LocalPlayer.PlayerGui.Data.Tikits.Value
+        pcall(function()
+            local dataFolder = game:GetService("Players").LocalPlayer.PlayerGui.Data
+            if dataFolder and dataFolder:FindFirstChild("Tikits") then
+                tickets = tostring(dataFolder.Tikits.Value)
+            end
         end)
-        
-        if success1 then
-            tickets = result1
-        end
         
         -- Получаем данные о тикет очках
-        local success2, result2 = pcall(function()
-            return game:GetService("Players").LocalPlayer.PlayerGui.Data.TikitPoints.Value
+        pcall(function()
+            local dataFolder = game:GetService("Players").LocalPlayer.PlayerGui.Data
+            if dataFolder and dataFolder:FindFirstChild("TikitPoints") then
+                ticketPoints = tostring(dataFolder.TikitPoints.Value)
+            end
         end)
         
-        if success2 then
-            ticketPoints = result2
-        end
-        
-        ticketsLabel.Text = "Тикетов: " .. tostring(tickets)
-        ticketPointsLabel.Text = "Тикет очков: " .. tostring(ticketPoints)
+        ticketsLabel.Text = "Тикетов: " .. tickets
+        ticketPointsLabel.Text = "Тикет очков: " .. ticketPoints
     end
     
     -- Обновляем статистику при нажатии кнопки
     updateButton.MouseButton1Click:Connect(updateStats)
     
-    -- Авто-обновление каждые 5 секунд
+    -- Авто-обновление каждые 10 секунд
     spawn(function()
         while screenGui.Parent do
             updateStats()
-            wait(5)
+            wait(10)
         end
     end)
     
     screenGui.Parent = PlayerGui
     
     -- Первоначальное обновление
+    wait(0.5)
     updateStats()
     
     return screenGui
 end
 
--- Отключаем все GUI и создаем свой
+-- ОТКЛЮЧАЕМ ВСЕ GUI СРАЗУ
 disableAllGUI()
-wait(0.1)
+
+-- СОЗДАЕМ СВОЙ GUI
+wait(0.5)
 createStatsGUI()
 
--- Основной скрипт с задержками для стабильности
+-- ОСНОВНОЙ СКРИПТ
+wait(1)
+
+-- Выполняем основной скрипт
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 
 local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
 
-game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote
-    :InvokeServer(ohString1, ohString2)
+game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
 
-local args = {
-    "Slot1"
-}
+local args = {"Slot1"}
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
 game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
 
-wait(0.1)
+wait(0.5)
 
-local args = {
-    true,
-    true,
-}
-game:GetService('Players').LocalPlayer
-    :WaitForChild('UpdateFavoritedRemote')
-    :FireServer(unpack(args))
+local args = {true, true}
+game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
 
-wait(0.1)
+wait(0.5)
 
 local ohString1 = 'Sochuri'
 local ohNumber2 = 1
+game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
 
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote
-    :InvokeServer(ohString1, ohNumber2)
+wait(0.5)
 
-wait(0.1)
-
--- Дополнительные оптимизации перед телепортацией
--- Очистка памяти
-collectgarbage()
-
-local Players = game:GetService('Players')
+-- Телепортация
 local TeleportService = game:GetService('TeleportService')
-
 local placeId = 5233782396
 
--- Функция для повторного создания GUI после телепорта
-local function recreateGUIAfterTeleport()
-    wait(3) -- Ждем загрузки нового места
+-- Функция для восстановления GUI после телепорта
+local function setupAfterTeleport()
+    -- Ждем загрузки нового места
+    repeat wait() until game:IsLoaded()
+    wait(3)
     
     -- Повторяем оптимизации
     settings().Rendering.QualityLevel = 1
@@ -246,11 +247,12 @@ local function recreateGUIAfterTeleport()
     
     -- Снова отключаем все GUI и создаем свой
     disableAllGUI()
-    wait(0.5)
+    wait(1)
     createStatsGUI()
 end
 
--- Запускаем оптимизацию после телепорта
-spawn(recreateGUIAfterTeleport)
+-- Запускаем настройку после телепорта
+spawn(setupAfterTeleport)
 
+-- Выполняем телепортацию
 TeleportService:Teleport(placeId)
