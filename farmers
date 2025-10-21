@@ -58,37 +58,15 @@ local function createSimpleGUI()
     screenGui.ResetOnSpawn = false
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 200, 0, 80)
+    mainFrame.Size = UDim2.new(0, 100, 0, 30)
     mainFrame.Position = UDim2.new(0, 10, 0, 10)
     mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     mainFrame.BackgroundTransparency = 0.3
     mainFrame.BorderSizePixel = 0
 
-    local ticketsText = Instance.new("TextLabel")
-    ticketsText.Size = UDim2.new(1, 0, 0, 25)
-    ticketsText.Position = UDim2.new(0, 5, 0, 5)
-    ticketsText.BackgroundTransparency = 1
-    ticketsText.Text = "Тикетов: 0"
-    ticketsText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ticketsText.TextSize = 14
-    ticketsText.TextXAlignment = Enum.TextXAlignment.Left
-    ticketsText.Font = Enum.Font.SourceSans
-    ticketsText.Parent = mainFrame
-
-    local pointsText = Instance.new("TextLabel")
-    pointsText.Size = UDim2.new(1, 0, 0, 25)
-    pointsText.Position = UDim2.new(0, 5, 0, 30)
-    pointsText.BackgroundTransparency = 1
-    pointsText.Text = "Тикет очков: 0"
-    pointsText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    pointsText.TextSize = 14
-    pointsText.TextXAlignment = Enum.TextXAlignment.Left
-    pointsText.Font = Enum.Font.SourceSans
-    pointsText.Parent = mainFrame
-
     local fpsText = Instance.new("TextLabel")
-    fpsText.Size = UDim2.new(1, 0, 0, 25)
-    fpsText.Position = UDim2.new(0, 5, 0, 55)
+    fpsText.Size = UDim2.new(1, 0, 1, 0)
+    fpsText.Position = UDim2.new(0, 0, 0, 0)
     fpsText.BackgroundTransparency = 1
     fpsText.Text = "FPS: 0"
     fpsText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -116,35 +94,6 @@ local function createSimpleGUI()
         end
     end)
 
-    -- Stats updater
-    local function updateStats()
-        pcall(function()
-            local dataFolder = player.PlayerGui.Data
-            local tickets = "N/A"
-            local ticketPoints = "N/A"
-            
-            if dataFolder and dataFolder:FindFirstChild("Tikits") then
-                tickets = tostring(dataFolder.Tikits.Value)
-            end
-            
-            if dataFolder and dataFolder:FindFirstChild("TikitPoints") then
-                ticketPoints = tostring(dataFolder.TikitPoints.Value)
-            end
-            
-            ticketsText.Text = "Тикетов: " .. tickets
-            pointsText.Text = "Тикет очков: " .. ticketPoints
-        end)
-    end
-
-    -- Auto update stats
-    spawn(function()
-        while screenGui.Parent do
-            updateStats()
-            wait(5)
-        end
-    end)
-
-    updateStats()
     return screenGui
 end
 
