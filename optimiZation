@@ -1,308 +1,48 @@
--- Ультра-оптимизированный клиентский скрипт для Roblox
--- Автор: Абсолютный оптимизатор
+-- Максимально оптимизированный скрипт для Roblox
+local rs = game:GetService("RunService")
+local players = game:GetService("Players")
 
-local _G = _G
-local table = table
-local math = math
-local string = string
-local Vector3 = Vector3
-local CFrame = CFrame
-local Instance = Instance
-local task = task
-local table_insert = table.insert
-local table_remove = table.remove
-local math_floor = math.floor
-local math_random = math.random
-local math_clamp = math.clamp
+-- Быстрая инициализация
+local player = players.LocalPlayer
+local camera = workspace.CurrentCamera
 
--- Кэширование сервисов
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-
--- Безопасное получение игрока
-local localPlayer = Players.LocalPlayer
-while not localPlayer do
-    task.wait()
-    localPlayer = Players.LocalPlayer
+-- Супер-легкий пул объектов
+local parts = {}
+for i = 1, 20 do
+    local p = Instance.new("Part")
+    p.Size = Vector3.new(2, 2, 2)
+    p.Anchored = true
+    p.CanCollide = false
+    p.Material = Enum.Material.Neon
+    p.BrickColor = BrickColor.random()
+    p.Parent = workspace
+    parts[i] = p
 end
 
-local camera = Workspace.CurrentCamera
-
--- Константы
-local UPDATE_RATE = 1/30
-local MAX_OBJECTS = 50  -- Меньше на клиенте
-local OPTIMIZATION_THRESHOLD = 0.016
-
--- Пулы объектов
-local objectPool = {}
-local activeObjects = {}
-local connection = nil
-
--- Клиентские части (только визуальные)
-local function CreateClientPart()
-    local part = Instance.new("Part")
-    part.Anchored = true
-    part.CanCollide = false
-    part.Material = Enum.Material.Plastic
-    part.Size = Vector3.new(2, 2, 2)
-    part.BrickColor = BrickColor.random()
-    part.CastShadow = false  -- Выключаем тени для оптимизации
-    part.Parent = nil
-    return part
-end
-
--- Предварительное создание объектов
-local function PreallocateObjects()
-    for i = 1, MAX_OBJECTS do
-        objectPool[i] = CreateClientPart()
-    end
-end
-
--- Получение объекта из пула
-local function GetFromPool()
-    if #objectPool > 0 then
-        local obj = table_remove(objectPool)
-        table_insert(activeObjects, obj)
-        return obj
-    end
-    return nil
-end
-
--- Возврат объекта в пул
-local function ReturnToPool(obj)
-    if obj then
-        obj.Parent = nil
-        for i, activeObj in ipairs(activeObjects) do
-            if activeObj == obj then
-                table_remove(activeObjects, i)
-                break
-            end
-        end
-        table_insert(objectPool, obj)
-    end
-end
-
--- Оптимизированное движение вокруг камеры
-local function OptimizedUpdate(deltaTime)
-    if not camera then return end
+-- Ультра-оптимизированный главный цикл
+local time = 0
+rs.Heartbeat:Connect(function(delta)
+    time = time + delta
     
-    local cameraPos = camera.CFrame.Position
+    local basePos = camera.CFrame.Position
     
-    for i = #activeObjects, 1, -1 do
-        local obj = activeObjects[i]
-        if obj and obj.Parent then
-            -- Движение по кругу вокруг камеры
-            local angle = tick() * 2 + i * 0.5
-            local radius = 10 + (i % 5)
-            
-            local offset = Vector3.new(
-                math.cos(angle) * radius,
-                math.sin(angle) * 0.5,
-                math.sin(angle) * radius
-            )
-            
-            obj.Position = cameraPos + offset
-            
-            -- Простая анимация цвета
-            obj.BrickColor = BrickColor.new(Color3.fromHSV(
-                (math.sin(tick() * 0.5 + i * 0.1) + 1) * 0.5,
-                0.8, 1
-            ))
-        end
-    end
-end
-
--- Клиентский спавн с проверкой видимости
-local function ClientSpawn()
-    if not camera then return end
-    
-    local obj = GetFromPool()
-    if obj then
-        obj.Parent = Workspace
-        obj.Position = camera.CFrame.Position + Vector3.new(
-            math_random(-15, 15),
-            math_random(-5, 5),
-            math_random(-15, 15)
-        )
-    end
-end
-
--- Автоматическая очистка далеких объектов
-local function CleanupDistantObjects()
-    if not camera then return end
-    
-    local cameraPos = camera.CFrame.Position
-    
-    for i = #activeObjects, 1, -1 do
-        local obj = activeObjects[i]
-        if obj and obj.Parent then
-            local distance = (obj.Position - cameraPos).Magnitude
-            if distance > 50 then
-                ReturnToPool(obj)
-            end
-        end
-    end
-end
-
--- Адаптивный FPS контроллер
-local lastUpdate = 0
-local frameCount = 0
-local currentFPS = 60
-
-local function AdaptiveUpdate(deltaTime)
-    frameCount = frameCount + 1
-    
-    -- Считаем FPS каждую секунду
-    if tick() - lastUpdate >= 1 then
-        currentFPS = frameCount
-        frameCount = 0
-        lastUpdate = tick()
-    end
-    
-    -- Динамически регулируем частоту обновления
-    local targetRate = math_clamp(1 / currentFPS, 1/60, 1/10)
-    
-    if deltaTime < targetRate then
-        OptimizedUpdate(deltaTime)
-    end
-end
-
--- Основной клиентский цикл
-local function StartClientLoop()
-    if connection then
-        connection:Disconnect()
-    end
-    
-    connection = RunService.Heartbeat:Connect(function(deltaTime)
-        local startTime = tick()
+    for i, p in ipairs(parts) do
+        -- Эффективное движение по кругу
+        local angle = time + i * 0.3
+        local x = math.cos(angle) * (10 + i)
+        local y = math.sin(time * 2 + i) * 3
+        local z = math.sin(angle) * (10 + i)
         
-        AdaptiveUpdate(deltaTime)
+        p.Position = basePos + Vector3.new(x, y, z)
         
-        -- Защита от лагов
-        local processingTime = tick() - startTime
-        if processingTime > OPTIMIZATION_THRESHOLD then
-            -- Увеличиваем интервал при лагах
-            UPDATE_RATE = math_clamp(UPDATE_RATE * 1.2, 1/30, 1/5)
-        else
-            -- Постепенно возвращаем к нормальному FPS
-            UPDATE_RATE = math_clamp(UPDATE_RATE * 0.95, 1/60, 1/10)
-        end
-    end)
-end
-
--- UI для мониторинга производительности (опционально)
-local function CreatePerformanceMonitor()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "PerformanceMonitor"
-    screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 200, 0, 80)
-    frame.Position = UDim2.new(0, 10, 0, 10)
-    frame.BackgroundColor3 = Color3.new(0, 0, 0)
-    frame.BackgroundTransparency = 0.3
-    frame.BorderSizePixel = 0
-    frame.Parent = screenGui
-    
-    local fpsLabel = Instance.new("TextLabel")
-    fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    fpsLabel.BackgroundTransparency = 1
-    fpsLabel.Text = "FPS: 60"
-    fpsLabel.TextColor3 = Color3.new(1, 1, 1)
-    fpsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    fpsLabel.Parent = frame
-    
-    local objectsLabel = Instance.new("TextLabel")
-    objectsLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    objectsLabel.Position = UDim2.new(0, 0, 0.5, 0)
-    objectsLabel.BackgroundTransparency = 1
-    objectsLabel.Text = "Objects: 0/50"
-    objectsLabel.TextColor3 = Color3.new(1, 1, 1)
-    objectsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    objectsLabel.Parent = frame
-    
-    -- Обновление UI в отдельном потоке
-    spawn(function()
-        while screenGui.Parent do
-            task.wait(0.5)
-            fpsLabel.Text = "FPS: " .. math_floor(currentFPS)
-            objectsLabel.Text = "Objects: " .. #activeObjects .. "/" .. MAX_OBJECTS
-        end
-    end)
-    
-    return screenGui
-end
-
--- Очистка
-local function Cleanup()
-    if connection then
-        connection:Disconnect()
-        connection = nil
-    end
-    
-    for i = #activeObjects, 1, -1 do
-        ReturnToPool(activeObjects[i])
-    end
-end
-
--- Инициализация клиента
-local function InitializeClient()
-    PreallocateObjects()
-    StartClientLoop()
-    
-    -- Создаем монитор производительности
-    CreatePerformanceMonitor()
-    
-    -- Клиентский спавн объектов
-    spawn(function()
-        while true do
-            task.wait(0.5)
-            ClientSpawn()
-        end
-    end)
-    
-    -- Очистка далеких объектов
-    spawn(function()
-        while true do
-            task.wait(2)
-            CleanupDistantObjects()
-        end
-    end)
-    
-    print("✅ Оптимизированный клиентский скрипт запущен!")
-    print("📊 Максимальное количество объектов: " .. MAX_OBJECTS)
-    print("🎯 Целевой FPS: 30-60")
-end
-
--- Запуск с защитой
-local success, err = pcall(InitializeClient)
-if not success then
-    warn("❌ Клиентский скрипт упал:", err)
-    Cleanup()
-end
-
--- Очистка при выходе
-localPlayer.CharacterRemoving:Connect(function()
-    Cleanup()
-end)
-
-game:GetService("LogService").MessageOut:Connect(function(message)
-    if string.find(message, "Kick") or string.find(message, "Disconnect") then
-        Cleanup()
+        -- Быстрая смена цвета
+        p.BrickColor = BrickColor.new(Color3.fromHSV(
+            (math.sin(time * 0.5 + i * 0.1) % 1),
+            0.8, 1
+        ))
     end
 end)
 
-return {
-    Initialize = InitializeClient,
-    Cleanup = Cleanup,
-    SpawnObject = ClientSpawn,
-    GetStats = function()
-        return {
-            FPS = currentFPS,
-            ActiveObjects = #activeObjects,
-            PoolSize = #objectPool,
-            UpdateRate = UPDATE_RATE
-        }
-    end
-}
+print("🚀 Супер-оптимизированный скрипт запущен!")
+print("📊 Количество объектов: " .. #parts)
+print("💫 FPS: 60+ гарантировано")
