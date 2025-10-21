@@ -1,19 +1,30 @@
--- Абсолютный минимум потребления
-local r = game:GetService("RunService")
-
--- Полное отключение рендера
-settings().Rendering.Enabled = false
-
--- Один раз чистим память
-for i,v in pairs(workspace:GetDescendants()) do
-    pcall(function() v:Destroy() end)
+-- ===== 1. УБИВАЕМ ГРАФИКУ ===== --
+settings().Rendering.QualityLevel = 0  -- Качество на абсолютный минимум
+settings().Rendering.FrameRateManager = 0  -- Выкл. автоограничение FPS
+game:GetService("RunService"):Set3dRenderingEnabled(false)  -- Полностью выкл. рендер
+game:GetService("Lighting").GlobalShadows = false
+game:GetService("Lighting").Outlines = false
+for _, v in pairs(game:GetDescendants()) do
+    if v:IsA("BasePart") then v.Material = Enum.Material.Plastic end  -- Замена всех материалов на пластик
+    if v:IsA("ParticleEmitter") or v:IsA("Sound") or v:IsA("PostEffect") then v:Destroy() end  -- Удаляем эффекты
 end
 
--- Пустой цикл с огромными интервалами
-local t = 0
-r.Heartbeat:Connect(function(d)
-    t = t + d
-    if t > 10 then  -- Раз в 10 секунд
-        t = 0
+-- ===== 2. ОТКЛЮЧАЕМ ФИЗИКУ ===== --
+game:GetService("Workspace").Gravity = 0  -- Выкл. гравитацию (если не нужна)
+for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+    if v:IsA("BasePart") then
+        v.Anchored = true  -- Фиксируем объекты (нет физики)
+        v.CanCollide = false  -- Отключаем коллизии
     end
-end)
+end
+
+-- ===== 3. ОЧИСТКА ПАМЯТИ ===== --
+game:GetService("ContentProvider"):PreloadAsync({})  -- Очистка кэша
+collectgarbage("restart")  -- Принудительная очистка мусора (Lua GC)
+
+-- ===== 4. ФОНОВЫЙ РЕЖИМ (если не нужно окно) ===== --
+if not _G.background_mode then
+    _G.background_mode = true
+    game:GetService("RunService"):SetRobloxGuiFocused(false)  -- Убираем фокус с окна
+    game:GetService("RunService"):SetUnthrottledFramerateEnabled(true)  -- Макс. FPS в фоне
+end
