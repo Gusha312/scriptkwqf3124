@@ -1,54 +1,19 @@
--- Экстремальная оптимизация - отключаем весь рендер
+-- Абсолютный минимум потребления
 local r = game:GetService("RunService")
-local l = game:GetService("Lighting")
-local w = workspace
 
--- Выключаем весь рендер
-settings().Rendering.QualityLevel = 1
-settings().Rendering.MeshCacheSize = 0
-settings().Rendering.EagerBulkExecution = true
+-- Полное отключение рендера
+settings().Rendering.Enabled = false
 
--- Убиваем освещение
-l.GlobalShadows = false
-l.Outlines = false
-l.Brightness = 2
-l.Ambient = Color3.new(1,1,1)
-l.FogEnd = 1000000
-
--- Чистим воркспейс
-for i,v in pairs(w:GetDescendants()) do
-    if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
-        v.Material = Enum.Material.Plastic
-        v.Reflectance = 0
-        v.Transparency = 1
-    elseif v:IsA("Decal") or v:IsA("Texture") then
-        v:Destroy()
-    elseif v:IsA("Light") or v:IsA("ParticleEmitter") then
-        v:Destroy()
-    end
+-- Один раз чистим память
+for i,v in pairs(workspace:GetDescendants()) do
+    pcall(function() v:Destroy() end)
 end
 
--- Выключаем физику для всего
-for i,v in pairs(w:GetChildren()) do
-    if v:IsA("Model") or v:IsA("Part") then
-        for i,p in pairs(v:GetDescendants()) do
-            if p:IsA("BasePart") then
-                p.Anchored = true
-                p.CanCollide = false
-                p.Locked = true
-            end
-        end
-    end
-end
-
--- Минимальный скрипт для проверки FPS
-local t,f,c=0,0,w.CurrentCamera
+-- Пустой цикл с огромными интервалами
+local t = 0
 r.Heartbeat:Connect(function(d)
-    t=t+d f=f+1
-    if t>=1 then
-        print("FPS: "..f)
-        t,f=0,0
+    t = t + d
+    if t > 10 then  -- Раз в 10 секунд
+        t = 0
     end
 end)
-
-print("🚀 РЕНДЕР УБИТ - FPS МАКСИМАЛЬНЫЙ")
