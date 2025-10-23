@@ -1,60 +1,20 @@
 local player = game:GetService("Players").LocalPlayer
-local teleportDelay = 0.9 -- Задержка между телепортами (в секундах)
-
--- Функция для сбора Halloween конфет
-local function collectHalloweenTreats()
-    while true do
-        wait(10) -- Проверяем каждые 10 секунд
-        local success, result = pcall(function()
-            local treatSpawns = workspace:WaitForChild("Events"):WaitForChild("Halloween"):WaitForChild("TreatSpawns")
-            local allParts = {}
-            
-            -- Собираем все части
-            for _, child in pairs(treatSpawns:GetDescendants()) do
-                if child:IsA("Part") then
-                    table.insert(allParts, child)
-                end
-            end
-            
-            -- Отправляем запросы для каждой части
-            for _, part in pairs(allParts) do
-                local args = { part }
-                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TrickerTreatRemote"):InvokeServer(unpack(args))
-                wait(0.01)
-            end
-            
-            print("Собрано Halloween конфет: " .. #allParts)
-        end)
-        
-        if not success then
-            warn("Ошибка при сборе Halloween конфет: " .. tostring(result))
-        end
-    end
-end
+local teleportDelay = 1 -- Задержка между телепортами (в секундах)
 
 -- Функция для сбора валютных нод
 local function collectCurrencyNodes()
     while true do
-        wait(15)
-        local success, result = pcall(function()
-            local nodes = workspace.Interactions.CurrencyNodes:GetChildren()
-            for i = 1, math.min(150, #nodes) do
-                wait(0.01)
-                local args = {
-                    [1] = nodes[i]
-                }
-                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GetCurrencyNodeRemote"):FireServer(unpack(args))
-            end
-        end)
-        
-        if not success then
-            warn("Ошибка при сборе валютных нод: " .. tostring(result))
+        wait(4)
+        local nodes = workspace.Interactions.CurrencyNodes:GetChildren()
+        for i = 1, math.min(150, #nodes) do
+            wait(0.01)
+            local args = {
+                [1] = nodes[i]
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GetCurrencyNodeRemote"):FireServer(unpack(args))
         end
     end
 end
-
--- Запускаем сбор Halloween конфет в отдельном потоке
-coroutine.wrap(collectHalloweenTreats)()
 
 -- Запускаем сбор валютных нод в отдельном потоке
 coroutine.wrap(collectCurrencyNodes)()
