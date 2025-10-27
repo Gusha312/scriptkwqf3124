@@ -1,5 +1,4 @@
-while true do
-wait(1)
+
 if game.PlaceId ~= 5233782396 then
     warn("Скрипт работает только в плейсе с ID 5233782396")
     return
@@ -42,4 +41,20 @@ local TeleportService = game:GetService('TeleportService')
 
 local placeId = 5233782396
 TeleportService:Teleport(placeId)
-end
+wait(2)
+local Players = game:GetService('Players')
+local TeleportService = game:GetService('TeleportService')
+
+local placeId = 5233782396
+TeleportService:Teleport(placeId)
+local Players = game:GetService('Players')
+local TeleportService = game:GetService('TeleportService')
+
+local placeId = 5233782396
+TeleportService:Teleport(placeId)
+wait(2)
+local Players = game:GetService('Players')
+local TeleportService = game:GetService('TeleportService')
+
+local placeId = 5233782396
+TeleportService:Teleport(placeId)
