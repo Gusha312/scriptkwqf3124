@@ -1,7 +1,61 @@
-
 if game.PlaceId ~= 5233782396 then
     warn("Скрипт работает только в плейсе с ID 5233782396")
     return
+end
+
+-- Функция для поиска сервера с минимальным количеством игроков (минимум 3)
+local function findBestServer()
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+    
+    -- Получаем список серверов через API
+    local success, servers = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+    end)
+    
+    if not success or not servers then
+        warn("Не удалось получить список серверов")
+        return nil
+    end
+    
+    local bestServer = nil
+    local minPlayers = math.huge
+    
+    -- Ищем сервер с минимальным количеством игроков (но не менее 3)
+    for _, server in ipairs(servers.data) do
+        local playerCount = server.playing or 0
+        if playerCount >= 3 and playerCount < minPlayers then
+            minPlayers = playerCount
+            bestServer = server
+        end
+    end
+    
+    -- Если не нашли сервер с минимум 3 игроками, берем любой с минимальным количеством
+    if not bestServer then
+        for _, server in ipairs(servers.data) do
+            local playerCount = server.playing or 0
+            if playerCount < minPlayers then
+                minPlayers = playerCount
+                bestServer = server
+            end
+        end
+    end
+    
+    return bestServer
+end
+
+-- Функция для телепортации на лучший сервер
+local function teleportToBestServer()
+    local TeleportService = game:GetService("TeleportService")
+    
+    local bestServer = findBestServer()
+    if bestServer then
+        print("Найден сервер с " .. (bestServer.playing or 0) .. " игроками")
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, bestServer.id)
+    else
+        warn("Не удалось найти подходящий сервер, используется обычная телепортация")
+        TeleportService:Teleport(game.PlaceId)
+    end
 end
 
 -- Основной код скрипта
@@ -36,25 +90,5 @@ game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(o
 
 wait(0.1)
 
-local Players = game:GetService('Players')
-local TeleportService = game:GetService('TeleportService')
-
-local placeId = 5233782396
-TeleportService:Teleport(placeId)
-wait(2)
-local Players = game:GetService('Players')
-local TeleportService = game:GetService('TeleportService')
-
-local placeId = 5233782396
-TeleportService:Teleport(placeId)
-local Players = game:GetService('Players')
-local TeleportService = game:GetService('TeleportService')
-
-local placeId = 5233782396
-TeleportService:Teleport(placeId)
-wait(2)
-local Players = game:GetService('Players')
-local TeleportService = game:GetService('TeleportService')
-
-local placeId = 5233782396
-TeleportService:Teleport(placeId)
+-- Телепортация на сервер с минимальным количеством игроков (минимум 3)
+teleportToBestServer()
