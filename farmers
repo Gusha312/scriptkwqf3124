@@ -3,14 +3,50 @@ if game.PlaceId ~= 5233782396 then
     return
 end
 
+-- Функция для выполнения всех действий на текущем сервере
+local function performActions()
+    -- Основной код скрипта
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+
+    local ohString1 = 'CreatureEditor'
+    local ohString2 = 'Sochuri'
+
+    game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+
+    local args = {
+        "Slot1"
+    }
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
+    game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+
+    wait(0.1)
+
+    local args = {
+        true,
+        true,
+    }
+    game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+
+    wait(0.1)
+
+    local ohString1 = 'Sochuri'
+    local ohNumber2 = 1
+
+    game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+
+    wait(0.1)
+    
+    print("Все действия выполнены, начинаю поиск сервера...")
+end
+
 -- Функция для поиска сервера с минимальным количеством игроков (минимум 3)
 local function findBestServer()
-    local TeleportService = game:GetService("TeleportService")
     local HttpService = game:GetService("HttpService")
     
     -- Получаем список серверов через API
     local success, servers = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/5233782396/servers/Public?sortOrder=Asc&limit=100"))
     end)
     
     if not success or not servers then
@@ -49,46 +85,18 @@ local function teleportToBestServer()
     local TeleportService = game:GetService("TeleportService")
     
     local bestServer = findBestServer()
-    if bestServer then
-        print("Найден сервер с " .. (bestServer.playing or 0) .. " игроками")
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, bestServer.id)
+    if bestServer and bestServer.id then
+        print("Найден сервер с " .. (bestServer.playing or 0) .. " игроками, телепортируюсь...")
+        TeleportService:TeleportToPlaceInstance(5233782396, bestServer.id)
     else
         warn("Не удалось найти подходящий сервер, используется обычная телепортация")
-        TeleportService:Teleport(game.PlaceId)
+        TeleportService:Teleport(5233782396)
     end
 end
 
--- Основной код скрипта
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
-
-local ohString1 = 'CreatureEditor'
-local ohString2 = 'Sochuri'
-
-game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
-
-local args = {
-    "Slot1"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
-game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-
-wait(0.1)
-
-local args = {
-    true,
-    true,
-}
-game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
-
-wait(0.1)
-
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
-
-wait(0.1)
-
--- Телепортация на сервер с минимальным количеством игроков (минимум 3)
+-- Запускаем все действия
+performActions()
+-- Ждем немного перед телепортацией
+wait(2)
+-- Телепортируемся на лучший сервер
 teleportToBestServer()
