@@ -1,6 +1,7 @@
 while true do
-    local localPl2ayer = game:GetService("Players").LocalPlayer
     wait(5)
+    local localPl2ayer = game:GetService("Players").LocalPlayer
+  
     local ohString1 = "CreatureEditor"
     local ohString2 = "Sochuri"
     
@@ -26,20 +27,13 @@ while true do
     
     local ohString1 = "Xeleviprex"
     game:GetService("ReplicatedStorage").Remotes.CreateSlotRemote:InvokeServer(ohString1)
-    wait(0.1)
+    wait(1)
     
     local ohString1 = "Slot2"
     game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
     wait(5)
     
     game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-8461.84766, 256.04039, 8527.86426, 0.448925197, 0.822915435, -0.348247796, 0.446689934, 0.13086617, 0.88506639, 0.773908615, -0.55288744, -0.308838844)
-	local args = {
-	{
-		game:GetService("Players"):WaitForChild(localPl2ayer).Character
-	}
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CharactersDamageRemote"):FireServer(unpack(args))
-
     local ohNumber1 = 0.25
     game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
     wait(1)
