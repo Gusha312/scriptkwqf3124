@@ -1,16 +1,60 @@
 while true do
-wait(4)
-local args = {
-	"1",
-	{
-		ItemName = "Coconut",
-		Amount = 1
-	}
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("FeedDragonRemote"):InvokeServer(unpack(args))
-local args = {
-	"1",
-	"RevivalHeart"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ReviveDragonRemote"):InvokeServer(unpack(args))
+    wait(1)
+    local ohString1 = "CreatureEditor"
+    local ohString2 = "Sochuri"
+    
+    game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+    wait(0.1)
+    
+    local ohString1 = "SurvivalBasics"
+    game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
+    wait(0.1)
+    
+    local ohString1 = "Complete"
+    game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
+    wait(0.1)
+    
+    game:GetService("ReplicatedStorage").Remotes.DespawnRemote:InvokeServer()
+    wait(1)
+    
+    local ohNil1 = true
+    local ohBoolean2 = true
+    
+    game:GetService("Players").LocalPlayer.UpdateFavoritedRemote:FireServer(ohNil1, ohBoolean2)
+    wait(0.1)
+    
+    local ohString1 = "Xeleviprex"
+    game:GetService("ReplicatedStorage").Remotes.CreateSlotRemote:InvokeServer(ohString1)
+    wait(0.1)
+    
+    local ohString1 = "Slot2"
+    game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
+    wait(1)
+    
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-1286.41394, 232.713165, 380.94342, 0.998996437, 0, -0.0447898805, 0, 1, 0, 0.0447898805, 0, 0.998996437)
+    
+    local ohNumber1 = 0.25
+    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
+    wait(1)
+    
+    local ohNumber1 = 0.25
+    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
+    wait(1)
+    
+    local ohNumber1 = 0.25
+    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
+    wait(1)
+    
+    local ohNumber1 = 0.25
+    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
+    wait(1)
+    
+    local ohNumber1 = 0.25
+    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
+    wait(1)
+    
+    local ohString1 = "Slot2"
+    local ohBoolean2 = false
+    
+    game:GetService("ReplicatedStorage").Remotes.RestartSlotRemote:InvokeServer(ohString1, ohBoolean2)
 end
