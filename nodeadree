@@ -31,7 +31,7 @@ while true do
     local ohString1 = "Slot2"
     game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
    	wait(5)
-    ocal args = {
+    local args = {
 	{
 		game:GetService("Players"):WaitForChild(local1).Character
 	}
