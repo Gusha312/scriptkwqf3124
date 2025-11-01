@@ -63,4 +63,3 @@ game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Chara
 }
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DeleteSlotRemote"):InvokeServer(unpack(args))
 end
-end
