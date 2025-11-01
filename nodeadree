@@ -31,8 +31,8 @@ while true do
     game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
     wait(1)
     
-    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-1286.41394, 232.713165, 380.94342, 0.998996437, 0, -0.0447898805, 0, 1, 0, 0.0447898805, 0, 0.998996437)
-    
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-1286.41394, 252.713165, 360.94342, 0.998996437, 0, -0.0447898805, 0, 1, 0, 0.0447898805, 0, 0.998996437)
+	
     local ohNumber1 = 0.25
     game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
     wait(1)
