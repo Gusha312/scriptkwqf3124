@@ -32,11 +32,12 @@ while true do
     wait(5)
     
     -- Нанесение урона персонажу
-    if localPlayer.Character then
-        local args = {localPlayer.Character}
-        remotes.CharactersDamageRemote:FireServer(unpack(args))
-    end
-    
+    local args = {
+	{
+		game:GetService("Players"):WaitForChild(localPlayer).Character
+	}
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CharactersDamageRemote"):FireServer(unpack(args))
     -- Серия самоповреждений
     for i = 1, 5 do
         remotes.OutOfBoundsSelfDamage:FireServer(0.25)
