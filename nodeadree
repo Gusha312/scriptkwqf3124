@@ -1,65 +1,52 @@
 while true do
     wait(5)
-    local local1 = game:GetService("Players").LocalPlayer 
-    local ohString1 = "CreatureEditor"
-    local ohString2 = "Sochuri"
     
-    game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+    local localPlayer = game:GetService("Players").LocalPlayer
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local remotes = replicatedStorage.Remotes
+    
+    -- Установка стадий обучения
+    remotes.SetTutorialStageRemote:InvokeServer("CreatureEditor", "Sochuri")
     wait(0.1)
     
-    local ohString1 = "SurvivalBasics"
-    game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
+    remotes.SetTutorialStageRemote:InvokeServer("SurvivalBasics")
     wait(0.1)
     
-    local ohString1 = "Complete"
-    game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
+    remotes.SetTutorialStageRemote:InvokeServer("Complete")
     wait(0.1)
     
-    game:GetService("ReplicatedStorage").Remotes.DespawnRemote:InvokeServer()
+    -- Деспавн
+    remotes.DespawnRemote:InvokeServer()
     wait(1)
     
-    local ohNil1 = true
-    local ohBoolean2 = true
-    
-    game:GetService("Players").LocalPlayer.UpdateFavoritedRemote:FireServer(ohNil1, ohBoolean2)
+    -- Обновление избранного
+    game:GetService("Players").LocalPlayer.UpdateFavoritedRemote:FireServer(nil, true)
     wait(0.1)
     
-    local ohString1 = "Xeleviprex"
-    game:GetService("ReplicatedStorage").Remotes.CreateSlotRemote:InvokeServer(ohString1)
+    -- Создание слота
+    remotes.CreateSlotRemote:InvokeServer("Xeleviprex")
     wait(1)
     
-    local ohString1 = "Slot2"
-    game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
-   	wait(5)
-    local args = {
-	{
-		game:GetService("Players"):WaitForChild(local1).Character
-	}
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CharactersDamageRemote"):FireServer(unpack(args))
-    local ohNumber1 = 0.25
-    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
-    wait(1)
+    -- Спавн в слоте
+    remotes.SpawnRemote:InvokeServer("Slot2")
+    wait(5)
     
-    local ohNumber1 = 0.25
-    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
-    wait(1)
+    -- Нанесение урона персонажу
+    if localPlayer.Character then
+        local args = {localPlayer.Character}
+        remotes.CharactersDamageRemote:FireServer(unpack(args))
+    end
     
-    local ohNumber1 = 0.25
-    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
-    wait(1)
+    -- Серия самоповреждений
+    for i = 1, 5 do
+        remotes.OutOfBoundsSelfDamage:FireServer(0.25)
+        wait(1)
+    end
     
-    local ohNumber1 = 0.25
-    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
-    wait(1)
+    -- Получение наград за смерть
+    remotes.ClaimDeathRewardsRemote:InvokeServer()
     
-    local ohNumber1 = 0.25
-    game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
-    wait(1)
-    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDeathRewardsRemote"):InvokeServer()
-    local args = {
-	"Slot2",
-	false
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DeleteSlotRemote"):InvokeServer(unpack(args))
+    -- Удаление слота
+    local args = {"Slot2", false}
+    remotes.DeleteSlotRemote:InvokeServer(unpack(args))
 end
