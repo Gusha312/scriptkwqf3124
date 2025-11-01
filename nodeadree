@@ -1,5 +1,6 @@
 while true do
     wait(5)
+    local local1 = game:GetService("Players").LocalPlayer 
     local ohString1 = "CreatureEditor"
     local ohString2 = "Sochuri"
     
@@ -30,6 +31,12 @@ while true do
     local ohString1 = "Slot2"
     game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
    	wait(5)
+    ocal args = {
+	{
+		game:GetService("Players"):WaitForChild(local1).Character
+	}
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CharactersDamageRemote"):FireServer(unpack(args))
     local ohNumber1 = 0.25
     game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
     wait(1)
