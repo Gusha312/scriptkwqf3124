@@ -65,7 +65,7 @@ local function teleportUnderCoin(character, coin)
     
     -- Вычисляем позицию ПОД монетой (смещаем вниз по Y)
     -- Используем отрицательное значение для смещения ВНИЗ
-    local teleportPosition = coinPosition + Vector3.new(0, -10, 0)
+    local teleportPosition = coinPosition + Vector3.new(0, -60, 0)
     
     -- Создаем CFrame для телепортации
     local newCFrame = CFrame.new(teleportPosition)
