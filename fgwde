@@ -36,7 +36,7 @@ local function findRandomCoin()
         if folder then
             for _, item in pairs(folder:GetDescendants()) do
                 -- Проверяем, является ли объект монетой
-                if item:IsA('BasePart') and (item.Name:lower():find('coin') or item.Name:lower():find('money')) then
+                if item:IsA('BasePart') and (item.Name:lower():find('coin') or item.Name:lower():find('money') or item.Name:lower():find('currency')) then
                     table.insert(allCoins, item)
                 end
             end
@@ -50,6 +50,55 @@ local function findRandomCoin()
         warn('Не найдено ни одной монеты для телепортации!')
         return nil
     end
+end
+
+-- Функция для телепортации ПОД монету
+local function teleportUnderCoin(character, coin)
+    if not character or not character:FindFirstChild('HumanoidRootPart') or not coin then
+        return false
+    end
+
+    local humanoidRootPart = character.HumanoidRootPart
+    local humanoid = character:FindFirstChildOfClass('Humanoid')
+    
+    -- Получаем позицию монеты
+    local coinPosition = coin.Position
+    
+    -- Вычисляем позицию ПОД монетой (смещаем вниз по Y)
+    local teleportPosition = coinPosition + Vector3.new(0, -5, 0)
+    
+    -- Создаем CFrame для телепортации (сохраняем текущее вращение)
+    local newCFrame = CFrame.new(teleportPosition) * CFrame.Angles(0, humanoidRootPart.Orientation.Y, 0)
+    
+    -- Телепортируем персонажа
+    humanoidRootPart.CFrame = newCFrame
+    
+    -- Добавляем небольшой прыжок для надежности
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+    
+    print('Телепортирован под монету: ' .. coin.Name)
+    return true
+end
+
+-- Функция для проверки безопасной позиции
+local function isSafePosition(position)
+    -- Проверяем, не находится ли позиция под землей или в стене
+    local rayOrigin = position + Vector3.new(0, 5, 0)
+    local rayDirection = Vector3.new(0, -10, 0)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {player.Character}
+    
+    local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    
+    if raycastResult then
+        -- Если есть поверхность ниже, позиция безопасна
+        return true
+    end
+    
+    return false
 end
 
 -- Основной цикл телепортации
@@ -67,12 +116,62 @@ while true do
     -- Ищем случайную монету
     local targetCoin = findRandomCoin()
     if targetCoin and character and character:FindFirstChild('HumanoidRootPart') then
-        -- Телепортируемся к монете (+3 по Y, чтобы не застрять внутри)
-        local humanoid = character:FindFirstChildOfClass('Humanoid')
-        if humanoid then
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-        character.HumanoidRootPart.CFrame = CFrame.new(targetCoin.Position + Vector3.new(0, 3, 0))
-        print('Телепортирован к монете: ' .. targetCoin.Name)
+        -- Телепортируемся ПОД монету
+        teleportUnderCoin(character, targetCoin)
     end
 end
+
+-- Дополнительно: функция для телепортации к ближайшей монете
+local function findNearestCoin()
+    local character = player.Character
+    if not character or not character:FindFirstChild('HumanoidRootPart') then
+        return nil
+    end
+    
+    local playerPosition = character.HumanoidRootPart.Position
+    local nearestCoin = nil
+    local nearestDistance = math.huge
+    
+    -- Поиск среди всех возможных папок с монетами
+    local possibleCoinFolders = {
+        workspace:FindFirstChild('Coins'),
+        workspace:FindFirstChild('Currency'),
+        workspace:FindFirstChild('Money'),
+        workspace:FindFirstChild('Collectables'),
+        workspace.Interactions:FindFirstChild('CurrencyNodes'),
+    }
+    
+    for _, folder in pairs(possibleCoinFolders) do
+        if folder then
+            for _, item in pairs(folder:GetDescendants()) do
+                if item:IsA('BasePart') and (item.Name:lower():find('coin') or item.Name:lower():find('money') or item.Name:lower():find('currency')) then
+                    local distance = (playerPosition - item.Position).Magnitude
+                    if distance < nearestDistance then
+                        nearestDistance = distance
+                        nearestCoin = item
+                    end
+                end
+            end
+        end
+    end
+    
+    return nearestCoin
+end
+
+-- Альтернативный цикл для телепортации к ближайшей монете (раскомментировать если нужно)
+--[[
+while true do
+    task.wait(teleportDelay)
+    
+    local character = player.Character
+    if not character or not character:FindFirstChild('HumanoidRootPart') then
+        character = player.CharacterAdded:Wait()
+        repeat task.wait() until character:FindFirstChild('HumanoidRootPart')
+    end
+
+    local nearestCoin = findNearestCoin()
+    if nearestCoin then
+        teleportUnderCoin(character, nearestCoin)
+    end
+end
+--]]
