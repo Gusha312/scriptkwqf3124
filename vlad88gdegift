@@ -164,7 +164,7 @@ local function getAllMudObjects()
     end
 end
 
--- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
+-- ФУНКЦИЯ MUD КОТОРАЯ РАБОТАЕТ ПОКА МИССИЯ НЕ ВЫПОЛНИТСЯ
 local function doMudRoll(region)
     print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
     
@@ -186,35 +186,40 @@ local function doMudRoll(region)
     teleportTo(mudPoint)
     wait(2)
 
-    -- Используем Mud 7 раз подряд
-    print("Используем Mud 7 раз...")
-    for i = 1, 7 do
-        if not running or mudMission.Value then
-            break
-        end
+    -- ИСПОЛЬЗУЕМ MUD ПОКА МИССИЯ НЕ ВЫПОЛНИТСЯ
+    local attempt = 0
+    while running and not mudMission.Value do
+        attempt += 1
         
         pcall(function()
-            -- Для ВСЕХ регионов используем последний Mud объект
+            -- Используем последний Mud объект
             local lastMud = getAllMudObjects()
             if lastMud then
                 local args = { lastMud }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("Использован Mud " .. i .. "/7 (объект: " .. lastMud.Name .. ")")
+                print("Попытка " .. attempt .. ": Использован Mud (объект: " .. lastMud.Name .. ")")
             else
-                print("❌ Mud объекты не найдены!")
+                print("❌ Mud объекты не найдены! Пробуем снова...")
+                -- Если Mud не найден, снова телепортируемся к точке
+                teleportTo(mudPoint)
+                wait(1)
             end
         end)
         
+        -- Ждем перед следующей попыткой
         wait(1)
+        
+        -- Проверяем каждые 10 попыток
+        if attempt % 10 == 0 then
+            print("Проверяем статус миссии... Попыток: " .. attempt)
+        end
     end
 
-    wait(3)
-    
     if mudMission.Value then
-        print("✅ Mud Roll ВЫПОЛНЕН!")
+        print("✅ Mud Roll ВЫПОЛНЕН! Всего попыток: " .. attempt)
         return true
     else
-        print("❌ Mud Roll не выполнен, продолжаем...")
+        print("❌ Mud Roll не выполнен (остановлен пользователем)")
         return false
     end
 end
@@ -223,20 +228,22 @@ end
 local function doJungleDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
 
-    -- Сначала Mud Roll
+    -- Сначала Mud Roll (будет работать пока не выполнится)
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Jungle')
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
-        for i = 1, #junglePoints do
-            if not running or allJungleMissionsCompleted() or distanceMission.Value then
-                break
+    -- Потом дистанция (только если Mud выполнен)
+    if distanceMission.Value == false then
+        print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+        while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
+            for i = 1, #junglePoints do
+                if not running or allJungleMissionsCompleted() or distanceMission.Value then
+                    break
+                end
+                print("Телепорт к точке " .. i)
+                teleportTo(junglePoints[i])
+                wait(2)
             end
-            print("Телепорт к точке " .. i)
-            teleportTo(junglePoints[i])
-            wait(2)
         end
     end
     
@@ -249,20 +256,22 @@ end
 local function doPrideRocksDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
 
-    -- Сначала Mud Roll
+    -- Сначала Mud Roll (будет работать пока не выполнится)
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Pride Rocks')
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
-        for i = 1, #prideRocksPoints do
-            if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
-                break
+    -- Потом дистанция (только если Mud выполнен)
+    if distanceMission.Value == false then
+        print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+        while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
+            for i = 1, #prideRocksPoints do
+                if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
+                    break
+                end
+                print("Телепорт к точке " .. i)
+                teleportTo(prideRocksPoints[i])
+                wait(2)
             end
-            print("Телепорт к точке " .. i)
-            teleportTo(prideRocksPoints[i])
-            wait(2)
         end
     end
     
@@ -377,7 +386,7 @@ local function doSniff(region)
     end
 end
 
--- ConcealScent миссия
+-- ConcealScent миссия (ТОЖЕ РАБОТАЕТ ПОКА НЕ ВЫПОЛНИТСЯ)
 local function doConcealScent(region)
     while running do
         local concealMission
@@ -388,6 +397,7 @@ local function doConcealScent(region)
         end
 
         if concealMission.Value then
+            print("ConcealScent выполнен")
             break
         end
 
