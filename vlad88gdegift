@@ -1,19 +1,6 @@
--- ФАРМ МИССИЙ С ТВОИМИ ТОЧКАМИ ТЕЛЕПОРТА
+-- ФАРМ МИССИЙ С АВТОМАТИЧЕСКИМ ПОВТОРОМ
 local player = game.Players.LocalPlayer
-
-local screenGui = Instance.new('ScreenGui')
-screenGui.Parent = player.PlayerGui
-
-local button = Instance.new('TextButton')
-button.Size = UDim2.new(0, 200, 0, 50)
-button.Position = UDim2.new(0, 10, 0, 10)
-button.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
-button.Text = 'ФАРМ МИССИЙ'
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.TextSize = 16
-button.Parent = screenGui
-
-local running = false
+local running = true
 
 -- Точки для телепортации в Jungle
 local junglePoints = {
@@ -143,17 +130,6 @@ local function waitForMissionsReset()
             else
                 print("⏳ Ожидаем сброса... Прошло " .. elapsedMinutes .. " минут")
             end
-        end
-        
-        -- Обновляем текст кнопки
-        local elapsedSeconds = math.floor(currentTime - startTime)
-        local remainingSeconds = 300 - elapsedSeconds -- 5 минут = 300 секунд
-        if remainingSeconds > 0 then
-            local minutes = math.floor(remainingSeconds / 60)
-            local seconds = remainingSeconds % 60
-            button.Text = 'ЖДЕМ ' .. minutes .. ':' .. string.format("%02d", seconds)
-        else
-            button.Text = 'ПРОВЕРЯЕМ...'
         end
         
         wait(1)
@@ -464,12 +440,8 @@ end
 
 -- Основная функция с бесконечным циклом
 local function startFarming()
-    if running then return end
-
-    running = true
-    button.Text = 'РАБОТАЕТ...'
-    button.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-
+    print("🚀 ЗАПУСК ФАРМА МИССИЙ...")
+    
     -- Бесконечный цикл фарма
     while running do
         -- Jungle
@@ -477,19 +449,19 @@ local function startFarming()
 
         -- Pride Rocks
         if jungleCompleted and running then
-            button.Text = 'ПЕРЕХОД В PRIDE ROCKS'
+            print("🔄 ПЕРЕХОД В PRIDE ROCKS")
             if teleportTo(prideRocksStart) then
                 wait(2)
                 local prideRocksCompleted = farmRegion('Pride Rocks')
                 
                 -- Если оба региона завершены, ждем сброса миссий
                 if prideRocksCompleted and running then
-                    button.Text = 'ВСЕ МИССИИ ВЫПОЛНЕНЫ!'
+                    print("🎉 ВСЕ МИССИИ ВЫПОЛНЕНЫ!")
                     wait(3)
                     
                     -- Ждем сброса миссий
                     if not waitForMissionsReset() then
-                        break -- Если вышли из ожидания (пользователь остановил)
+                        break -- Если вышли из ожидания
                     end
                     
                     -- Запускаем фарм заново
@@ -497,25 +469,20 @@ local function startFarming()
                 end
             end
         else
-            break -- Если Jungle не завершен (пользователь остановил)
+            break
         end
     end
 
-    if running then
-        running = false
-        button.Text = 'ФАРМ МИССИЙ'
-        button.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
-    end
+    print("⏹️ ФАРМ ОСТАНОВЛЕН")
 end
 
-button.MouseButton1Click:Connect(function()
-    if running then
-        running = false
-        button.Text = 'ФАРМ МИССИЙ'
-        button.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
-    else
-        startFarming()
-    end
-end)
+-- Запускаем фарм сразу
+startFarming()
 
-print('ФАРМ МИССИЙ С АВТОМАТИЧЕСКИМ ПОВТОРОМ ЗАГРУЖЕН!')
+-- Функция для остановки (можно вызвать в консоли)
+function stopFarming()
+    running = false
+    print("Фарм остановлен")
+end
+
+print('ФАРМ МИССИЙ ЗАПУЩЕН! Для остановки введите: stopFarming()')
