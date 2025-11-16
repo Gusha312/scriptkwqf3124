@@ -30,6 +30,7 @@ while true do
     
     local ohString1 = "Slot2"
     game:GetService("ReplicatedStorage").Remotes.SpawnRemote:InvokeServer(ohString1)
+    wait(120)
     local ohNumber1 = 0.25
     game:GetService("ReplicatedStorage").Remotes.OutOfBoundsSelfDamage:FireServer(ohNumber1)
     wait(1)
