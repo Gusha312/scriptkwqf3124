@@ -1,0 +1,436 @@
+-- ФАРМ МИССИЙ С ТВОИМИ ТОЧКАМИ ТЕЛЕПОРТА
+local player = game.Players.LocalPlayer
+
+local screenGui = Instance.new('ScreenGui')
+screenGui.Parent = player.PlayerGui
+
+local button = Instance.new('TextButton')
+button.Size = UDim2.new(0, 200, 0, 50)
+button.Position = UDim2.new(0, 10, 0, 10)
+button.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+button.Text = 'ФАРМ МИССИЙ'
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.TextSize = 16
+button.Parent = screenGui
+
+local running = false
+
+-- Точки для телепортации в Jungle
+local junglePoints = {
+    CFrame.new(2434.90479, 279.143066, -1289.48108),
+    CFrame.new(2734.90479, 579.143066, -1289.48108),
+    CFrame.new(2834.90479, 579.143066, -1289.48108),
+    CFrame.new(2438.90479, 279.143066, -1289.48108),
+}
+
+-- Точки для телепортации в Pride Rocks
+local prideRocksPoints = {
+    CFrame.new(1990.40833, 497.999023, -281.304352),
+    CFrame.new(1795, 198, -281),
+    CFrame.new(1990.41833, 199.999023, -283.304352),
+    CFrame.new(1795, 198, -281),
+}
+
+-- Точки для Mud в каждом регионе
+local jungleMudPoint = CFrame.new(2434.90479, 279.143066, -1289.48108)
+local prideRocksMudPoint = CFrame.new(1795, 198, -281)
+
+-- Точка перехода в Pride Rocks
+local prideRocksStart = CFrame.new(1790.40833, 197.999023, -281.304352)
+
+-- Улучшенный телепорт в точку с проверками
+local function teleportTo(cf)
+    if not running then
+        return false
+    end
+
+    local success = false
+    local attempts = 0
+    local maxAttempts = 3
+
+    while not success and attempts < maxAttempts and running do
+        pcall(function()
+            if
+                player.Character
+                and player.Character:FindFirstChild('HumanoidRootPart')
+            then
+                player.Character.HumanoidRootPart.CFrame = cf
+                success = true
+            end
+        end)
+
+        if not success then
+            attempts += 1
+            wait(1)
+        end
+    end
+
+    return success
+end
+
+-- Проверка завершения всех миссий в Jungle
+local function allJungleMissionsCompleted()
+    local missions =
+        game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle
+    return missions.TimePlayed.Value
+        and missions.Sniff.Value
+        and missions.EatFoodDrinkWater.Value
+        and missions.DistanceTravelled.Value
+        and missions.ConcealScent.Value
+        and missions.AttackOrHealCreatureOrNPC.Value
+end
+
+-- Проверка завершения всех миссий в Pride Rocks
+local function allPrideRocksMissionsCompleted()
+    local missions =
+        game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks']
+    return missions.TimePlayed.Value
+        and missions.Sniff.Value
+        and missions.EatFoodDrinkWater.Value
+        and missions.DistanceTravelled.Value
+        and missions.ConcealScent.Value
+        and missions.AttackOrHealCreatureOrNPC.Value
+end
+
+-- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
+local function doMudRoll(region)
+    print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
+    
+    local mudMission
+    if region == 'Jungle' then
+        mudMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
+    else
+        mudMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
+    end
+
+    if mudMission.Value then
+        print("Mud Roll уже выполнен!")
+        return true
+    end
+
+    -- Телепортируемся к точке Mud
+    local mudPoint = region == 'Jungle' and jungleMudPoint or prideRocksMudPoint
+    print("Телепортируемся к Mud точке...")
+    teleportTo(mudPoint)
+    wait(2)
+
+    -- Используем Mud 7 раз подряд
+    print("Используем Mud 7 раз...")
+    for i = 1, 7 do
+        if not running or mudMission.Value then
+            break
+        end
+        
+        pcall(function()
+            if region == 'Jungle' then
+                -- JUNGLE: Конкретный объект Mud
+                local args = {
+                    workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("Jungle Mud " .. i .. "/7")
+            else
+                -- PRIDE ROCKS: Первый найденный Mud
+                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
+                local args = { mud }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("Pride Rocks Mud " .. i .. "/7")
+            end
+        end)
+        
+        wait(1)
+    end
+
+    wait(3)
+    
+    if mudMission.Value then
+        print("✅ Mud Roll ВЫПОЛНЕН!")
+        return true
+    else
+        print("❌ Mud Roll не выполнен, продолжаем...")
+        return false
+    end
+end
+
+-- DistanceTravelled для Jungle
+local function doJungleDistanceTravelled()
+    local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
+
+    -- Сначала Mud Roll
+    print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
+    doMudRoll('Jungle')
+
+    -- Потом дистанция
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
+        for i = 1, #junglePoints do
+            if not running or allJungleMissionsCompleted() or distanceMission.Value then
+                break
+            end
+            print("Телепорт к точке " .. i)
+            teleportTo(junglePoints[i])
+            wait(2)
+        end
+    end
+    
+    if distanceMission.Value then
+        print("✅ Jungle DistanceTravelled ВЫПОЛНЕН!")
+    end
+end
+
+-- DistanceTravelled для Pride Rocks
+local function doPrideRocksDistanceTravelled()
+    local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
+
+    -- Сначала Mud Roll
+    print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
+    doMudRoll('Pride Rocks')
+
+    -- Потом дистанция
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
+        for i = 1, #prideRocksPoints do
+            if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
+                break
+            end
+            print("Телепорт к точке " .. i)
+            teleportTo(prideRocksPoints[i])
+            wait(2)
+        end
+    end
+    
+    if distanceMission.Value then
+        print("✅ Pride Rocks DistanceTravelled ВЫПОЛНЕН!")
+    end
+end
+
+-- Атака NPC
+local function attackNPC(region)
+    local lastAttackTime = 0
+    local attackCooldown = 5
+    
+    while running do
+        local attackMission
+        if region == 'Jungle' then
+            attackMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.AttackOrHealCreatureOrNPC
+        else
+            attackMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].AttackOrHealCreatureOrNPC
+        end
+
+        if attackMission.Value then
+            print("Атака NPC уже выполнена")
+            break
+        end
+
+        local currentTime = tick()
+        if currentTime - lastAttackTime >= attackCooldown then
+            pcall(function()
+                local args = {
+                    {
+                        workspace:WaitForChild("Interactions"):WaitForChild("NPCs"):WaitForChild("Roots"):WaitForChild("RootPart")
+                    }
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("NPCDamageRemote"):FireServer(unpack(args))
+                print("Атаковали NPC")
+                lastAttackTime = currentTime
+            end)
+        end
+
+        wait(1)
+    end
+end
+
+-- Еда и вода
+local function eatAndDrink(region)
+    while running do
+        local eatMission
+        if region == 'Jungle' then
+            eatMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.EatFoodDrinkWater
+        else
+            eatMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].EatFoodDrinkWater
+        end
+
+        if eatMission.Value then
+            break
+        end
+
+        -- Еда 25 раз
+        print("Начинаем есть 25 раз...")
+        pcall(function()
+            local foodFolder = workspace:WaitForChild("Interactions"):WaitForChild("Food")
+            local foods = foodFolder:GetChildren()
+            
+            for i = 1, 25 do
+                if not running or eatMission.Value then
+                    break
+                end
+                
+                local food = foods[i] or foods[1]
+                local args = { food }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Food"):FireServer(unpack(args))
+                print("Съели еду " .. i .. "/25")
+                wait(0.3)
+            end
+        end)
+
+        -- Вода
+        pcall(function()
+            local lake = workspace:WaitForChild("Interactions"):WaitForChild("Lakes"):FindFirstChild("Lake")
+            if lake then
+                local args = { lake }
+                game:GetService('ReplicatedStorage'):WaitForChild('Remotes'):WaitForChild('DrinkRemote'):FireServer(unpack(args))
+                print("Выпили воду")
+            end
+        end)
+
+        wait(2)
+    end
+end
+
+-- Sniff миссия
+local function doSniff(region)
+    while running do
+        local sniffMission
+        if region == 'Jungle' then
+            sniffMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.Sniff
+        else
+            sniffMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].Sniff
+        end
+
+        if sniffMission.Value then
+            break
+        end
+
+        pcall(function()
+            local args = { 1 }
+            game:GetService('ReplicatedStorage'):WaitForChild('Remotes'):WaitForChild('SetMissionRemote'):FireServer(unpack(args))
+            print("Снифф выполнен")
+        end)
+        wait(2)
+    end
+end
+
+-- ConcealScent миссия
+local function doConcealScent(region)
+    while running do
+        local concealMission
+        if region == 'Jungle' then
+            concealMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.ConcealScent
+        else
+            concealMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].ConcealScent
+        end
+
+        if concealMission.Value then
+            break
+        end
+
+        pcall(function()
+            if region == 'Jungle' then
+                -- JUNGLE: Конкретный объект Mud
+                local args = {
+                    workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("ConcealScent Jungle Mud")
+            else
+                -- PRIDE ROCKS: Первый найденный Mud
+                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
+                local args = { mud }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("ConcealScent Pride Rocks Mud")
+            end
+        end)
+        wait(2)
+    end
+end
+
+-- TimePlayed
+local function waitForTimePlayed(region)
+    while running do
+        local timeMission
+        if region == 'Jungle' then
+            timeMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.TimePlayed
+        else
+            timeMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].TimePlayed
+        end
+
+        if timeMission.Value then
+            break
+        end
+        wait(5)
+    end
+end
+
+-- Фарм региона
+local function farmRegion(region)
+    local points = region == 'Jungle' and junglePoints or prideRocksPoints
+
+    teleportTo(points[1])
+    wait(1)
+
+    print("=== НАЧИНАЕМ " .. region:upper() .. " ===")
+    
+    if region == 'Jungle' then
+        doJungleDistanceTravelled()
+    else
+        doPrideRocksDistanceTravelled()
+    end
+
+    -- Параллельные миссии
+    coroutine.wrap(function() attackNPC(region) end)()
+    coroutine.wrap(function() eatAndDrink(region) end)()
+    coroutine.wrap(function() doSniff(region) end)()
+    coroutine.wrap(function() doConcealScent(region) end)()
+    coroutine.wrap(function() waitForTimePlayed(region) end)()
+
+    -- Ждем завершения
+    local checkFunction = region == 'Jungle' and allJungleMissionsCompleted or allPrideRocksMissionsCompleted
+    while running and not checkFunction() do
+        wait(1)
+    end
+
+    return checkFunction()
+end
+
+-- Основная функция
+local function startFarming()
+    if running then return end
+
+    running = true
+    button.Text = 'РАБОТАЕТ...'
+    button.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+
+    -- Jungle
+    local jungleCompleted = farmRegion('Jungle')
+
+    -- Pride Rocks
+    if jungleCompleted and running then
+        button.Text = 'ПЕРЕХОД В PRIDE ROCKS'
+        if teleportTo(prideRocksStart) then
+            wait(2)
+            local prideRocksCompleted = farmRegion('Pride Rocks')
+            if prideRocksCompleted and running then
+                button.Text = 'ВСЕ МИССИИ ВЫПОЛНЕНЫ!'
+                wait(3)
+            end
+        end
+    end
+
+    if running then
+        running = false
+        button.Text = 'ФАРМ МИССИЙ'
+        button.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+    end
+end
+
+button.MouseButton1Click:Connect(function()
+    if running then
+        running = false
+        button.Text = 'ФАРМ МИССИЙ'
+        button.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+    else
+        startFarming()
+    end
+end)
+
+print('ФАРМ МИССИЙ С КОНКРЕТНЫМ MUD ОБЪЕКТОМ В JUNGLE ЗАГРУЖЕН!')
