@@ -138,6 +138,32 @@ local function waitForMissionsReset()
     return false
 end
 
+-- Функция для получения ВСЕХ Mud объектов и использования последнего
+local function getAllMudObjects()
+    local mudFolder = workspace:WaitForChild("Interactions"):WaitForChild("Mud")
+    local allMudObjects = {}
+    
+    -- Собираем все Mud объекты
+    for _, mudModel in pairs(mudFolder:GetChildren()) do
+        if mudModel:IsA("Model") then
+            -- Ищем часть "Mud" внутри модели
+            local mudPart = mudModel:FindFirstChild("Mud")
+            if mudPart then
+                table.insert(allMudObjects, mudPart)
+            end
+        end
+    end
+    
+    print("Найдено Mud объектов: " .. #allMudObjects)
+    
+    -- Возвращаем последний объект (или nil если нет объектов)
+    if #allMudObjects > 0 then
+        return allMudObjects[#allMudObjects]
+    else
+        return nil
+    end
+end
+
 -- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
 local function doMudRoll(region)
     print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
@@ -168,19 +194,14 @@ local function doMudRoll(region)
         end
         
         pcall(function()
-            if region == 'Jungle' then
-                -- JUNGLE: Конкретный объект Mud
-                local args = {
-                    workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
-                }
+            -- Для ВСЕХ регионов используем последний Mud объект
+            local lastMud = getAllMudObjects()
+            if lastMud then
+                local args = { lastMud }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("Jungle Mud " .. i .. "/7")
+                print("Использован Mud " .. i .. "/7 (объект: " .. lastMud.Name .. ")")
             else
-                -- PRIDE ROCKS: Первый найденный Mud
-                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
-                local args = { mud }
-                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("Pride Rocks Mud " .. i .. "/7")
+                print("❌ Mud объекты не найдены!")
             end
         end)
         
@@ -371,19 +392,14 @@ local function doConcealScent(region)
         end
 
         pcall(function()
-            if region == 'Jungle' then
-                -- JUNGLE: Конкретный объект Mud
-                local args = {
-                    workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
-                }
+            -- Для ConcealScent тоже используем последний Mud объект
+            local lastMud = getAllMudObjects()
+            if lastMud then
+                local args = { lastMud }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("ConcealScent Jungle Mud")
+                print("ConcealScent Mud (объект: " .. lastMud.Name .. ")")
             else
-                -- PRIDE ROCKS: Первый найденный Mud
-                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
-                local args = { mud }
-                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("ConcealScent Pride Rocks Mud")
+                print("❌ Mud объекты не найдены для ConcealScent!")
             end
         end)
         wait(2)
