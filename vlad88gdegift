@@ -26,7 +26,7 @@ local swampHollowPoints = {
     CFrame.new(911.279724, 242.321991, -2263.15088),
 }
 
--- Точки для Mud в каждом регионе
+-- Точки Mud в каждом регионе
 local jungleMudPoint = CFrame.new(2434.90479, 279.143066, -1289.48108)
 local prideRocksMudPoint = CFrame.new(1795, 198, -281)
 local swampHollowMudPoint = CFrame.new(711.279724, 242.321991, -2263.15088)
@@ -173,33 +173,7 @@ local function waitForMissionsReset()
     return false
 end
 
--- Функция для получения ВСЕХ Mud объектов и использования последнего
-local function getAllMudObjects()
-    local mudFolder = workspace:WaitForChild("Interactions"):WaitForChild("Mud")
-    local allMudObjects = {}
-    
-    -- Собираем все Mud объекты
-    for _, mudModel in pairs(mudFolder:GetChildren()) do
-        if mudModel:IsA("Model") then
-            -- Ищем часть "Mud" внутри модели
-            local mudPart = mudModel:FindFirstChild("Mud")
-            if mudPart then
-                table.insert(allMudObjects, mudPart)
-            end
-        end
-    end
-    
-    print("Найдено Mud объектов: " .. #allMudObjects)
-    
-    -- Возвращаем последний объект (или nil если нет объектов)
-    if #allMudObjects > 0 then
-        return allMudObjects[#allMudObjects]
-    else
-        return nil
-    end
-end
-
--- ФУНКЦИЯ MUD КОТОРАЯ РАБОТАЕТ ПОКА МИССИЯ НЕ ВЫПОЛНИТСЯ
+-- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
 local function doMudRoll(region)
     print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
     
@@ -208,7 +182,7 @@ local function doMudRoll(region)
         mudMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
     elseif region == 'Pride Rocks' then
         mudMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
-    else -- Swamp Hollow
+    else
         mudMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].DistanceTravelled
     end
 
@@ -217,13 +191,13 @@ local function doMudRoll(region)
         return true
     end
 
-    -- Телепортируемся к точке Mud для региона
+    -- Телепортируемся к точке Mud
     local mudPoint
     if region == 'Jungle' then
         mudPoint = jungleMudPoint
     elseif region == 'Pride Rocks' then
         mudPoint = prideRocksMudPoint
-    else -- Swamp Hollow
+    else
         mudPoint = swampHollowMudPoint
     end
     
@@ -231,40 +205,46 @@ local function doMudRoll(region)
     teleportTo(mudPoint)
     wait(2)
 
-    -- ИСПОЛЬЗУЕМ MUD ПОКА МИССИЯ НЕ ВЫПОЛНИТСЯ
-    local attempt = 0
-    while running and not mudMission.Value do
-        attempt += 1
+    -- Используем Mud 7 раз подряд
+    print("Используем Mud 7 раз...")
+    for i = 1, 7 do
+        if not running or mudMission.Value then
+            break
+        end
         
         pcall(function()
-            -- Используем последний Mud объект
-            local lastMud = getAllMudObjects()
-            if lastMud then
-                local args = { lastMud }
+            if region == 'Jungle' then
+                -- JUNGLE: Конкретный объект Mud
+                local args = {
+                    workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
+                }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("Попытка " .. attempt .. ": Использован Mud (объект: " .. lastMud.Name .. ")")
+                print("Jungle Mud " .. i .. "/7")
+            elseif region == 'Pride Rocks' then
+                -- PRIDE ROCKS: Первый найденный Mud
+                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
+                local args = { mud }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("Pride Rocks Mud " .. i .. "/7")
             else
-                print("❌ Mud объекты не найдены! Пробуем снова...")
-                -- Если Mud не найден, снова телепортируемся к точке
-                teleportTo(mudPoint)
-                wait(1)
+                -- SWAMP HOLLOW: Первый найденный Mud
+                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
+                local args = { mud }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("Swamp Hollow Mud " .. i .. "/7")
             end
         end)
         
-        -- Ждем перед следующей попыткой
         wait(1)
-        
-        -- Проверяем каждые 10 попыток
-        if attempt % 10 == 0 then
-            print("Проверяем статус миссии... Попыток: " .. attempt)
-        end
     end
 
+    wait(3)
+    
     if mudMission.Value then
-        print("✅ Mud Roll ВЫПОЛНЕН! Всего попыток: " .. attempt)
+        print("✅ Mud Roll ВЫПОЛНЕН!")
         return true
     else
-        print("❌ Mud Roll не выполнен (остановлен пользователем)")
+        print("❌ Mud Roll не выполнен, продолжаем...")
         return false
     end
 end
@@ -273,22 +253,20 @@ end
 local function doJungleDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
 
-    -- Сначала Mud Roll (будет работать пока не выполнится)
+    -- Сначала Mud Roll
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Jungle')
 
-    -- Потом дистанция (только если Mud выполнен)
-    if distanceMission.Value == false then
-        print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-        while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
-            for i = 1, #junglePoints do
-                if not running or allJungleMissionsCompleted() or distanceMission.Value then
-                    break
-                end
-                print("Телепорт к Jungle точке " .. i)
-                teleportTo(junglePoints[i])
-                wait(2)
+    -- Потом дистанция
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
+        for i = 1, #junglePoints do
+            if not running or allJungleMissionsCompleted() or distanceMission.Value then
+                break
             end
+            print("Телепорт к точке " .. i)
+            teleportTo(junglePoints[i])
+            wait(2)
         end
     end
     
@@ -301,22 +279,20 @@ end
 local function doPrideRocksDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
 
-    -- Сначала Mud Roll (будет работать пока не выполнится)
+    -- Сначала Mud Roll
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Pride Rocks')
 
-    -- Потом дистанция (только если Mud выполнен)
-    if distanceMission.Value == false then
-        print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-        while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
-            for i = 1, #prideRocksPoints do
-                if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
-                    break
-                end
-                print("Телепорт к Pride Rocks точке " .. i)
-                teleportTo(prideRocksPoints[i])
-                wait(2)
+    -- Потом дистанция
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
+        for i = 1, #prideRocksPoints do
+            if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
+                break
             end
+            print("Телепорт к точке " .. i)
+            teleportTo(prideRocksPoints[i])
+            wait(2)
         end
     end
     
@@ -329,22 +305,20 @@ end
 local function doSwampHollowDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].DistanceTravelled
 
-    -- Сначала Mud Roll (будет работать пока не выполнится)
+    -- Сначала Mud Roll
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Swamp Hollow')
 
-    -- Потом дистанция (только если Mud выполнен)
-    if distanceMission.Value == false then
-        print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-        while running and not allSwampHollowMissionsCompleted() and distanceMission.Value == false do
-            for i = 1, #swampHollowPoints do
-                if not running or allSwampHollowMissionsCompleted() or distanceMission.Value then
-                    break
-                end
-                print("Телепорт к Swamp Hollow точке " .. i)
-                teleportTo(swampHollowPoints[i])
-                wait(2)
+    -- Потом дистанция
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    while running and not allSwampHollowMissionsCompleted() and distanceMission.Value == false do
+        for i = 1, #swampHollowPoints do
+            if not running or allSwampHollowMissionsCompleted() or distanceMission.Value then
+                break
             end
+            print("Телепорт к точке " .. i)
+            teleportTo(swampHollowPoints[i])
+            wait(2)
         end
     end
     
@@ -364,7 +338,7 @@ local function attackNPC(region)
             attackMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.AttackOrHealCreatureOrNPC
         elseif region == 'Pride Rocks' then
             attackMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].AttackOrHealCreatureOrNPC
-        else -- Swamp Hollow
+        else
             attackMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].AttackOrHealCreatureOrNPC
         end
 
@@ -399,7 +373,7 @@ local function eatAndDrink(region)
             eatMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.EatFoodDrinkWater
         elseif region == 'Pride Rocks' then
             eatMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].EatFoodDrinkWater
-        else -- Swamp Hollow
+        else
             eatMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].EatFoodDrinkWater
         end
 
@@ -448,7 +422,7 @@ local function doSniff(region)
             sniffMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.Sniff
         elseif region == 'Pride Rocks' then
             sniffMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].Sniff
-        else -- Swamp Hollow
+        else
             sniffMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].Sniff
         end
 
@@ -465,7 +439,7 @@ local function doSniff(region)
     end
 end
 
--- ConcealScent миссия (ТОЖЕ РАБОТАЕТ ПОКА НЕ ВЫПОЛНИТСЯ)
+-- ConcealScent миссия
 local function doConcealScent(region)
     while running do
         local concealMission
@@ -473,24 +447,34 @@ local function doConcealScent(region)
             concealMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.ConcealScent
         elseif region == 'Pride Rocks' then
             concealMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].ConcealScent
-        else -- Swamp Hollow
+        else
             concealMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].ConcealScent
         end
 
         if concealMission.Value then
-            print("ConcealScent выполнен")
             break
         end
 
         pcall(function()
-            -- Для ConcealScent тоже используем последний Mud объект
-            local lastMud = getAllMudObjects()
-            if lastMud then
-                local args = { lastMud }
+            if region == 'Jungle' then
+                -- JUNGLE: Конкретный объект Mud
+                local args = {
+                    workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
+                }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("ConcealScent Mud (объект: " .. lastMud.Name .. ")")
+                print("ConcealScent Jungle Mud")
+            elseif region == 'Pride Rocks' then
+                -- PRIDE ROCKS: Первый найденный Mud
+                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
+                local args = { mud }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("ConcealScent Pride Rocks Mud")
             else
-                print("❌ Mud объекты не найдены для ConcealScent!")
+                -- SWAMP HOLLOW: Первый найденный Mud
+                local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
+                local args = { mud }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
+                print("ConcealScent Swamp Hollow Mud")
             end
         end)
         wait(2)
@@ -505,7 +489,7 @@ local function waitForTimePlayed(region)
             timeMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.TimePlayed
         elseif region == 'Pride Rocks' then
             timeMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].TimePlayed
-        else -- Swamp Hollow
+        else
             timeMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].TimePlayed
         end
 
@@ -523,7 +507,7 @@ local function farmRegion(region)
         points = junglePoints
     elseif region == 'Pride Rocks' then
         points = prideRocksPoints
-    else -- Swamp Hollow
+    else
         points = swampHollowPoints
     end
 
@@ -536,7 +520,7 @@ local function farmRegion(region)
         doJungleDistanceTravelled()
     elseif region == 'Pride Rocks' then
         doPrideRocksDistanceTravelled()
-    else -- Swamp Hollow
+    else
         doSwampHollowDistanceTravelled()
     end
 
@@ -553,7 +537,7 @@ local function farmRegion(region)
         checkFunction = allJungleMissionsCompleted
     elseif region == 'Pride Rocks' then
         checkFunction = allPrideRocksMissionsCompleted
-    else -- Swamp Hollow
+    else
         checkFunction = allSwampHollowMissionsCompleted
     end
     
@@ -587,7 +571,7 @@ local function startFarming()
                         wait(2)
                         local swampHollowCompleted = farmRegion('Swamp Hollow')
                         
-                        -- Если все три региона завершены, ждем сброса миссий
+                        -- Если все регионы завершены, ждем сброса миссий
                         if swampHollowCompleted and running then
                             print("🎉 ВСЕ МИССИИ ВЫПОЛНЕНЫ!")
                             wait(3)
@@ -620,4 +604,4 @@ function stopFarming()
     print("Фарм остановлен")
 end
 
-print('ФАРМ МИССИЙ С 3 ЛОКАЦИЯМИ ЗАПУЩЕН! Для остановки введите: stopFarming()')
+print('ФАРМ МИССИЙ ЗАПУЩЕН! Для остановки введите: stopFarming()')
