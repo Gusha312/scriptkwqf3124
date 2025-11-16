@@ -173,7 +173,7 @@ local function waitForMissionsReset()
     return false
 end
 
--- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
+-- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ MUD - всегда телепортируется к Mud точке
 local function doMudRoll(region)
     print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
     
@@ -191,7 +191,7 @@ local function doMudRoll(region)
         return true
     end
 
-    -- Телепортируемся к точке Mud
+    -- ВСЕГДА телепортируемся к точке Mud сначала
     local mudPoint
     if region == 'Jungle' then
         mudPoint = jungleMudPoint
@@ -202,7 +202,10 @@ local function doMudRoll(region)
     end
     
     print("Телепортируемся к Mud точке...")
-    teleportTo(mudPoint)
+    if not teleportTo(mudPoint) then
+        print("❌ Не удалось телепортироваться к Mud точке")
+        return false
+    end
     wait(2)
 
     -- Используем Mud 7 раз подряд
@@ -249,82 +252,154 @@ local function doMudRoll(region)
     end
 end
 
--- DistanceTravelled для Jungle
+-- УЛУЧШЕННАЯ DistanceTravelled для Jungle
 local function doJungleDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
 
-    -- Сначала Mud Roll
+    if distanceMission.Value then
+        print("✅ Jungle DistanceTravelled уже выполнен!")
+        return true
+    end
+
+    -- ВСЕГДА начинаем с Mud Roll
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Jungle')
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
+    -- Если после Mud Roll миссия выполнена, выходим
+    if distanceMission.Value then
+        print("✅ Jungle DistanceTravelled ВЫПОЛНЕН через Mud Roll!")
+        return true
+    end
+
+    -- Потом дистанция через телепортацию
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ЧЕРЕЗ ТЕЛЕПОРТАЦИЮ ===")
+    local attempts = 0
+    local maxAttempts = 10
+    
+    while running and not allJungleMissionsCompleted() and not distanceMission.Value and attempts < maxAttempts do
         for i = 1, #junglePoints do
             if not running or allJungleMissionsCompleted() or distanceMission.Value then
                 break
             end
-            print("Телепорт к точке " .. i)
+            print("Телепорт к точке " .. i .. " (попытка " .. (attempts + 1) .. ")")
             teleportTo(junglePoints[i])
             wait(2)
+        end
+        attempts += 1
+        
+        -- Проверяем каждые 2 цикла, не выполнилась ли миссия
+        if attempts % 2 == 0 and distanceMission.Value then
+            break
         end
     end
     
     if distanceMission.Value then
         print("✅ Jungle DistanceTravelled ВЫПОЛНЕН!")
+    else
+        print("⚠️ Jungle DistanceTravelled не выполнен после " .. maxAttempts .. " попыток")
     end
+    
+    return distanceMission.Value
 end
 
--- DistanceTravelled для Pride Rocks
+-- УЛУЧШЕННАЯ DistanceTravelled для Pride Rocks
 local function doPrideRocksDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
 
-    -- Сначала Mud Roll
+    if distanceMission.Value then
+        print("✅ Pride Rocks DistanceTravelled уже выполнен!")
+        return true
+    end
+
+    -- ВСЕГДА начинаем с Mud Roll
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Pride Rocks')
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
+    -- Если после Mud Roll миссия выполнена, выходим
+    if distanceMission.Value then
+        print("✅ Pride Rocks DistanceTravelled ВЫПОЛНЕН через Mud Roll!")
+        return true
+    end
+
+    -- Потом дистанция через телепортацию
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ЧЕРЕЗ ТЕЛЕПОРТАЦИЮ ===")
+    local attempts = 0
+    local maxAttempts = 10
+    
+    while running and not allPrideRocksMissionsCompleted() and not distanceMission.Value and attempts < maxAttempts do
         for i = 1, #prideRocksPoints do
             if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
                 break
             end
-            print("Телепорт к точке " .. i)
+            print("Телепорт к точке " .. i .. " (попытка " .. (attempts + 1) .. ")")
             teleportTo(prideRocksPoints[i])
             wait(2)
+        end
+        attempts += 1
+        
+        -- Проверяем каждые 2 цикла, не выполнилась ли миссия
+        if attempts % 2 == 0 and distanceMission.Value then
+            break
         end
     end
     
     if distanceMission.Value then
         print("✅ Pride Rocks DistanceTravelled ВЫПОЛНЕН!")
+    else
+        print("⚠️ Pride Rocks DistanceTravelled не выполнен после " .. maxAttempts .. " попыток")
     end
+    
+    return distanceMission.Value
 end
 
--- DistanceTravelled для Swamp Hollow
+-- УЛУЧШЕННАЯ DistanceTravelled для Swamp Hollow
 local function doSwampHollowDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Swamp Hollow'].DistanceTravelled
 
-    -- Сначала Mud Roll
+    if distanceMission.Value then
+        print("✅ Swamp Hollow DistanceTravelled уже выполнен!")
+        return true
+    end
+
+    -- ВСЕГДА начинаем с Mud Roll
     print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
     doMudRoll('Swamp Hollow')
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    while running and not allSwampHollowMissionsCompleted() and distanceMission.Value == false do
+    -- Если после Mud Roll миссия выполнена, выходим
+    if distanceMission.Value then
+        print("✅ Swamp Hollow DistanceTravelled ВЫПОЛНЕН через Mud Roll!")
+        return true
+    end
+
+    -- Потом дистанция через телепортацию
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ЧЕРЕЗ ТЕЛЕПОРТАЦИЮ ===")
+    local attempts = 0
+    local maxAttempts = 10
+    
+    while running and not allSwampHollowMissionsCompleted() and not distanceMission.Value and attempts < maxAttempts do
         for i = 1, #swampHollowPoints do
             if not running or allSwampHollowMissionsCompleted() or distanceMission.Value then
                 break
             end
-            print("Телепорт к точке " .. i)
+            print("Телепорт к точке " .. i .. " (попытка " .. (attempts + 1) .. ")")
             teleportTo(swampHollowPoints[i])
             wait(2)
+        end
+        attempts += 1
+        
+        -- Проверяем каждые 2 цикла, не выполнилась ли миссия
+        if attempts % 2 == 0 and distanceMission.Value then
+            break
         end
     end
     
     if distanceMission.Value then
         print("✅ Swamp Hollow DistanceTravelled ВЫПОЛНЕН!")
+    else
+        print("⚠️ Swamp Hollow DistanceTravelled не выполнен после " .. maxAttempts .. " попыток")
     end
+    
+    return distanceMission.Value
 end
 
 -- Атака NPC
@@ -511,11 +586,14 @@ local function farmRegion(region)
         points = swampHollowPoints
     end
 
+    -- Начинаем с первой точки региона
+    print("Телепортируемся в " .. region .. "...")
     teleportTo(points[1])
     wait(1)
 
     print("=== НАЧИНАЕМ " .. region:upper() .. " ===")
     
+    -- ВСЕГДА начинаем с DistanceTravelled (который включает Mud Roll)
     if region == 'Jungle' then
         doJungleDistanceTravelled()
     elseif region == 'Pride Rocks' then
