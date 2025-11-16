@@ -92,6 +92,76 @@ local function allPrideRocksMissionsCompleted()
         and missions.AttackOrHealCreatureOrNPC.Value
 end
 
+-- Проверка, есть ли активные миссии в Jungle
+local function hasActiveJungleMissions()
+    local missions =
+        game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle
+    return not missions.TimePlayed.Value
+        or not missions.Sniff.Value
+        or not missions.EatFoodDrinkWater.Value
+        or not missions.DistanceTravelled.Value
+        or not missions.ConcealScent.Value
+        or not missions.AttackOrHealCreatureOrNPC.Value
+end
+
+-- Проверка, есть ли активные миссии в Pride Rocks
+local function hasActivePrideRocksMissions()
+    local missions =
+        game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks']
+    return not missions.TimePlayed.Value
+        or not missions.Sniff.Value
+        or not missions.EatFoodDrinkWater.Value
+        or not missions.DistanceTravelled.Value
+        or not missions.ConcealScent.Value
+        or not missions.AttackOrHealCreatureOrNPC.Value
+end
+
+-- Ожидание сброса миссий
+local function waitForMissionsReset()
+    print("=== ВСЕ МИССИИ ВЫПОЛНЕНЫ ===")
+    print("Ожидаем сброса миссий (5 минут)...")
+    
+    local startTime = tick()
+    local checkInterval = 30 -- Проверяем каждые 30 секунд
+    local lastCheckTime = 0
+    
+    while running do
+        local currentTime = tick()
+        
+        -- Проверяем миссии каждые 30 секунд
+        if currentTime - lastCheckTime >= checkInterval then
+            lastCheckTime = currentTime
+            local elapsedMinutes = math.floor((currentTime - startTime) / 60)
+            
+            -- Проверяем, есть ли активные миссии
+            local jungleActive = hasActiveJungleMissions()
+            local prideRocksActive = hasActivePrideRocksMissions()
+            
+            if jungleActive or prideRocksActive then
+                print("✅ Миссии сбросились! Запускаем фарм заново...")
+                return true
+            else
+                print("⏳ Ожидаем сброса... Прошло " .. elapsedMinutes .. " минут")
+            end
+        end
+        
+        -- Обновляем текст кнопки
+        local elapsedSeconds = math.floor(currentTime - startTime)
+        local remainingSeconds = 300 - elapsedSeconds -- 5 минут = 300 секунд
+        if remainingSeconds > 0 then
+            local minutes = math.floor(remainingSeconds / 60)
+            local seconds = remainingSeconds % 60
+            button.Text = 'ЖДЕМ ' .. minutes .. ':' .. string.format("%02d", seconds)
+        else
+            button.Text = 'ПРОВЕРЯЕМ...'
+        end
+        
+        wait(1)
+    end
+    
+    return false
+end
+
 -- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
 local function doMudRoll(region)
     print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
@@ -392,7 +462,7 @@ local function farmRegion(region)
     return checkFunction()
 end
 
--- Основная функция
+-- Основная функция с бесконечным циклом
 local function startFarming()
     if running then return end
 
@@ -400,19 +470,34 @@ local function startFarming()
     button.Text = 'РАБОТАЕТ...'
     button.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
 
-    -- Jungle
-    local jungleCompleted = farmRegion('Jungle')
+    -- Бесконечный цикл фарма
+    while running do
+        -- Jungle
+        local jungleCompleted = farmRegion('Jungle')
 
-    -- Pride Rocks
-    if jungleCompleted and running then
-        button.Text = 'ПЕРЕХОД В PRIDE ROCKS'
-        if teleportTo(prideRocksStart) then
-            wait(2)
-            local prideRocksCompleted = farmRegion('Pride Rocks')
-            if prideRocksCompleted and running then
-                button.Text = 'ВСЕ МИССИИ ВЫПОЛНЕНЫ!'
-                wait(3)
+        -- Pride Rocks
+        if jungleCompleted and running then
+            button.Text = 'ПЕРЕХОД В PRIDE ROCKS'
+            if teleportTo(prideRocksStart) then
+                wait(2)
+                local prideRocksCompleted = farmRegion('Pride Rocks')
+                
+                -- Если оба региона завершены, ждем сброса миссий
+                if prideRocksCompleted and running then
+                    button.Text = 'ВСЕ МИССИИ ВЫПОЛНЕНЫ!'
+                    wait(3)
+                    
+                    -- Ждем сброса миссий
+                    if not waitForMissionsReset() then
+                        break -- Если вышли из ожидания (пользователь остановил)
+                    end
+                    
+                    -- Запускаем фарм заново
+                    print("=== ЗАПУСКАЕМ ФАРМ ЗАНОВО ===")
+                end
             end
+        else
+            break -- Если Jungle не завершен (пользователь остановил)
         end
     end
 
@@ -433,4 +518,4 @@ button.MouseButton1Click:Connect(function()
     end
 end)
 
-print('ФАРМ МИССИЙ С КОНКРЕТНЫМ MUD ОБЪЕКТОМ В JUNGLE ЗАГРУЖЕН!')
+print('ФАРМ МИССИЙ С АВТОМАТИЧЕСКИМ ПОВТОРОМ ЗАГРУЖЕН!')
