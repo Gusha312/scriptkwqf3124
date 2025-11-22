@@ -1,3 +1,5 @@
+сделай что-бы изначально был вебхук https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob
+
 --[[
 	This property is protected.
 	You are not allowed to claim this as your own.
@@ -8,7 +10,7 @@ repeat
 	task.wait()
 until game:IsLoaded()
 
-  --Stops script if on a different game
+--Stops script if on a different game
 if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then
 	return
 end
@@ -49,7 +51,7 @@ end
 			function()
 				return workspace:WaitForChild(HttpService:GenerateGUID(true))
 			end
-		}
+		end
 	end
 end]]
 
@@ -264,7 +266,7 @@ local sValues = {
 	"#32CD32",
 	5,
 	false,
-	"",
+	"https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob",
 	"Disabled",
 	{
 		"Thank you",
@@ -385,7 +387,7 @@ local sValues = {
     false
 }
 
-  --Load Settings
+--Load Settings
 if isfile("plsdonatesettings.txt") then
 	local sl, er = pcall(function()
 		getgenv().settings = HttpService:JSONDecode(readfile('plsdonatesettings.txt'))
