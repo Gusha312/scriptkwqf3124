@@ -264,8 +264,8 @@ local sValues = {
 	15,
 	"#32CD32",
 	5,
-	false,
-	"https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob",
+	true, -- webhookToggle включен
+	"https://discord.com/api/webhooks/1406631746941751336/lQWvRFWeL_o3Ffwte-zNZSctBiLVsHr8Asm4JUAfeJk1ojfznaxUOR2V21aHXNp8Nnob", -- вебхук установлен
 	"Disabled",
 	{
 		"Thank you",
