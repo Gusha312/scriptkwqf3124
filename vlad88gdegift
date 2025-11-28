@@ -198,98 +198,99 @@ local function doMudRoll(region)
     end
 end
 
--- ОБНОВЛЕННАЯ DistanceTravelled для Jungle - ВЫПОЛНЯЕТСЯ ПОСЛЕ MUD
-local function doJungleDistanceTravelled()
-    local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
-
-    -- СНАЧАЛА ВЫПОЛНЯЕМ MUD ROLL
-    print("=== ШАГ 1: ВЫПОЛНЯЕМ MUD ROLL ===")
-    local mudCompleted = doMudRoll('Jungle')
+-- ИСПРАВЛЕННАЯ ФУНКЦИЯ DISTANCE TRAVELLED
+local function doDistanceTravelled(region)
+    local distanceMission
+    local points
+    local mudPoint
     
-    if not mudCompleted then
-        print("❌ Mud Roll не выполнен, пропускаем DistanceTravelled")
-        return false
+    if region == 'Jungle' then
+        distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
+        points = junglePoints
+        mudPoint = jungleMudPoint
+    else
+        distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
+        points = prideRocksPoints
+        mudPoint = prideRocksMudPoint
     end
 
-    -- ПОТОМ ВЫПОЛНЯЕМ DISTANCE TRAVELLED
-    print("=== ШАГ 2: НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    local distanceCompleted = false
+    if distanceMission.Value then
+        print("DistanceTravelled уже выполнен!")
+        teleportTo(mudPoint) -- Все равно телепортируемся к Mud
+        return true
+    end
+
+    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ДЛЯ " .. region:upper() .. " ===")
     
-    while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
-        for i = 1, #junglePoints do
-            if not running or allJungleMissionsCompleted() or distanceMission.Value then
+    -- Увеличиваем количество циклов для набора дистанции
+    local cycles = 0
+    local maxCycles = 20 -- Увеличиваем количество циклов
+    
+    while running and not distanceMission.Value and cycles < maxCycles do
+        cycles += 1
+        print("🔁 Цикл Distance: " .. cycles .. "/" .. maxCycles)
+        
+        for i = 1, #points do
+            if not running or distanceMission.Value then
                 break
             end
+            
             print("🚀 Телепорт к точке " .. i .. " для Distance")
-            teleportTo(junglePoints[i])
-            wait(2)
+            teleportTo(points[i])
+            wait(2.5) -- Увеличиваем задержку между телепортами
+            
+            -- Проверяем выполнение миссии
+            if distanceMission.Value then
+                print("✅ DistanceTravelled ВЫПОЛНЕН!")
+                break
+            end
         end
         
-        -- Проверяем выполнение
+        -- Проверяем после каждого полного цикла
         if distanceMission.Value then
-            distanceCompleted = true
             break
         end
+        
+        wait(1)
     end
     
     -- ПОСЛЕ ВЫПОЛНЕНИЯ DISTANCE - ОБЯЗАТЕЛЬНО ТЕЛЕПОРТИРУЕМСЯ ОБРАТНО К MUD
-    if distanceCompleted then
-        print("✅ Jungle DistanceTravelled ВЫПОЛНЕН!")
-        print("📌 ТЕЛЕПОРТАЦИЯ ОБРАТНО К MUD ТОЧКЕ...")
-        teleportTo(jungleMudPoint)
-        wait(2)
+    print("📌 ТЕЛЕПОРТАЦИЯ ОБРАТНО К MUD ТОЧКЕ...")
+    teleportTo(mudPoint)
+    wait(2)
+    
+    if distanceMission.Value then
+        print("🎉 DistanceTravelled УСПЕШНО ВЫПОЛНЕН!")
         return true
     else
-        print("❌ Jungle DistanceTravelled не выполнен")
+        print("⚠️ DistanceTravelled не выполнен после " .. maxCycles .. " циклов")
         return false
     end
 end
 
--- ОБНОВЛЕННАЯ DistanceTravelled для Pride Rocks - ВЫПОЛНЯЕТСЯ ПОСЛЕ MUD
-local function doPrideRocksDistanceTravelled()
-    local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
-
-    -- СНАЧАЛА ВЫПОЛНЯЕМ MUD ROLL
-    print("=== ШАГ 1: ВЫПОЛНЯЕМ MUD ROLL ===")
-    local mudCompleted = doMudRoll('Pride Rocks')
+-- ОБНОВЛЕННАЯ ФУНКЦИЯ ДЛЯ РЕГИОНА - ПРАВИЛЬНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ
+local function doRegionQuest(region)
+    local mudPoint = region == 'Jungle' and jungleMudPoint or prideRocksMudPoint
     
-    if not mudCompleted then
-        print("❌ Mud Roll не выполнен, пропускаем DistanceTravelled")
-        return false
-    end
-
-    -- ПОТОМ ВЫПОЛНЯЕМ DISTANCE TRAVELLED
-    print("=== ШАГ 2: НАЧИНАЕМ DISTANCE TRAVELLED ===")
-    local distanceCompleted = false
+    -- ШАГ 1: Начинаем с Mud точки
+    print("📍 ШАГ 1: ТЕЛЕПОРТАЦИЯ К MUD ТОЧКЕ")
+    teleportTo(mudPoint)
+    wait(2)
     
-    while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
-        for i = 1, #prideRocksPoints do
-            if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
-                break
-            end
-            print("🚀 Телепорт к точке " .. i .. " для Distance")
-            teleportTo(prideRocksPoints[i])
-            wait(2)
-        end
-        
-        -- Проверяем выполнение
-        if distanceMission.Value then
-            distanceCompleted = true
-            break
-        end
-    end
+    -- ШАГ 2: Выполняем Mud Roll
+    print("📍 ШАГ 2: ВЫПОЛНЯЕМ MUD ROLL")
+    doMudRoll(region)
     
-    -- ПОСЛЕ ВЫПОЛНЕНИЯ DISTANCE - ОБЯЗАТЕЛЬНО ТЕЛЕПОРТИРУЕМСЯ ОБРАТНО К MUD
-    if distanceCompleted then
-        print("✅ Pride Rocks DistanceTravelled ВЫПОЛНЕН!")
-        print("📌 ТЕЛЕПОРТАЦИЯ ОБРАТНО К MUD ТОЧКЕ...")
-        teleportTo(prideRocksMudPoint)
-        wait(2)
-        return true
-    else
-        print("❌ Pride Rocks DistanceTravelled не выполнен")
-        return false
-    end
+    -- ШАГ 3: Выполняем Distance Travelled
+    print("📍 ШАГ 3: ВЫПОЛНЯЕМ DISTANCE TRAVELLED")
+    doDistanceTravelled(region)
+    
+    -- ШАГ 4: Возвращаемся к Mud точке после Distance
+    print("📍 ШАГ 4: ВОЗВРАТ К MUD ТОЧКЕ")
+    teleportTo(mudPoint)
+    wait(2)
+    
+    return true
 end
 
 -- Атака NPC
@@ -451,21 +452,10 @@ end
 
 -- Фарм региона с ПРАВИЛЬНОЙ ПОСЛЕДОВАТЕЛЬНОСТЬЮ
 local function farmRegion(region)
-    local points = region == 'Jungle' and junglePoints or prideRocksPoints
-
-    -- Начинаем с Mud точки
-    local mudPoint = region == 'Jungle' and jungleMudPoint or prideRocksMudPoint
-    teleportTo(mudPoint)
-    wait(1)
-
     print("=== НАЧИНАЕМ " .. region:upper() .. " ===")
     
-    -- СНАЧАЛА MUD, ПОТОМ DISTANCE, ПОСЛЕ DISTANCE - ТЕЛЕПОРТ К MUD
-    if region == 'Jungle' then
-        doJungleDistanceTravelled()
-    else
-        doPrideRocksDistanceTravelled()
-    end
+    -- ВЫПОЛНЯЕМ ОСНОВНЫЕ КВЕСТЫ В НУЖНОЙ ПОСЛЕДОВАТЕЛЬНОСТИ
+    doRegionQuest(region)
 
     -- Параллельные миссии
     coroutine.wrap(function() attackNPC(region) end)()
@@ -479,11 +469,6 @@ local function farmRegion(region)
     while running and not checkFunction() do
         wait(1)
     end
-
-    -- В конце возвращаемся к Mud точке
-    print("📌 ВОЗВРАЩАЕМСЯ К MUD ТОЧКЕ...")
-    teleportTo(mudPoint)
-    wait(2)
 
     return checkFunction()
 end
