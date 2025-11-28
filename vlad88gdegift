@@ -138,7 +138,7 @@ local function waitForMissionsReset()
     return false
 end
 
--- ПРОСТАЯ ФУНКЦИЯ ДЛЯ MUD
+-- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ MUD - ВЫПОЛНЯЕТСЯ ПЕРВОЙ
 local function doMudRoll(region)
     print("=== НАЧИНАЕМ MUD ROLL ДЛЯ " .. region:upper() .. " ===")
     
@@ -156,12 +156,12 @@ local function doMudRoll(region)
 
     -- Телепортируемся к точке Mud
     local mudPoint = region == 'Jungle' and jungleMudPoint or prideRocksMudPoint
-    print("Телепортируемся к Mud точке...")
+    print("📌 ТЕЛЕПОРТАЦИЯ К MUD ТОЧКЕ...")
     teleportTo(mudPoint)
     wait(2)
 
     -- Используем Mud 7 раз подряд
-    print("Используем Mud 7 раз...")
+    print("🔄 ИСПОЛЬЗУЕМ MUD 7 РАЗ...")
     for i = 1, 7 do
         if not running or mudMission.Value then
             break
@@ -174,13 +174,13 @@ local function doMudRoll(region)
                     workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
                 }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("Jungle Mud " .. i .. "/7")
+                print("🏞️ Jungle Mud " .. i .. "/7")
             else
                 -- PRIDE ROCKS: Первый найденный Mud
                 local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
                 local args = { mud }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("Pride Rocks Mud " .. i .. "/7")
+                print("🪨 Pride Rocks Mud " .. i .. "/7")
             end
         end)
         
@@ -198,55 +198,97 @@ local function doMudRoll(region)
     end
 end
 
--- DistanceTravelled для Jungle
+-- ОБНОВЛЕННАЯ DistanceTravelled для Jungle - ВЫПОЛНЯЕТСЯ ПОСЛЕ MUD
 local function doJungleDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions.Jungle.DistanceTravelled
 
-    -- Сначала Mud Roll
-    print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
-    doMudRoll('Jungle')
+    -- СНАЧАЛА ВЫПОЛНЯЕМ MUD ROLL
+    print("=== ШАГ 1: ВЫПОЛНЯЕМ MUD ROLL ===")
+    local mudCompleted = doMudRoll('Jungle')
+    
+    if not mudCompleted then
+        print("❌ Mud Roll не выполнен, пропускаем DistanceTravelled")
+        return false
+    end
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    -- ПОТОМ ВЫПОЛНЯЕМ DISTANCE TRAVELLED
+    print("=== ШАГ 2: НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    local distanceCompleted = false
+    
     while running and not allJungleMissionsCompleted() and distanceMission.Value == false do
         for i = 1, #junglePoints do
             if not running or allJungleMissionsCompleted() or distanceMission.Value then
                 break
             end
-            print("Телепорт к точке " .. i)
+            print("🚀 Телепорт к точке " .. i .. " для Distance")
             teleportTo(junglePoints[i])
             wait(2)
         end
+        
+        -- Проверяем выполнение
+        if distanceMission.Value then
+            distanceCompleted = true
+            break
+        end
     end
     
-    if distanceMission.Value then
+    -- ПОСЛЕ ВЫПОЛНЕНИЯ DISTANCE - ОБЯЗАТЕЛЬНО ТЕЛЕПОРТИРУЕМСЯ ОБРАТНО К MUD
+    if distanceCompleted then
         print("✅ Jungle DistanceTravelled ВЫПОЛНЕН!")
+        print("📌 ТЕЛЕПОРТАЦИЯ ОБРАТНО К MUD ТОЧКЕ...")
+        teleportTo(jungleMudPoint)
+        wait(2)
+        return true
+    else
+        print("❌ Jungle DistanceTravelled не выполнен")
+        return false
     end
 end
 
--- DistanceTravelled для Pride Rocks
+-- ОБНОВЛЕННАЯ DistanceTravelled для Pride Rocks - ВЫПОЛНЯЕТСЯ ПОСЛЕ MUD
 local function doPrideRocksDistanceTravelled()
     local distanceMission = game:GetService('Players')[player.Name].PlayerGui.Data.Missions.RegionMissions['Pride Rocks'].DistanceTravelled
 
-    -- Сначала Mud Roll
-    print("=== ВЫПОЛНЯЕМ MUD ROLL ===")
-    doMudRoll('Pride Rocks')
+    -- СНАЧАЛА ВЫПОЛНЯЕМ MUD ROLL
+    print("=== ШАГ 1: ВЫПОЛНЯЕМ MUD ROLL ===")
+    local mudCompleted = doMudRoll('Pride Rocks')
+    
+    if not mudCompleted then
+        print("❌ Mud Roll не выполнен, пропускаем DistanceTravelled")
+        return false
+    end
 
-    -- Потом дистанция
-    print("=== НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    -- ПОТОМ ВЫПОЛНЯЕМ DISTANCE TRAVELLED
+    print("=== ШАГ 2: НАЧИНАЕМ DISTANCE TRAVELLED ===")
+    local distanceCompleted = false
+    
     while running and not allPrideRocksMissionsCompleted() and distanceMission.Value == false do
         for i = 1, #prideRocksPoints do
             if not running or allPrideRocksMissionsCompleted() or distanceMission.Value then
                 break
             end
-            print("Телепорт к точке " .. i)
+            print("🚀 Телепорт к точке " .. i .. " для Distance")
             teleportTo(prideRocksPoints[i])
             wait(2)
         end
+        
+        -- Проверяем выполнение
+        if distanceMission.Value then
+            distanceCompleted = true
+            break
+        end
     end
     
-    if distanceMission.Value then
+    -- ПОСЛЕ ВЫПОЛНЕНИЯ DISTANCE - ОБЯЗАТЕЛЬНО ТЕЛЕПОРТИРУЕМСЯ ОБРАТНО К MUD
+    if distanceCompleted then
         print("✅ Pride Rocks DistanceTravelled ВЫПОЛНЕН!")
+        print("📌 ТЕЛЕПОРТАЦИЯ ОБРАТНО К MUD ТОЧКЕ...")
+        teleportTo(prideRocksMudPoint)
+        wait(2)
+        return true
+    else
+        print("❌ Pride Rocks DistanceTravelled не выполнен")
+        return false
     end
 end
 
@@ -264,7 +306,7 @@ local function attackNPC(region)
         end
 
         if attackMission.Value then
-            print("Атака NPC уже выполнена")
+            print("🎯 Атака NPC уже выполнена")
             break
         end
 
@@ -277,7 +319,7 @@ local function attackNPC(region)
                     }
                 }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("NPCDamageRemote"):FireServer(unpack(args))
-                print("Атаковали NPC")
+                print("⚔️ Атаковали NPC")
                 lastAttackTime = currentTime
             end)
         end
@@ -301,7 +343,7 @@ local function eatAndDrink(region)
         end
 
         -- Еда 25 раз
-        print("Начинаем есть 25 раз...")
+        print("🍖 Начинаем есть 25 раз...")
         pcall(function()
             local foodFolder = workspace:WaitForChild("Interactions"):WaitForChild("Food")
             local foods = foodFolder:GetChildren()
@@ -314,7 +356,7 @@ local function eatAndDrink(region)
                 local food = foods[i] or foods[1]
                 local args = { food }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Food"):FireServer(unpack(args))
-                print("Съели еду " .. i .. "/25")
+                print("🍴 Съели еду " .. i .. "/25")
                 wait(0.3)
             end
         end)
@@ -325,7 +367,7 @@ local function eatAndDrink(region)
             if lake then
                 local args = { lake }
                 game:GetService('ReplicatedStorage'):WaitForChild('Remotes'):WaitForChild('DrinkRemote'):FireServer(unpack(args))
-                print("Выпили воду")
+                print("💧 Выпили воду")
             end
         end)
 
@@ -350,7 +392,7 @@ local function doSniff(region)
         pcall(function()
             local args = { 1 }
             game:GetService('ReplicatedStorage'):WaitForChild('Remotes'):WaitForChild('SetMissionRemote'):FireServer(unpack(args))
-            print("Снифф выполнен")
+            print("👃 Снифф выполнен")
         end)
         wait(2)
     end
@@ -377,13 +419,13 @@ local function doConcealScent(region)
                     workspace:WaitForChild("Interactions"):WaitForChild("Mud"):WaitForChild("Mud")
                 }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("ConcealScent Jungle Mud")
+                print("🌀 ConcealScent Jungle Mud")
             else
                 -- PRIDE ROCKS: Первый найденный Mud
                 local mud = workspace:WaitForChild("Interactions"):WaitForChild("Mud"):GetChildren()[1]
                 local args = { mud }
                 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud"):FireServer(unpack(args))
-                print("ConcealScent Pride Rocks Mud")
+                print("🌀 ConcealScent Pride Rocks Mud")
             end
         end)
         wait(2)
@@ -407,15 +449,18 @@ local function waitForTimePlayed(region)
     end
 end
 
--- Фарм региона
+-- Фарм региона с ПРАВИЛЬНОЙ ПОСЛЕДОВАТЕЛЬНОСТЬЮ
 local function farmRegion(region)
     local points = region == 'Jungle' and junglePoints or prideRocksPoints
 
-    teleportTo(points[1])
+    -- Начинаем с Mud точки
+    local mudPoint = region == 'Jungle' and jungleMudPoint or prideRocksMudPoint
+    teleportTo(mudPoint)
     wait(1)
 
     print("=== НАЧИНАЕМ " .. region:upper() .. " ===")
     
+    -- СНАЧАЛА MUD, ПОТОМ DISTANCE, ПОСЛЕ DISTANCE - ТЕЛЕПОРТ К MUD
     if region == 'Jungle' then
         doJungleDistanceTravelled()
     else
@@ -429,18 +474,24 @@ local function farmRegion(region)
     coroutine.wrap(function() doConcealScent(region) end)()
     coroutine.wrap(function() waitForTimePlayed(region) end)()
 
-    -- Ждем завершения
+    -- Ждем завершения всех миссий
     local checkFunction = region == 'Jungle' and allJungleMissionsCompleted or allPrideRocksMissionsCompleted
     while running and not checkFunction() do
         wait(1)
     end
+
+    -- В конце возвращаемся к Mud точке
+    print("📌 ВОЗВРАЩАЕМСЯ К MUD ТОЧКЕ...")
+    teleportTo(mudPoint)
+    wait(2)
 
     return checkFunction()
 end
 
 -- Основная функция с бесконечным циклом
 local function startFarming()
-    print("🚀 ЗАПУСК ФАРМА МИССИЙ...")
+    print("🚀 ЗАПУСК ФАРМА МИССИЙ С ПРАВИЛЬНОЙ ПОСЛЕДОВАТЕЛЬНОСТЬЮ...")
+    print("📌 СХЕМА: MUD → DISTANCE → ТЕЛЕПОРТ К MUD")
     
     -- Бесконечный цикл фарма
     while running do
@@ -482,7 +533,12 @@ startFarming()
 -- Функция для остановки (можно вызвать в консоли)
 function stopFarming()
     running = false
-    print("Фарм остановлен")
+    print("🛑 Фарм остановлен")
 end
 
-print('ФАРМ МИССИЙ ЗАПУЩЕН! Для остановки введите: stopFarming()')
+print('✅ ФАРМ МИССИЙ ЗАПУЩЕН!')
+print('📌 СХЕМА РАБОТЫ:')
+print('   1. СНАЧАЛА MUD ROLL')
+print('   2. ПОТОМ DISTANCE TRAVELLED') 
+print('   3. ПОСЛЕ DISTANCE - ТЕЛЕПОРТ К MUD')
+print('🛑 Для остановки введите: stopFarming()')
