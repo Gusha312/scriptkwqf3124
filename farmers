@@ -1,3 +1,5 @@
+while true do
+wait(1)
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 wait(0.7)
 local ohString1 = 'CreatureEditor'
@@ -36,3 +38,4 @@ local TeleportService = game:GetService('TeleportService')
 
 local placeId = 5233782396
 TeleportService:Teleport(placeId)
+end
