@@ -1,5 +1,5 @@
 while true do
-wait(1)
+wait(2)
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 wait(0.7)
 local ohString1 = 'CreatureEditor'
