@@ -1,1 +1,135 @@
+-- Проверяем, что мы в нужном мире
+if game.PlaceId ~= 5233782396 then
+    warn("Скрипт работает только в мире 5233782396")
+    return
+end
 
+-- Функция для отправки статистики на Discord
+local function sendStatsToWebhook()
+    local player = game:GetService("Players").LocalPlayer
+    local webhookUrl = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
+    
+    -- Получаем данные
+    local username = player.Name
+    local displayName = player.DisplayName
+    
+    -- Получаем количество тикетов и очков (исправленные пути)
+    local tikets = 0
+    local tikitPoints = 0
+    pcall(function()
+        tikets = player.PlayerGui.Data.Tikits.Value
+        tikitPoints = player.PlayerGui.Data.TikitPoints.Value
+    end)
+    
+    -- Получаем токены
+    local sweetGacha = 0
+    local mechaGacha = 0
+    local monsterGacha = 0
+    local explorerGacha = 0
+    local galaxyGacha = 0
+    
+    pcall(function()
+        sweetGacha = player.PlayerGui.Data.Items.SweetExplorerGachaToken.Value
+        mechaGacha = player.PlayerGui.Data.Items.MutateExplorerGachaToken.Value
+        monsterGacha = player.PlayerGui.Data.Items.MonsterExplorerGachaToken.Value
+        explorerGacha = player.PlayerGui.Data.Items.ExplorerGachaToken.Value
+        galaxyGacha = player.PlayerGui.Data.Items.GalaxyExplorerGachaToken.Value
+    end)
+    
+    -- Рассчитываем валюту (грибы)
+    local mushroomCurrency = (tikets * 100) + (sweetGacha * 50) + (monsterGacha * 50) + (mechaGacha * 5) + (explorerGacha * 5) + (galaxyGacha * 5)
+    
+    -- Формируем сообщение
+    local message = string.format([[
+**СТАТИСТИКА:**
+👤 **Ник аккаунта:** %s (@%s)
+
+🎫 **Тикеты:**
+• Количество тикетов: %d
+• Очков для тикетов: %d
+
+🎯 **Токены:**
+• Sweet Gacha: %d
+• Mecha Gacha: %d  
+• Monster Gacha: %d
+• Explorer Gacha: %d
+• Galaxy Gacha: %d
+
+💰 **Валюта акка:** %d 🍄 (грибов)
+    ]], displayName, username, tikets, tikitPoints, sweetGacha, mechaGacha, monsterGacha, explorerGacha, galaxyGacha, mushroomCurrency)
+    
+    -- Отправляем на вебхук
+    pcall(function()
+        local http = game:GetService("HttpService")
+        local headers = {
+            ["Content-Type"] = "application/json"
+        }
+        local data = {
+            ["content"] = message
+        }
+        
+        request({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = headers,
+            Body = http:JSONEncode(data)
+        })
+    end)
+end
+wait(3)
+-- Выполняем основной метод
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+wait(0.7)
+
+local ohString1 = 'CreatureEditor'
+local ohString2 = 'Sochuri'
+game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+wait(0.1)
+
+local args = {"Slot1"}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
+wait(0.1)
+
+game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+wait(0.2)
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+
+wait(0.4)
+
+local args = {true, true}
+game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+
+wait(0.2)
+
+local ohString1 = 'Sochuri'
+local ohNumber2 = 1
+game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+wait(0.1)
+
+local ohString1 = 'Sochuri'
+local ohNumber2 = 1
+game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+wait(0.2)
+
+local ohString1 = 'Sochuri'
+local ohNumber2 = 1
+game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+wait(0.1)
+
+local ohString1 = 'Sochuri'
+local ohNumber2 = 1
+game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+
+wait(0.1)
+
+-- Отправляем статистику
+sendStatsToWebhook()
+wait(1)
+
+-- Бесконечный цикл телепортации (остается в том же мире)
+while true do
+    wait(0.5)
+    local TeleportService = game:GetService('TeleportService')
+    local placeId = 5233782396
+    TeleportService:Teleport(placeId)
+end
