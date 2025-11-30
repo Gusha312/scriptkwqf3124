@@ -13,12 +13,12 @@ local function sendStatsToWebhook()
     local username = player.Name
     local displayName = player.DisplayName
     
-    -- Получаем количество тикетов и очков
+    -- Получаем количество тикетов и очков (исправленные пути)
     local tikets = 0
     local tikitPoints = 0
     pcall(function()
         tikets = player.PlayerGui.Data.Tikits.Value
-        tikitPoints = player.PlayerGui.Data.Tikitspoints.Value
+        tikitPoints = player.PlayerGui.Data.TikitPoints.Value
     end)
     
     -- Получаем токены
