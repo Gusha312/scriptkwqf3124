@@ -17,8 +17,8 @@ local function sendStatsToWebhook()
     local tikets = 0
     local tikitPoints = 0
     pcall(function()
-        tikets = player.Data.Tikits.Value
-        tikitPoints = player.Data.TikitPoints.Value
+        tikets = player.PlayerGui.Data.Tikits.Value
+        tikitPoints = player.PlayerGui.Data.Tikitspoints.Value
     end)
     
     -- Получаем токены
