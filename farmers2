@@ -76,7 +76,7 @@ local function sendStatsToWebhook()
         })
     end)
 end
-
+wait(3)
 -- Выполняем основной метод
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 wait(0.7)
