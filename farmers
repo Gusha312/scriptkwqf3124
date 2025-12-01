@@ -6,6 +6,8 @@ local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
 
 game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimAdventCalendarRemote"):FireServer()
+
 wait(0.1)
 local args = {
     "Slot1"
