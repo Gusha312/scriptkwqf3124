@@ -1,4 +1,6 @@
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimAdventCalendarRemote"):FireServer()
+
 wait(0.1)
 local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
