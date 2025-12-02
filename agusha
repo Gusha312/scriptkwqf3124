@@ -1,2 +1,151 @@
-123123
-342234342234
+-- Скрипт для торговли
+-- Авто-генерация: 02.12.2025, 20:25:20
+
+local myNick = "kaique_best"
+local targetNick = "bknelsonfcln"
+local placeId = 14119723130
+
+if game.PlaceId ~= placeId then
+    local TeleportService = game:GetService("TeleportService")
+    TeleportService:Teleport(placeId)
+    return
+end
+
+-- Отправка запроса
+local function sendTradeRequest()
+    while true do
+        wait(1)
+        if game:GetService("Players"):FindFirstChild(targetNick) then
+            local args = {
+                "SendRequest",
+                game:GetService("Players"):WaitForChild(targetNick)
+            }
+            game:GetService("Players").LocalPlayer:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(unpack(args))
+            
+            if game:GetService("Players")[targetNick].PlayerGui:FindFirstChild("TradeGui") then
+                if game:GetService("Players")[targetNick].PlayerGui.TradeGui.Enabled == true then
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- Ожидание GUI
+local function waitForTargetGui()
+    repeat wait() until game:GetService("Players"):FindFirstChild(targetNick)
+    repeat wait() until game:GetService("Players")[targetNick].PlayerGui:FindFirstChild("TradeGui")
+    repeat wait() until game:GetService("Players")[targetNick].PlayerGui.TradeGui.Enabled == true
+    wait(1)
+    return true
+end
+
+-- Добавление предметов
+local function addTradeItems()
+    local player = game:GetService("Players").LocalPlayer
+    
+    local items = {
+        {ItemType = "Currency", Name = "Tikits", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "GalaxyExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "MutateExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "ExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "MonsterExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "SweetExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "RandomStoredCreatureToken", Amount = 0.999999}
+    }
+    
+    for _, item in ipairs(items) do
+        local args = {
+            "AddTradeItem",
+            {
+                Overwrite = true,
+                ItemType = item.ItemType,
+                Name = item.Name,
+                Amount = item.Amount
+            }
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild(targetNick .. "-" .. player.Name .. "TradeRemote"):InvokeServer(unpack(args))
+        wait(1)
+    end
+    wait(2)
+end
+
+-- Принятие трейда
+local function acceptOurTrade()
+    for i = 1, 4 do
+        local args = {"AcceptTrade"}
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild(targetNick .. "-" .. myNick .. "TradeRemote"):InvokeServer(unpack(args))
+        wait(0.5)
+    end
+end
+
+-- Автопринятие для цели
+local function targetAcceptScript()
+    if game:GetService("Players").LocalPlayer.Name == targetNick then
+        local args = {"AcceptRequest"}
+        game:GetService("Players"):WaitForChild(myNick):WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(unpack(args))
+    end
+end
+
+-- Автопринятие трейдов
+local function autoAcceptTrades()
+    if game:GetService("Players").LocalPlayer.Name == myNick then
+        while wait(0.5) do
+            local tradeGui = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("TradeGui")
+            if tradeGui and tradeGui.Enabled then
+                local displayName = tradeGui.ContainerFrame.Theirs.DisplayNameLabel.Text
+                if displayName and displayName ~= "" then
+                    local offersFrame = tradeGui.ContainerFrame.Theirs.OffersFrame.ScrollingFrame
+                    if offersFrame then
+                        for _, child in pairs(offersFrame:GetChildren()) do
+                            if child:IsA("Frame") and child.Name == "Default" then
+                                local nameLabel = child:FindFirstChild("NameLabel")
+                                if nameLabel and nameLabel.Text == "Galaxy Exploration Token" then
+                                    local remoteName = displayName .. "-" .. myNick .. "TradeRemote"
+                                    local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):FindFirstChild(remoteName)
+                                    if remote then
+                                        local args = {"AcceptTrade"}
+                                        remote:InvokeServer(unpack(args))
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                if tradeGui.Enabled == false then break end
+            end
+        end
+    end
+end
+
+-- Авто-запросы от цели
+local function autoRequestFromTarget()
+    if game:GetService("Players").LocalPlayer.Name == targetNick then
+        while wait(1) do
+            for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+                if player.Name ~= targetNick then
+                    local args = {"SendRequest", player}
+                    game:GetService("Players").LocalPlayer:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(unpack(args))
+                end
+            end
+        end
+    end
+end
+
+-- Запуск
+if game:GetService("Players").LocalPlayer.Name == myNick then
+    spawn(sendTradeRequest)
+    spawn(function()
+        if waitForTargetGui() then
+            addTradeItems()
+            acceptOurTrade()
+        end
+    end)
+    spawn(autoAcceptTrades)
+    
+elseif game:GetService("Players").LocalPlayer.Name == targetNick then
+    spawn(targetAcceptScript)
+    spawn(autoRequestFromTarget)
+end
+
+print("Скрипт запущен!")
