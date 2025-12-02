@@ -1,1 +1,95 @@
+-- Скрипт для ОТПРАВКИ трейдов (agusha1)
+-- Генерация: 02.12.2025, 20:34:46
 
+local placeId = 14119723130
+
+if game.PlaceId ~= placeId then
+    game:GetService("TeleportService"):Teleport(placeId)
+    return
+end
+
+-- Проверяем что мы agusha1
+if game.Players.LocalPlayer.Name ~= "agusha1" then
+    warn("Этот скрипт только для: agusha1")
+    return
+end
+
+print("✅ Автоотправка трейдов запущена для: agusha1")
+
+-- 1. Ищем игрока agusha и отправляем ему запрос
+local function sendTradeToReceiver()
+    while wait(1) do
+        local target = game.Players:FindFirstChild("agusha")
+        
+        if target then
+            -- Отправляем запрос на торговлю
+            local args = {"SendRequest", target}
+            game.Players.LocalPlayer:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(unpack(args))
+            print("📨 Отправлен запрос agusha")
+            
+            -- Ждем когда он примет
+            wait(2)
+            
+            -- Проверяем открылось ли окно торговли
+            local tradeGui = game.Players.LocalPlayer.PlayerGui:FindFirstChild("TradeGui")
+            if tradeGui and tradeGui.Enabled then
+                -- Добавляем предметы в трейд
+                addItemsToTrade()
+                break
+            end
+        end
+    end
+end
+
+-- 2. Добавление предметов в трейд
+local function addItemsToTrade()
+    local player = game.Players.LocalPlayer
+    
+    local items = {
+        {ItemType = "Currency", Name = "Tikits", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "GalaxyExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "MutateExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "ExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "MonsterExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "SweetExplorerGachaToken", Amount = 0.999999},
+        {ItemType = "Tokens", Name = "RandomStoredCreatureToken", Amount = 0.999999}
+    }
+    
+    for i, item in ipairs(items) do
+        local args = {
+            "AddTradeItem",
+            {
+                Overwrite = true,
+                ItemType = item.ItemType,
+                Name = item.Name,
+                Amount = item.Amount
+            }
+        }
+        
+        local remoteName = "agusha-" .. player.Name .. "TradeRemote"
+        local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):FindFirstChild(remoteName)
+        
+        if remote then
+            remote:InvokeServer(unpack(args))
+            print("📦 Добавлен предмет: " .. item.Name)
+            wait(1)
+        end
+    end
+    
+    print("✅ Все предметы добавлены!")
+    
+    -- Ждем подтверждения от получателя
+    while wait(0.5) do
+        local tradeGui = game.Players.LocalPlayer.PlayerGui:FindFirstChild("TradeGui")
+        if not tradeGui or not tradeGui.Enabled then
+            print("✅ Трейд завершен!")
+            break
+        end
+    end
+end
+
+-- Запускаем
+sendTradeToReceiver()
+
+print("🚀 Готов отправлять трейды agusha!")
+print("🚀 Автоматически добавляю все предметы!")
