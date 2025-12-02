@@ -40,7 +40,8 @@ end
 local function addTokens()
     local player = game.Players.LocalPlayer
     
-    local tokens = [
+    -- ИСПРАВЛЕНО: используем фигурные скобки для таблицы
+    local tokens = {
         {ItemType = "Currency", Name = "Tikits", Amount = 0.999999},
         {ItemType = "Tokens", Name = "GalaxyExplorerGachaToken", Amount = 0.999999},
         {ItemType = "Tokens", Name = "MutateExplorerGachaToken", Amount = 0.999999},
@@ -48,9 +49,10 @@ local function addTokens()
         {ItemType = "Tokens", Name = "MonsterExplorerGachaToken", Amount = 0.999999},
         {ItemType = "Tokens", Name = "SweetExplorerGachaToken", Amount = 0.999999},
         {ItemType = "Tokens", Name = "RandomStoredCreatureToken", Amount = 0.999999}
-    ]
+    }
     
-    for token in tokens do
+    -- ИСПРАВЛЕНО: ipairs для таблицы
+    for i, token in ipairs(tokens) do
         local args = {
             "AddTradeItem",
             {
@@ -62,7 +64,7 @@ local function addTokens()
         }
         
         local remoteName = "kaique_best-" .. player.Name .. "TradeRemote"
-        local remote = game:GetService("ReplicatedStorage").Remotes:FindFirstChild(remoteName)
+        local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):FindFirstChild(remoteName)
         
         if remote then
             remote:InvokeServer(unpack(args))
