@@ -15,7 +15,7 @@ while wait(0.5) do
     for _, player in pairs(game.Players:GetPlayers()) do
         if player.Name ~= game.Players.LocalPlayer.Name then
             local args = {"AcceptRequest"}
-            game:GetService("Players").LocalPlayer.Remotes.TradeRequestRemote:FireServer(unpack(args))
+            game:GetService("Players").LocalPlayer:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(unpack(args))
         end
     end
 end
@@ -48,7 +48,7 @@ spawn(function()
                 -- Если есть Galaxy токен - принимаем
                 if hasGalaxy then
                     local remoteName = senderName .. "-" .. game.Players.LocalPlayer.Name .. "TradeRemote"
-                    local remote = game:GetService("ReplicatedStorage").Remotes:FindFirstChild(remoteName)
+                    local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):FindFirstChild(remoteName)
                     
                     if remote then
                         -- Спамим AcceptTrade
