@@ -76,8 +76,7 @@ local function sendStatsToWebhook()
         })
     end)
 end
-wait(3)
--- Выполняем основной метод
+wait(1)
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 wait(0.7)
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimAdventCalendarRemote"):FireServer()
@@ -85,16 +84,6 @@ game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Claim
 local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
 game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
-wait(0.1)
-
-local args = {"Slot1"}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
-wait(0.1)
-
-game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-wait(0.2)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-
 wait(0.4)
 
 local args = {true, true}
@@ -107,9 +96,14 @@ local ohNumber2 = 1
 game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
 wait(0.1)
 
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
+local ohString1 = 'CreatureEditor'
+local ohString2 = 'Sochuri'
+game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
+wait(0.4)
+
+local args = {true, true}
+game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+
 wait(0.2)
 
 local ohString1 = 'Sochuri'
@@ -117,13 +111,6 @@ local ohNumber2 = 1
 game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
 wait(0.1)
 
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
-
-wait(0.1)
-
--- Отправляем статистику
 sendStatsToWebhook()
 wait(1)
 
