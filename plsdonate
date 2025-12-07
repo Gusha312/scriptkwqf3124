@@ -311,9 +311,9 @@ local sNames = {
 local positionX = (Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()):WaitForChild('HumanoidRootPart').Position
 
 local sValues = {
-	true,
+	false,
 	30,
-	true,
+	false,
 	15,
 	"#32CD32",
 	5,
@@ -357,11 +357,11 @@ local sValues = {
 	},
 	false,
 	"",  -- Пустой текст, будет генерироваться случайно
-	false,
+	true,
 	"",
 	"#ffffff",
-	true,
-	true,
+	false,
+	false,
 	{
 		"1R$ = 10 JUMPS!",
 		"Please help me❤️",
@@ -384,8 +384,8 @@ local sValues = {
 	false,
 	false,
 	1,
-	true,
-	true,
+	false,
+	false,
 	false,
 	1,
 	false,
