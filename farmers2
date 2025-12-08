@@ -110,7 +110,13 @@ local ohString1 = 'Sochuri'
 local ohNumber2 = 1
 game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
 wait(0.1)
+local args = {"Slot1"}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
+wait(0.1)
 
+game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+wait(0.2)
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
 sendStatsToWebhook()
 wait(1)
 
