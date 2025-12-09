@@ -156,6 +156,7 @@ local function handleDeath()
 end
 
 -- ========== ФУНКЦИЯ ДЛЯ ПРОВЕРКИ СМЕРТИ ВО ВРЕМЯ ФАРМА ==========
+-- ========== ФУНКЦИЯ ДЛЯ ПРОВЕРКИ СМЕРТИ ВО ВРЕМЯ ФАРМА ==========
 local function checkDeathDuringFarm()
     local player = game.Players.LocalPlayer
     local playerGui = player.PlayerGui
@@ -177,8 +178,6 @@ local function checkDeathDuringFarm()
         
         if returnButton then
             print("✅ Найдена кнопка Return в DeathGui")
-            print("📍 Позиция: " .. tostring(returnButton.AbsolutePosition))
-            print("📏 Размер: " .. tostring(returnButton.AbsoluteSize))
             
             -- Сохраняем оригинальные свойства
             local originalSize = returnButton.Size
@@ -230,7 +229,61 @@ local function checkDeathDuringFarm()
             wait(0.2)
             
             print("✅ Обработка смерти завершена!")
+            print("🔄 Запускаем процесс входа в игру заново...")
+            
+            -- ========== ЗАПУСКАЕМ ПРОЦЕСС ВХОДА В ИГРУ ЗАНОВО ==========
+            
+            -- 1. Проверяем туториал (может потребоваться если новый слот)
+            print("\n🔧 Проверяем туториал для нового слота...")
+            local tutorialCompleted = completeTutorial()
+            
+            if tutorialCompleted then
+                print("⏳ Туториал завершен, ждем 2 секунды...")
+                wait(2)
+            end
+            
+            -- 2. Закрываем мешающие GUI
+            print("🔧 Закрываем мешающие GUI...")
+            local closedSomething = closeAnnoyingGUIs()
+            
+            if closedSomething then
+                print("⏳ Ждем 3 секунды...")
+                
+                -- Ждем 3 секунды
+                local startTime = tick()
+                local waitTime = 3
+                
+                while tick() - startTime < waitTime do
+                    if hasActiveAnnoyingGUIs() then
+                        print("⚠️ Обнаружены новые мешающие GUI, закрываем...")
+                        closeAnnoyingGUIs()
+                        startTime = tick() -- Сбрасываем таймер
+                    end
+                    wait(0.5)
+                end
+                
+                print("✅ Проверяем что мешающих GUI нет...")
+                
+                if not hasActiveAnnoyingGUIs() then
+                    print("🎉 Нет мешающих GUI, выполняем наши клики!")
+                    doOurClicks()
+                else
+                    print("❌ Все еще есть мешающие GUI, пропускаем наши клики")
+                end
+            else
+                print("✅ Нет мешающих GUI, сразу выполняем наши клики!")
+                doOurClicks()
+            end
+            
+            -- 3. Ждем и возвращаемся к фарму
+            print("\n" .. string.rep("=", 50))
+            print("⏳ Возвращаемся к фарму миссий через 2 секунды...")
+            print(string.rep("=", 50))
+            wait(2)
+            
+            -- Возвращаем true чтобы сообщить что смерть обработана и нужно вернуться к фарму
             return true
+            
         else
             print("⚠️ Кнопка Return не найдена в DeathGui")
         end
