@@ -1,609 +1,573 @@
--- Полный скрипт: туториал, обработка смерти, закрываем мешающие GUI, наши клики, фарм миссий
+-- Полный скрипт: туториал, смерть, клики, фарм миссий
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Ждем 5 секунд перед началом
-wait(5)
+wait(7) -- Увеличенный стартовый КД
+print("🎮 Запуск скрипта")
 
-print("🎮 Запуск полного скрипта")
-
--- ========== УЛУЧШЕННЫЕ ФУНКЦИИ ДЛЯ КЛИКА ==========
-local function clickAtPosition(posX, posY, buttonName)
-    print("👆 Клик на " .. buttonName .. ": " .. math.floor(posX) .. ", " .. math.floor(posY))
-    
-    -- Метод 1: VirtualInputManager
+-- ========== ФУНКЦИИ ДЛЯ КЛИКА ==========
+-- Функция для клика по координатам
+local function clickAtPosition(posX, posY)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-    wait(0.05)
+    wait(0.1) -- Увеличенный КД
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
-    
-    -- Метод 2: Дополнительный клик для надежности
-    wait(0.05)
-    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-    wait(0.05)
-    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
-    
-    return true
 end
 
--- Функция для двойного клика
-local function doubleClickAtPosition(posX, posY, buttonName)
-    print("👆👆 Двойной клик на " .. buttonName .. ": " .. math.floor(posX) .. ", " .. math.floor(posY))
-    
-    -- Первый клик (двойной для надежности)
-    for i = 1, 2 do
-        VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-        wait(0.03)
-        VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
-        wait(0.03)
-    end
-    
-    wait(0.3)  -- Пауза между кликами
-    
-    -- Второй клик (двойной для надежности)
-    for i = 1, 2 do
-        VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-        wait(0.03)
-        VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
-        wait(0.03)
-    end
-    
-    return true
+-- Функция клика в центре экрана
+local function click()
+    local screen = workspace.CurrentCamera.ViewportSize
+    clickAtPosition(screen.X/2, screen.Y/2)
 end
 
--- Альтернативная функция клика через изменение позиции мыши
-local function alternativeClick(posX, posY, buttonName)
-    print("🖱️ Альтернативный клик на " .. buttonName .. ": " .. math.floor(posX) .. ", " .. math.floor(posY))
-    
-    -- Изменяем позицию мыши
-    VirtualInputManager:SendMouseMoveEvent(posX, posY, game)
-    wait(0.1)
-    
-    -- Нажимаем и отпускаем кнопку
-    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-    wait(0.1)
-    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
-    
-    return true
-end
-
--- ========== ЧАСТЬ 0: ОБРАБОТКА СМЕРТИ ==========
-local function handleDeath()
-    print("\n" .. string.rep("=", 50))
-    print("💀 ПРОВЕРКА СМЕРТИ")
-    print(string.rep("=", 50))
-    
-    local player = game.Players.LocalPlayer
-    local playerGui = player.PlayerGui
-    
-    -- Проверяем, активен ли DeathGui
-    local deathGui = playerGui:FindFirstChild("DeathGui")
-    if deathGui and deathGui.Enabled == true then
-        print("💀 DeathGui активен! Обрабатываем смерть...")
+-- ========== УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ КЛИКОВ ПО КНОПКАМ ==========
+local function clickButtonEnhanced(button, buttonName)
+    if button then
+        print("✅ Найдена кнопка: " .. buttonName)
         
-        -- Ищем кнопку Return
-        local returnButton = deathGui:FindFirstChild("ContainerFrame")
-            and deathGui.ContainerFrame:FindFirstChild("BottomFrame")
-            and deathGui.ContainerFrame.BottomFrame:FindFirstChild("ButtonsFrame")
-            and deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
+        -- Сохраняем оригинальные свойства
+        local originalSize = button.Size
+        local originalPosition = button.Position
+        local originalAnchorPoint = button.AnchorPoint
+        local originalVisible = button.Visible
+        local originalZIndex = button.ZIndex
         
-        if returnButton then
-            print("✅ Найдена кнопка Return в DeathGui")
-            print("📍 Позиция: " .. tostring(returnButton.AbsolutePosition))
-            print("📏 Размер: " .. tostring(returnButton.AbsoluteSize))
-            
-            -- Сохраняем оригинальные свойства
-            local originalSize = returnButton.Size
-            local originalVisible = returnButton.Visible
-            
-            -- Увеличиваем кнопку
-            returnButton.Size = UDim2.new(5000, 5000, 5000, 5000)
-            returnButton.Visible = true
-            print("✅ Кнопка Return увеличена")
-            
-            wait(0.5)  -- Даем время на обновление
-            
-            -- Кликаем в центр (увеличили кнопку, теперь центр = правый нижний угол)
-            if returnButton.AbsoluteSize.X > 0 then
-                local posX = returnButton.AbsolutePosition.X + (returnButton.AbsoluteSize.X / 2)
-                local posY = returnButton.AbsolutePosition.Y + (returnButton.AbsoluteSize.Y / 2)
-                
-                print("👆 Клик в центре увеличенной кнопки: " .. math.floor(posX) .. ", " .. math.floor(posY))
-                
-                -- Пробуем оба метода клика
-                clickAtPosition(posX, posY, "DeathGui Return Button")
-                wait(0.2)
-                alternativeClick(posX, posY, "DeathGui Return Button Alt")
-            else
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                clickAtPosition(screenSize.X - 50, screenSize.Y - 50, "Правый нижний угол экрана")
-            end
-            
-            -- Восстанавливаем свойства
-            returnButton.Size = originalSize
-            returnButton.Visible = originalVisible
-            
-            -- Ждем 1 секунду
-            wait(1)
-            
-            -- Удаляем слот 1
-            print("🗑️ Удаляем слот 1...")
-            local args = {"Slot1", false}
-            local deleteSlotRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("DeleteSlotRemote")
-            deleteSlotRemote:InvokeServer(unpack(args))
-            
-            wait(0.1)
-            
-            -- Создаем слот Sochuri
-            print("➕ Создаем слот Sochuri...")
-            local args = {"Sochuri"}
-            local createSlotRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CreateSlotRemote")
-            createSlotRemote:InvokeServer(unpack(args))
-            
-            wait(0.2)
-            
-            print("✅ Обработка смерти завершена!")
-            return true
-        else
-            print("⚠️ Кнопка Return не найдена в DeathGui")
-        end
+        -- Увеличиваем кнопку ОЧЕНЬ сильно и делаем видимой
+        button.Size = UDim2.new(100, 0, 100, 0) -- ОЧЕНЬ большой размер
+        button.Position = UDim2.new(0.5, 0, 0.5, 0) -- Центрируем
+        button.AnchorPoint = Vector2.new(0.5, 0.5)
+        button.Visible = true
+        button.ZIndex = 99999 -- Самый высокий ZIndex
+        
+        wait(1) -- Увеличенный КД для гарантии
+        
+        -- Кликаем в центр увеличенной кнопки
+        local screen = workspace.CurrentCamera.ViewportSize
+        local centerX = screen.X / 2
+        local centerY = screen.Y / 2
+        
+        print("📍 Кликаем в центр экрана для кнопки " .. buttonName .. ": " .. math.floor(centerX) .. ", " .. math.floor(centerY))
+        clickAtPosition(centerX, centerY)
+        
+        -- Ждем перед восстановлением
+        wait(0.5)
+        
+        -- Восстанавливаем свойства
+        button.Size = originalSize
+        button.Position = originalPosition
+        button.AnchorPoint = originalAnchorPoint
+        button.Visible = originalVisible
+        button.ZIndex = originalZIndex
+        
+        print("✅ Клик по кнопке " .. buttonName .. " выполнен")
+        return true
     else
-        print("✅ DeathGui не активен, продолжаем...")
+        print("⚠️ Кнопка " .. buttonName .. " не найдена")
         return false
     end
-    
-    return false
 end
 
--- ========== ФУНКЦИЯ ДЛЯ ПРОВЕРКИ СМЕРТИ ВО ВРЕМЯ ФАРМА ==========
--- ========== ФУНКЦИЯ ДЛЯ ПРОВЕРКИ СМЕРТИ ВО ВРЕМЯ ФАРМА ==========
-local function checkDeathDuringFarm()
+-- ========== ФУНКЦИЯ ДЛЯ КЛИКОВ ПОСЛЕ СОЗДАНИЯ СЛОТА ==========
+local function clickAfterSlotCreation()
+    print("\n🎯 Выполняем клики после создания слота...")
+    
     local player = game.Players.LocalPlayer
     local playerGui = player.PlayerGui
     
-    -- Проверяем, активен ли DeathGui
-    local deathGui = playerGui:FindFirstChild("DeathGui")
-    if deathGui and deathGui.Enabled == true then
-        print("\n💀 ОБНАРУЖЕНА СМЕРТЬ ВО ВРЕМЯ ФАРМА!")
-        print("⏳ Ждем 10 секунд...")
+    print("⏳ Ждем 5 секунд перед кликами...") -- Увеличенный КД
+    wait(5)
+    
+    -- Пробуем открыть SaveSelectionGui если он не открыт
+    local saveSelectionGui = playerGui:FindFirstChild("SaveSelectionGui")
+    
+    if not saveSelectionGui or not saveSelectionGui.Enabled then
+        print("📂 SaveSelectionGui не открыт, открываем...")
+        click() -- Клик в центр экрана
+        wait(3) -- Увеличенный КД
+    end
+    
+    -- Ждем еще немного
+    wait(3)
+    
+    -- 1. Ищем и кликаем по первому элементу (PagesFrame["1"])
+    print("\n1. Ищем элемент PagesFrame['1']...")
+    
+    local elem1 = nil
+    saveSelectionGui = playerGui:FindFirstChild("SaveSelectionGui")
+    
+    if saveSelectionGui and saveSelectionGui.Enabled then
+        -- Ищем через безопасный поиск
+        local success, result = pcall(function()
+            return saveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
+        end)
         
-        -- Ждем 10 секунд
-        wait(10)
-        
-        -- Ищем кнопку Return
-        local returnButton = deathGui:FindFirstChild("ContainerFrame")
-            and deathGui.ContainerFrame:FindFirstChild("BottomFrame")
-            and deathGui.ContainerFrame.BottomFrame:FindFirstChild("ButtonsFrame")
-            and deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
-        
-        if returnButton then
-            print("✅ Найдена кнопка Return в DeathGui")
-            
-            -- Сохраняем оригинальные свойства
-            local originalSize = returnButton.Size
-            local originalVisible = returnButton.Visible
-            
-            -- Увеличиваем кнопку
-            returnButton.Size = UDim2.new(5000, 5000, 5000, 5000)
-            returnButton.Visible = true
-            print("✅ Кнопка Return увеличена")
-            
-            wait(0.5)  -- Даем время на обновление
-            
-            -- Кликаем в центр
-            if returnButton.AbsoluteSize.X > 0 then
-                local posX = returnButton.AbsolutePosition.X + (returnButton.AbsoluteSize.X / 2)
-                local posY = returnButton.AbsolutePosition.Y + (returnButton.AbsoluteSize.Y / 2)
-                
-                print("👆 Клик в центре увеличенной кнопки: " .. math.floor(posX) .. ", " .. math.floor(posY))
-                
-                clickAtPosition(posX, posY, "DeathGui Return Button (во время фарма)")
-                wait(0.2)
-                alternativeClick(posX, posY, "DeathGui Return Button Alt (во время фарма)")
-            else
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                clickAtPosition(screenSize.X - 50, screenSize.Y - 50, "Правый нижний угол экрана")
-            end
-            
-            -- Восстанавливаем свойства
-            returnButton.Size = originalSize
-            returnButton.Visible = originalVisible
-            
-            -- Ждем 1 секунду
-            wait(1)
-            
-            -- Удаляем слот 1
-            print("🗑️ Удаляем слот 1...")
-            local args = {"Slot1", false}
-            local deleteSlotRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("DeleteSlotRemote")
-            deleteSlotRemote:InvokeServer(unpack(args))
-            
-            wait(0.1)
-            
-            -- Создаем слот Sochuri
-            print("➕ Создаем слот Sochuri...")
-            local args = {"Sochuri"}
-            local createSlotRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CreateSlotRemote")
-            createSlotRemote:InvokeServer(unpack(args))
-            
-            wait(0.2)
-            
-            print("✅ Обработка смерти завершена!")
-            print("🔄 Запускаем процесс входа в игру заново...")
-            
-            -- ========== ЗАПУСКАЕМ ПРОЦЕСС ВХОДА В ИГРУ ЗАНОВО ==========
-            
-            -- 1. Проверяем туториал (может потребоваться если новый слот)
-            print("\n🔧 Проверяем туториал для нового слота...")
-            local tutorialCompleted = completeTutorial()
-            
-            if tutorialCompleted then
-                print("⏳ Туториал завершен, ждем 2 секунды...")
-                wait(2)
-            end
-            
-            -- 2. Закрываем мешающие GUI
-            print("🔧 Закрываем мешающие GUI...")
-            local closedSomething = closeAnnoyingGUIs()
-            
-            if closedSomething then
-                print("⏳ Ждем 3 секунды...")
-                
-                -- Ждем 3 секунды
-                local startTime = tick()
-                local waitTime = 3
-                
-                while tick() - startTime < waitTime do
-                    if hasActiveAnnoyingGUIs() then
-                        print("⚠️ Обнаружены новые мешающие GUI, закрываем...")
-                        closeAnnoyingGUIs()
-                        startTime = tick() -- Сбрасываем таймер
-                    end
-                    wait(0.5)
-                end
-                
-                print("✅ Проверяем что мешающих GUI нет...")
-                
-                if not hasActiveAnnoyingGUIs() then
-                    print("🎉 Нет мешающих GUI, выполняем наши клики!")
-                    doOurClicks()
-                else
-                    print("❌ Все еще есть мешающие GUI, пропускаем наши клики")
-                end
-            else
-                print("✅ Нет мешающих GUI, сразу выполняем наши клики!")
-                doOurClicks()
-            end
-            
-            -- 3. Ждем и возвращаемся к фарму
-            print("\n" .. string.rep("=", 50))
-            print("⏳ Возвращаемся к фарму миссий через 2 секунды...")
-            print(string.rep("=", 50))
-            wait(2)
-            
-            -- Возвращаем true чтобы сообщить что смерть обработана и нужно вернуться к фарму
-            return true
-            
-        else
-            print("⚠️ Кнопка Return не найдена в DeathGui")
+        if success and result then
+            elem1 = result
         end
     end
     
-    return false
+    -- Используем улучшенную функцию для клика
+    local clicked1 = clickButtonEnhanced(elem1, "PagesFrame['1']")
+    
+    if not clicked1 then
+        print("⚠️ Не удалось кликнуть по PagesFrame['1'], кликаем в центр экрана")
+        click()
+    end
+    
+    wait(3) -- Увеличенный КД
+    
+    -- 2. Ищем и кликаем по PlayButton.UpperLabel
+    print("\n2. Ищем кнопку PlayButton.UpperLabel...")
+    
+    local playButtonUpperLabel = nil
+    if saveSelectionGui and saveSelectionGui.Enabled then
+        -- Ищем через безопасный поиск
+        local success, result = pcall(function()
+            return saveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
+        end)
+        
+        if success and result then
+            playButtonUpperLabel = result
+        else
+            -- Пробуем альтернативный путь
+            local success2, result2 = pcall(function()
+                return saveSelectionGui:FindFirstChild("ContainerFrame", true):FindFirstChild("AllSlotsFrame", true):FindFirstChild("SlotsFrame", true):FindFirstChild("1", true):FindFirstChild("InnerFrame", true):FindFirstChild("CreatureFrame", true):FindFirstChild("ButtonsFrame", true):FindFirstChild("PlayButton", true):FindFirstChild("UpperLabel", true)
+            end)
+            
+            if success2 and result2 then
+                playButtonUpperLabel = result2
+            end
+        end
+    end
+    
+    -- Используем улучшенную функцию для клика
+    local clickedPlayButton = clickButtonEnhanced(playButtonUpperLabel, "PlayButton.UpperLabel")
+    
+    if clickedPlayButton then
+        -- Второй клик с небольшой задержкой
+        wait(0.5)
+        click()
+    else
+        print("⚠️ Не удалось кликнуть по PlayButton.UpperLabel, ищем саму кнопку PlayButton...")
+        
+        -- Пробуем найти саму кнопку PlayButton
+        local playButton = nil
+        if saveSelectionGui and saveSelectionGui.Enabled then
+            local success, result = pcall(function()
+                return saveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton
+            end)
+            
+            if success and result then
+                playButton = result
+                local clickedPlay = clickButtonEnhanced(playButton, "PlayButton")
+                
+                if clickedPlay then
+                    wait(0.5)
+                    click()
+                else
+                    print("⚠️ Не удалось кликнуть по PlayButton, делаем 2 клика в центр экрана")
+                    click()
+                    wait(0.5)
+                    click()
+                end
+            else
+                print("⚠️ PlayButton не найден, делаем 2 клика в центр экрана")
+                click()
+                wait(0.5)
+                click()
+            end
+        else
+            print("⚠️ SaveSelectionGui не активен, делаем 2 клика в центр экрана")
+            click()
+            wait(0.5)
+            click()
+        end
+    end
+    
+    wait(3)
+    print("🎯 Клики после создания слота завершены!")
+    return true
 end
 
--- ========== ЧАСТЬ 0.5: ОБРАБОТКА ТУТОРИАЛА ==========
-local function completeTutorial()
-    print("\n" .. string.rep("=", 50))
-    print("📚 ПРОВЕРКА ТУТОРИАЛА")
-    print(string.rep("=", 50))
+-- ========== ОБРАБОТКА ТУТОРИАЛА (С ПРОВЕРКОЙ TutorialCompletedAt) ==========
+local function handleTutorial()
+    print("\n📚 Проверка туториала...")
     
     local player = game.Players.LocalPlayer
     local playerGui = player.PlayerGui
     
-    -- Проверяем, завершен ли туториал
-    local tutorialCompleted = true
+    -- Проверяем TutorialCompletedAt.Value
+    local tutorialCompletedAt = 1  -- По умолчанию считаем что туториал завершен
     
-    -- Проверяем путь: game:GetService("Players").localplayer.PlayerGui.Data.Tutorial.TutorialCompletedAt.Value
     if playerGui:FindFirstChild("Data") then
         local data = playerGui.Data
         if data:FindFirstChild("Tutorial") then
             local tutorial = data.Tutorial
             if tutorial:FindFirstChild("TutorialCompletedAt") then
-                local value = tutorial.TutorialCompletedAt.Value
-                print("📊 TutorialCompletedAt.Value = " .. tostring(value))
-                
-                -- Если значение = 0, туториал не завершен
-                if value == 0 then
-                    tutorialCompleted = false
-                    print("📚 Туториал НЕ завершен (Value = 0)")
-                else
-                    print("📚 Туториал завершен (Value > 0)")
-                end
-            else
-                print("⚠️ TutorialCompletedAt не найден")
-                tutorialCompleted = false
+                tutorialCompletedAt = tutorial.TutorialCompletedAt.Value
+                print("📊 TutorialCompletedAt.Value = " .. tostring(tutorialCompletedAt))
             end
-        else
-            print("⚠️ Tutorial не найден")
-            tutorialCompleted = false
         end
-    else
-        print("⚠️ Data не найден")
-        tutorialCompleted = false
     end
     
-    -- Если туториал не завершен (Value = 0), выполняем его
-    if not tutorialCompleted then
-        print("\n🎯 ТУТОРИАЛ НЕ ЗАВЕРШЕН! ВЫПОЛНЯЕМ...")
+    -- Если TutorialCompletedAt.Value = 0, значит туториал не завершен
+    if tutorialCompletedAt == 0 then
+        print("📚 Туториал НЕ завершен (Value = 0)! Обрабатываем...")
         
-        -- Включаем TutorialGui если он отключен
+        -- Проверяем TutorialGui
         local tutorialGui = playerGui:FindFirstChild("TutorialGui")
-        if tutorialGui then
-            if not tutorialGui.Enabled then
-                print("🔧 Включаем TutorialGui...")
-                tutorialGui.Enabled = true
-                wait(1)
+        if tutorialGui and tutorialGui.Enabled == true then
+            print("📚 TutorialGui активен! Начинаем туториал...")
+            
+            -- 1. КЛИК ПО КНОПКЕ SELECT В TUTORIALGUI
+            print("1. Ищем кнопку SelectButton.UpperLabel...")
+            
+            local upperLabel1 = playerGui.TutorialGui.SelectionFrame.SlotsFrame.Sochuri.InnerFrame.SelectButton.UpperLabel
+            
+            -- Используем улучшенную функцию для клика
+            local clickedSelect = clickButtonEnhanced(upperLabel1, "SelectButton.UpperLabel")
+            
+            if not clickedSelect then
+                print("⚠️ Не удалось кликнуть по SelectButton, кликаем в правый нижний угол")
+                local screen = workspace.CurrentCamera.ViewportSize
+                local cornerX = screen.X - 50
+                local cornerY = screen.Y - 50
+                clickAtPosition(cornerX, cornerY)
             end
+            
+            wait(5) -- Увеличенный КД
+            
+            -- 2. КЛИК ПО КНОПКЕ PLAY В EDITORGUI
+            print("\n2. Ищем кнопку PlayButton.UpperLabel...")
+            
+            local editorGui = playerGui:FindFirstChild("EditorGui")
+            if editorGui then
+                if not editorGui.Enabled then
+                    editorGui.Enabled = true
+                    wait(2) -- Увеличенный КД
+                end
+                
+                local upperLabel2 = editorGui.EditFrame.BottomFrame.ButtonsFrame.PlayButton.UpperLabel
+                
+                -- Используем улучшенную функцию для клика
+                local clickedPlay = clickButtonEnhanced(upperLabel2, "PlayButton.UpperLabel")
+                
+                if clickedPlay then
+                    -- Второй клик
+                    wait(0.5)
+                    click()
+                else
+                    print("⚠️ Не удалось кликнуть по PlayButton, делаем 2 клика в центр экрана")
+                    click()
+                    wait(0.5)
+                    click()
+                end
+            else
+                print("⚠️ EditorGui не найден, делаем 2 клика в центр экрана")
+                click()
+                wait(0.5)
+                click()
+            end
+            
+            -- Ждем перед отправкой Remote запросов
+            wait(3)
+            
+            -- 3. REMOTE ЗАПРОСЫ ДЛЯ ЗАВЕРШЕНИЯ ТУТОРИАЛА
+            print("\n3. Выполняем Remote запросы для завершения туториала...")
+            
+            -- SniffWater
+            local success1, error1 = pcall(function()
+                local args = {"SniffWater"}
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PostTutorialStageRemote"):FireServer(unpack(args))
+                print("✅ SniffWater отправлен")
+            end)
+            
+            if not success1 then
+                print("⚠️ Ошибка SniffWater: " .. tostring(error1))
+            end
+            
+            wait(1)
+            
+            -- SniffFood
+            local success2, error2 = pcall(function()
+                local args = {"SniffFood"}
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PostTutorialStageRemote"):FireServer(unpack(args))
+                print("✅ SniffFood отправлен")
+            end)
+            
+            if not success2 then
+                print("⚠️ Ошибка SniffFood: " .. tostring(error2))
+            end
+            
+            wait(1)
+            
+            -- Complete
+            local success3, error3 = pcall(function()
+                local args = {"Complete"}
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(unpack(args))
+                print("✅ Complete отправлен")
+            end)
+            
+            if not success3 then
+                print("⚠️ Ошибка Complete: " .. tostring(error3))
+            end
+            
+            -- ДОПОЛНИТЕЛЬНО: Проверяем, изменился ли TutorialCompletedAt
+            wait(2)
+            
+            local newTutorialCompletedAt = tutorialCompletedAt
+            if playerGui:FindFirstChild("Data") then
+                local data = playerGui.Data
+                if data:FindFirstChild("Tutorial") then
+                    local tutorial = data.Tutorial
+                    if tutorial:FindFirstChild("TutorialCompletedAt") then
+                        newTutorialCompletedAt = tutorial.TutorialCompletedAt.Value
+                        print("📊 Новое значение TutorialCompletedAt.Value = " .. tostring(newTutorialCompletedAt))
+                    end
+                end
+            end
+            
+            if newTutorialCompletedAt > 0 then
+                print("🎉 ТУТОРИАЛ УСПЕШНО ЗАВЕРШЕН!")
+            else
+                print("⚠️ Туториал выполнен, но TutorialCompletedAt все еще 0")
+            end
+            
+            return true
+            
         else
-            print("⚠️ TutorialGui не найден")
+            print("⚠️ TutorialGui не активен, но TutorialCompletedAt = 0")
             return false
         end
-        
-        -- 1. Первая кнопка: UpperLabel (ДВОЙНОЙ КЛИК)
-        print("\n1. Ищем и кликаем на UpperLabel (ДВОЙНОЙ КЛИК)...")
-        
-        -- Точный путь: game:GetService("Players").wrerwerrewer.PlayerGui.TutorialGui.SelectionFrame.SlotsFrame.Sochuri.InnerFrame.SelectButton.UpperLabel
-        local upperLabel = nil
-        
-        -- Поиск по точному пути
-        if tutorialGui then
-            local selectionFrame = tutorialGui:FindFirstChild("SelectionFrame")
-            if selectionFrame then
-                local slotsFrame = selectionFrame:FindFirstChild("SlotsFrame")
-                if slotsFrame then
-                    local sochuri = slotsFrame:FindFirstChild("Sochuri")
-                    if sochuri then
-                        local innerFrame = sochuri:FindFirstChild("InnerFrame")
-                        if innerFrame then
-                            local selectButton = innerFrame:FindFirstChild("SelectButton")
-                            if selectButton then
-                                upperLabel = selectButton:FindFirstChild("UpperLabel")
-                                if upperLabel then
-                                    print("✅ Найден UpperLabel по точному пути")
-                                    print("📍 Позиция: " .. tostring(upperLabel.AbsolutePosition))
-                                    print("📏 Размер: " .. tostring(upperLabel.AbsoluteSize))
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        if upperLabel then
-            -- Сохраняем оригинальный размер
-            local originalSize = upperLabel.Size
-            local originalVisible = upperLabel.Visible
-            
-            -- Увеличиваем
-            upperLabel.Size = UDim2.new(5000, 5000, 5000, 5000)
-            upperLabel.Visible = true
-            print("✅ UpperLabel увеличен до 5000,5000,5000,5000")
-            
-            wait(0.5)  -- Даем время на обновление
-            
-            -- Кликаем в ЦЕНТР увеличенной кнопки
-            if upperLabel.AbsoluteSize.X > 0 and upperLabel.AbsoluteSize.Y > 0 then
-                local posX = upperLabel.AbsolutePosition.X + (upperLabel.AbsoluteSize.X / 2)
-                local posY = upperLabel.AbsolutePosition.Y + (upperLabel.AbsoluteSize.Y / 2)
-                
-                print("👆 Клик в центре: " .. math.floor(posX) .. ", " .. math.floor(posY))
-                
-                -- Двойной клик
-                doubleClickAtPosition(posX, posY, "UpperLabel")
-                
-                -- Альтернативный метод
-                wait(0.2)
-                alternativeClick(posX, posY, "UpperLabel Alt")
-            else
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                doubleClickAtPosition(screenSize.X / 2, screenSize.Y / 2, "Центр экрана")
-            end
-            
-            -- Возвращаем размер
-            upperLabel.Size = originalSize
-            upperLabel.Visible = originalVisible
-            print("✅ UpperLabel восстановлен")
-        else
-            print("⚠️ UpperLabel не найден по точному пути")
-        end
-        
-        -- Ждем 2 секунды перед второй кнопкой
-        print("\n⏳ Ждем 2 секунды перед второй кнопкой...")
-        wait(2)
-        
-        -- 2. Вторая кнопка: PlayButton в EditorGui (ДВОЙНОЙ КЛИК)
-        print("\n2. Ищем и кликаем на PlayButton в EditorGui (ДВОЙНОЙ КЛИК)...")
-        
-        -- Включаем EditorGui если он отключен
-        local editorGui = playerGui:FindFirstChild("EditorGui")
-        if editorGui then
-            if not editorGui.Enabled then
-                print("🔧 Включаем EditorGui...")
-                editorGui.Enabled = true
-                wait(1)
-            end
-        else
-            print("⚠️ EditorGui не найден")
-        end
-        
-        -- Точный путь: game:GetService("Players").wrerwerrewer.PlayerGui.EditorGui.EditFrame.BottomFrame.ButtonsFrame.PlayButton
-        local playButton = nil
-        
-        -- Поиск по точному пути
-        if editorGui then
-            local editFrame = editorGui:FindFirstChild("EditFrame")
-            if editFrame then
-                local bottomFrame = editFrame:FindFirstChild("BottomFrame")
-                if bottomFrame then
-                    local buttonsFrame = bottomFrame:FindFirstChild("ButtonsFrame")
-                    if buttonsFrame then
-                        playButton = buttonsFrame:FindFirstChild("PlayButton")
-                        if playButton then
-                            print("✅ Найден PlayButton по точному пути")
-                            print("📍 Позиция: " .. tostring(playButton.AbsolutePosition))
-                            print("📏 Размер: " .. tostring(playButton.AbsoluteSize))
-                        end
-                    end
-                end
-            end
-        end
-        
-        if playButton then
-            -- Сохраняем оригинальный размер
-            local originalSize = playButton.Size
-            local originalVisible = playButton.Visible
-            
-            -- Увеличиваем
-            playButton.Size = UDim2.new(5000, 5000, 5000, 5000)
-            playButton.Visible = true
-            print("✅ PlayButton увеличен до 5000,5000,5000,5000")
-            
-            wait(0.5)  -- Даем время на обновление
-            
-            -- Кликаем в ЦЕНТР увеличенной кнопки
-            if playButton.AbsoluteSize.X > 0 and playButton.AbsoluteSize.Y > 0 then
-                local posX = playButton.AbsolutePosition.X + (playButton.AbsoluteSize.X / 2)
-                local posY = playButton.AbsolutePosition.Y + (playButton.AbsoluteSize.Y / 2)
-                
-                print("👆 Клик в центре: " .. math.floor(posX) .. ", " .. math.floor(posY))
-                
-                -- Двойной клик
-                doubleClickAtPosition(posX, posY, "PlayButton")
-                
-                -- Альтернативный метод
-                wait(0.2)
-                alternativeClick(posX, posY, "PlayButton Alt")
-            else
-                local screenSize = workspace.CurrentCamera.ViewportSize
-                doubleClickAtPosition(screenSize.X / 2, screenSize.Y / 2, "Центр экрана")
-            end
-            
-            -- Возвращаем размер
-            playButton.Size = originalSize
-            playButton.Visible = originalVisible
-            print("✅ PlayButton восстановлен")
-        else
-            print("⚠️ PlayButton не найден по точному пути")
-        end
-        
-        wait(2)
-        
-        -- 3. Выполняем этапы туториала через Remote
-        print("\n3. Выполняем этапы туториала...")
-        
-        -- SniffWater
-        print("💧 Этап SniffWater...")
-        local sniffWaterArgs = {"SniffWater"}
-        local postTutorialRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("PostTutorialStageRemote")
-        if postTutorialRemote then
-            postTutorialRemote:FireServer(unpack(sniffWaterArgs))
-            print("✅ SniffWater отправлен")
-        else
-            print("⚠️ PostTutorialStageRemote не найден")
-        end
-        
-        wait(0.5)
-        
-        -- SniffFood
-        print("🍎 Этап SniffFood...")
-        local sniffFoodArgs = {"SniffFood"}
-        if postTutorialRemote then
-            postTutorialRemote:FireServer(unpack(sniffFoodArgs))
-            print("✅ SniffFood отправлен")
-        end
-        
-        wait(0.5)
-        
-        -- Complete
-        print("✅ Завершаем туториал...")
-        local completeArgs = {"Complete"}
-        local setTutorialRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote")
-        if setTutorialRemote then
-            setTutorialRemote:InvokeServer(unpack(completeArgs))
-            print("✅ Complete отправлен")
-        else
-            print("⚠️ SetTutorialStageRemote не найден")
-        end
-        
-        -- Отключаем GUI после завершения туториала
-        if tutorialGui then
-            tutorialGui.Enabled = false
-            print("🚫 Отключаем TutorialGui после туториала")
-        end
-        
-        if editorGui then
-            editorGui.Enabled = false
-            print("🚫 Отключаем EditorGui после туториала")
-        end
-        
-        print("\n🎉 ТУТОРИАЛ ВЫПОЛНЕН!")
-        
-        -- Ждем 1 секунду перед продолжением
-        wait(1)
-        
-        return true
     else
-        print("✅ Туториал уже завершен (Value > 0), продолжаем...")
+        print("✅ Туториал уже завершен (TutorialCompletedAt.Value = " .. tostring(tutorialCompletedAt) .. ")")
         return false
     end
 end
 
--- ========== ЧАСТЬ 1: Закрываем мешающие GUI (БЕЗ TutorialGui) ==========
-local function closeAnnoyingGUIs()
-    local targetPlayer = game:GetService("Players").LocalPlayer
-    if not targetPlayer then
-        print("⚠️ Локальный игрок не найден")
-        return false
-    end
+-- ========== ОБРАБОТКА ДРУГИХ GUI ==========
+local function handleOtherGUIs()
+    print("\n🎁 Проверка других GUI...")
     
-    local playerGui = targetPlayer.PlayerGui
-    local closedCount = 0
+    local player = game.Players.LocalPlayer
+    local playerGui = player.PlayerGui
+    local handled = false
     
-    -- Список GUI которые мешают (УБРАЛИ TutorialGui из списка!)
-    local annoyingGUIs = {
-        "PromptGui", 
+    local guisToCheck = {
+        "AdventCalendarGui",
+        "DailyLoginGui", 
         "UpdateLogGui",
-        "DailyLoginGui",
-        "AdventCalendarGui"
-        -- TutorialGui НЕ отключаем, так как он нужен для туториала
+        "PromptGui"
     }
     
-    -- Закрываем все мешающие GUI
-    for _, guiName in ipairs(annoyingGUIs) do
+    for _, guiName in ipairs(guisToCheck) do
         local gui = playerGui:FindFirstChild(guiName)
-        if gui and gui:IsA("ScreenGui") and gui.Enabled == true then
-            gui.Enabled = false
-            closedCount = closedCount + 1
-            print("🚫 Отключен: " .. guiName)
+        if gui and gui.Enabled == true then
+            print("🎯 " .. guiName .. " активен! Кликаем...")
+            
+            for i = 1, 2 do
+                click()
+                wait(1) -- Увеличенный КД
+            end
+            
+            handled = true
         end
     end
     
-    return closedCount > 0
+    if not handled then
+        print("✅ Нет активных GUI")
+    end
+    
+    return handled
 end
 
-local function hasActiveAnnoyingGUIs()
-    local targetPlayer = game.Players.LocalPlayer
-    if not targetPlayer then return false end
+-- ========== ОБРАБОТКА СМЕРТИ ==========
+local function handleDeath()
+    print("\n💀 Проверка смерти...")
     
-    local playerGui = targetPlayer.PlayerGui
-    -- УБРАЛИ TutorialGui из проверки
-    local annoyingGUIs = {"PromptGui", "UpdateLogGui", "DailyLoginGui", "AdventCalendarGui"}
+    local player = game.Players.LocalPlayer
+    local playerGui = player.PlayerGui
     
-    for _, guiName in ipairs(annoyingGUIs) do
-        local gui = playerGui:FindFirstChild(guiName)
-        if gui and gui:IsA("ScreenGui") and gui.Enabled == true then
+    local deathGui = playerGui:FindFirstChild("DeathGui")
+    if deathGui and deathGui.Enabled == true then
+        print("💀 DeathGui активен! Обрабатываем...")
+        
+        local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
+        
+        -- Используем улучшенную функцию для клика по Return
+        local clickedReturn = clickButtonEnhanced(returnButton, "Return.UpperLabel")
+        
+        if clickedReturn then
+            -- Второй клик на Return
+            wait(0.5)
+            click()
+        else
+            print("⚠️ Не удалось кликнуть по Return, делаем 2 клика в центр экрана")
+            click()
+            wait(0.5)
+            click()
+        end
+        
+        -- Ждем пока GUI полностью закроется
+        print("⏳ Ждем 7 секунд...") -- Увеличенный КД
+        wait(7)
+        
+        -- 1. ВЫЗЫВАЕМ DESPAWNREMOTE ДЛЯ ВЫХОДА
+        print("🚪 Вызываем DespawnRemote для выхода...")
+        local despawnSuccess, despawnError = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+            return true
+        end)
+        
+        if despawnSuccess then
+            print("✅ DespawnRemote успешно вызван")
+        else
+            print("❌ Ошибка DespawnRemote: " .. tostring(despawnError))
+        end
+        
+        wait(3) -- Ждем после деспавна
+        
+        -- 2. УДАЛЕНИЕ СЛОТА
+        print("🗑️ Удаляем слот Slot1...")
+        local deleteSuccess, deleteError = pcall(function()
+            local args = {"Slot1", false}
+            ReplicatedStorage.Remotes.DeleteSlotRemote:InvokeServer(unpack(args))
+            return true
+        end)
+        
+        if deleteSuccess then
+            print("✅ Запрос удаления отправлен")
+        else
+            print("❌ Ошибка удаления: " .. tostring(deleteError))
+        end
+        
+        print("⏳ Ждем 5 секунд после удаления...") -- Увеличенный КД
+        wait(5)
+        
+        -- 3. СОЗДАНИЕ НОВОГО СЛОТА
+        print("➕ Создаем новый слот Sochuri...")
+        local createSuccess, createError = pcall(function()
+            local args = {"Sochuri"}
+            ReplicatedStorage.Remotes.CreateSlotRemote:InvokeServer(unpack(args))
+            return true
+        end)
+        
+        if createSuccess then
+            print("✅ Запрос создания отправлен")
+        else
+            print("❌ Ошибка создания: " .. tostring(createError))
+        end
+        
+        print("⏳ Ждем 5 секунд после создания...") -- Увеличенный КД
+        wait(5)
+        
+        -- 4. ВЫПОЛНЯЕМ КЛИКИ
+        print("🔄 Выполняем клики после создания слота...")
+        local clickSuccess = clickAfterSlotCreation()
+        
+        if clickSuccess then
+            print("🎯 Клики выполнены!")
+            print("✅ Обработка смерти завершена!")
+            return true
+        else
+            print("⚠️ Были проблемы с кликами")
+            return true
+        end
+    else
+        print("✅ DeathGui не активен")
+        return false
+    end
+    
+    return false
+end
+
+-- ========== ФУНКЦИЯ ДЛЯ ПРОВЕРКИ СМЕРТИ ВО ВРЕМЯ ФАРМА ==========
+local function checkDeathDuringFarm()
+    local player = game.Players.LocalPlayer
+    local playerGui = player.PlayerGui
+    
+    local deathGui = playerGui:FindFirstChild("DeathGui")
+    if deathGui and deathGui.Enabled == true then
+        print("\n💀 ОБНАРУЖЕНА СМЕРТЬ ВО ВРЕМЯ ФАРМА!")
+        
+        wait(12) -- Увеличенный КД
+        
+        local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
+        
+        -- Используем улучшенную функцию для клика по Return
+        local clickedReturn = clickButtonEnhanced(returnButton, "Return.UpperLabel")
+        
+        if clickedReturn then
+            -- Второй клик на Return
+            wait(0.5)
+            click()
+        else
+            print("⚠️ Не удалось кликнуть по Return, делаем 2 клика в центр экрана")
+            click()
+            wait(0.5)
+            click()
+        end
+        
+        -- Ждем пока GUI полностью закроется
+        wait(5) -- Увеличенный КД
+        
+        -- 1. ВЫЗЫВАЕМ DESPAWNREMOTE ДЛЯ ВЫХОДА
+        print("🚪 Вызываем DespawnRemote для выхода...")
+        local despawnSuccess, despawnError = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+            return true
+        end)
+        
+        if despawnSuccess then
+            print("✅ DespawnRemote успешно вызван")
+        else
+            print("❌ Ошибка DespawnRemote: " .. tostring(despawnError))
+        end
+        
+        wait(3) -- Ждем после деспавна
+        
+        -- 2. УДАЛЕНИЕ СЛОТА
+        print("🗑️ Удаляем слот Slot1...")
+        local deleteSuccess, deleteError = pcall(function()
+            local args = {"Slot1", false}
+            ReplicatedStorage.Remotes.DeleteSlotRemote:InvokeServer(unpack(args))
+            return true
+        end)
+        
+        if deleteSuccess then
+            print("✅ Запрос удаления отправлен")
+        else
+            print("❌ Ошибка удаления: " .. tostring(deleteError))
+        end
+        
+        wait(5) -- Увеличенный КД
+        
+        -- 3. СОЗДАНИЕ НОВОГО СЛОТА
+        print("➕ Создаем новый слот Sochuri...")
+        local createSuccess, createError = pcall(function()
+            local args = {"Sochuri"}
+            ReplicatedStorage.Remotes.CreateSlotRemote:InvokeServer(unpack(args))
+            return true
+        end)
+        
+        if createSuccess then
+            print("✅ Запрос создания отправлен")
+        else
+            print("❌ Ошибка создания: " .. tostring(createError))
+        end
+        
+        wait(5) -- Увеличенный КД
+        
+        -- 4. ВЫПОЛНЯЕМ КЛИКИ
+        print("🔄 Выполняем клики после создания слота...")
+        local clickSuccess = clickAfterSlotCreation()
+        
+        if clickSuccess then
+            print("🎯 Клики выполнены!")
+            print("✅ Обработка смерти завершена!")
+            return true
+        else
+            print("⚠️ Были проблемы с кликами")
             return true
         end
     end
@@ -611,131 +575,187 @@ local function hasActiveAnnoyingGUIs()
     return false
 end
 
--- ========== ЧАСТЬ 2: Наши клики ==========
+-- ========== НАШИ КЛИКИ (ДЛЯ НОРМАЛЬНОГО ЗАПУСКА) ==========
 local function doOurClicks()
-    print("🎯 Выполняем наши клики...")
+    print("\n🎯 Выполняем наши клики...")
     
     local player = game.Players.LocalPlayer
     local playerGui = player.PlayerGui
     
-    -- 1. Первый элемент
-    print("\n🎯 Первый элемент...")
-    local frame1 = playerGui:FindFirstChild("SaveSelectionGui") 
-        and playerGui.SaveSelectionGui:FindFirstChild("ContainerFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame:FindFirstChild("AllSlotsFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame:FindFirstChild("PagesFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame:FindFirstChild("1")
+    print("⏳ Ждем 7 секунд перед кликами...") -- Увеличенный КД
+    wait(7)
     
-    if frame1 then
-        -- Увеличиваем
-        frame1.Size = UDim2.new(5000, 5000, 5000, 5000)
-        print("✅ Первый элемент увеличен")
-        
-        wait(0.5)  -- Даем время на обновление
-        
-        -- Кликаем в ЦЕНТР увеличенного элемента
-        if frame1.AbsoluteSize.X > 0 then
-            local posX = frame1.AbsolutePosition.X + (frame1.AbsoluteSize.X / 2)
-            local posY = frame1.AbsolutePosition.Y + (frame1.AbsoluteSize.Y / 2)
-            
-            print("👆 Клик в центре: " .. math.floor(posX) .. ", " .. math.floor(posY))
-            clickAtPosition(posX, posY, "frame1")
-            wait(0.2)
-            alternativeClick(posX, posY, "frame1 Alt")
-        else
-            local screenSize = workspace.CurrentCamera.ViewportSize
-            clickAtPosition(screenSize.X/2, screenSize.Y/2, "Центр экрана (frame1)")
-        end
-        
-        -- Уменьшаем
-        frame1.Size = UDim2.new(0, 0, 0, 0)
-        print("✅ Первый элемент уменьшен")
-    else
-        print("⚠️ Первый элемент не найден")
+    -- Сначала попробуем открыть SaveSelectionGui
+    local saveSelectionGui = playerGui:FindFirstChild("SaveSelectionGui")
+    
+    if not saveSelectionGui or not saveSelectionGui.Enabled then
+        print("📂 SaveSelectionGui не открыт, открываем...")
+        click() -- Клик в центр экрана
+        wait(3) -- Увеличенный КД
     end
     
-    wait(1)
+    -- Теперь ищем элементы
+    saveSelectionGui = playerGui:FindFirstChild("SaveSelectionGui")
     
-    -- 2. Вторая кнопка (PlayButton) - ДВОЙНОЙ КЛИК
-    print("\n🎯 Вторая кнопка (PlayButton) - ДВОЙНОЙ КЛИК...")
+    -- 1. Клик по первому элементу
+    print("1. Ищем первый элемент (PagesFrame['1'])...")
     
-    -- Ищем PlayButton
-    local button2 = playerGui:FindFirstChild("SaveSelectionGui") 
-        and playerGui.SaveSelectionGui:FindFirstChild("ContainerFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame:FindFirstChild("AllSlotsFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame:FindFirstChild("SlotsFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame:FindFirstChild("1")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"]:FindFirstChild("InnerFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame:FindFirstChild("CreatureFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame:FindFirstChild("ButtonsFrame")
-        and playerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
+    local elem1 = nil
+    if saveSelectionGui and saveSelectionGui.Enabled then
+        elem1 = saveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
+    end
     
-    if button2 then
-        print("✅ Кнопка PlayButton найдена")
+    -- Используем улучшенную функцию для клика
+    local clicked1 = clickButtonEnhanced(elem1, "PagesFrame['1']")
+    
+    if not clicked1 then
+        print("⚠️ Не удалось кликнуть по PagesFrame['1'], кликаем в центр экрана")
+        click()
+    end
+    
+    wait(3) -- Увеличенный КД
+    
+    -- 2. Клик по PlayButton.UpperLabel
+    print("\n2. Ищем кнопку PlayButton.UpperLabel...")
+    
+    local playButtonUpperLabel = nil
+    if saveSelectionGui and saveSelectionGui.Enabled then
+        -- Ищем через безопасный поиск
+        local success, result = pcall(function()
+            return saveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
+        end)
         
-        -- Сохраняем оригинальные свойства
-        local originalSize = button2.Size
-        
-        -- Увеличиваем кнопку
-        button2.Size = UDim2.new(5000, 5000, 5000, 5000)
-        print("✅ Кнопка увеличена")
-        
-        wait(0.5)  -- Даем время на обновление
-        
-        -- ДВОЙНОЙ КЛИК на PlayButton (в ЦЕНТР)
-        if button2.AbsoluteSize.X > 0 and button2.AbsoluteSize.Y > 0 then
-            -- Вычисляем позицию клика (центр)
-            local posX = button2.AbsolutePosition.X + (button2.AbsoluteSize.X / 2)
-            local posY = button2.AbsolutePosition.Y + (button2.AbsoluteSize.Y / 2)
-            
-            print("👆👆 Двойной клик в центре: " .. math.floor(posX) .. ", " .. math.floor(posY))
-            
-            doubleClickAtPosition(posX, posY, "PlayButton")
-            wait(0.2)
-            alternativeClick(posX, posY, "PlayButton Alt")
-            
+        if success and result then
+            playButtonUpperLabel = result
         else
-            print("⚠️ Некорректный размер кнопки, кликаем по центру")
-            local screenSize = workspace.CurrentCamera.ViewportSize
+            -- Пробуем альтернативный путь
+            local success2, result2 = pcall(function()
+                return saveSelectionGui:FindFirstChild("ContainerFrame", true):FindFirstChild("AllSlotsFrame", true):FindFirstChild("SlotsFrame", true):FindFirstChild("1", true):FindFirstChild("InnerFrame", true):FindFirstChild("CreatureFrame", true):FindFirstChild("ButtonsFrame", true):FindFirstChild("PlayButton", true):FindFirstChild("UpperLabel", true)
+            end)
             
-            doubleClickAtPosition(screenSize.X/2, screenSize.Y/2, "Центр экрана (PlayButton)")
+            if success2 and result2 then
+                playButtonUpperLabel = result2
+            end
         end
-        
-        -- Уменьшаем кнопку
-        button2.Size = originalSize
-        print("✅ Кнопка уменьшена")
+    end
+    
+    -- Используем улучшенную функцию для клика
+    local clickedPlayButton = clickButtonEnhanced(playButtonUpperLabel, "PlayButton.UpperLabel")
+    
+    if clickedPlayButton then
+        -- Второй клик с небольшой задержкой
+        wait(0.5)
+        click()
     else
-        print("⚠️ Кнопка PlayButton не найдена")
+        print("⚠️ Не удалось кликнуть по PlayButton.UpperLabel, ищем саму кнопку PlayButton...")
+        
+        -- Пробуем найти саму кнопку PlayButton
+        local playButton = nil
+        if saveSelectionGui and saveSelectionGui.Enabled then
+            local success, result = pcall(function()
+                return saveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton
+            end)
+            
+            if success and result then
+                playButton = result
+                local clickedPlay = clickButtonEnhanced(playButton, "PlayButton")
+                
+                if clickedPlay then
+                    wait(0.5)
+                    click()
+                else
+                    print("⚠️ Не удалось кликнуть по PlayButton, делаем 2 клика в центр экрана")
+                    click()
+                    wait(0.5)
+                    click()
+                end
+            else
+                print("⚠️ PlayButton не найден, делаем 2 клика в центр экрана")
+                click()
+                wait(0.5)
+                click()
+            end
+        else
+            print("⚠️ SaveSelectionGui не активен, делаем 2 клика в центр экрана")
+            click()
+            wait(0.5)
+            click()
+        end
+    end
+    
+    -- Закрываем SaveSelectionGui если открыли его
+    if saveSelectionGui and saveSelectionGui.Enabled then
+        print("📂 Закрываем SaveSelectionGui...")
+        click()
     end
     
     return true
 end
 
--- ========== ЧАСТЬ 3: ФАРМ МИССИЙ ==========
-local function startMissionFarm()
-    print("\n" .. string.rep("=", 50))
-    print("🚀 ЗАПУСКАЕМ ФАРМ МИССИЙ")
-    print(string.rep("=", 50) .. "\n")
+-- ========== ФУНКЦИЯ ДЛЯ ПЕРИОДИЧЕСКИХ REMOTE ЗАПРОСОВ ==========
+local function periodicRemoteRequests()
+    print("⏰ Запускаем периодические Remote запросы...")
     
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    while true do
+        wait(10) -- Каждые 10 секунд
+        
+        print("\n🔄 Выполняем периодические Remote запросы...")
+        
+        -- ClaimDailyLoginRemote
+        local success1, error1 = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+            print("✅ ClaimDailyLoginRemote отправлен")
+        end)
+        
+        if not success1 then
+            print("⚠️ Ошибка ClaimDailyLoginRemote: " .. tostring(error1))
+        end
+        
+        wait(0.7)
+        
+        -- ClaimAdventCalendarRemote
+        local success2, error2 = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimAdventCalendarRemote"):FireServer()
+            print("✅ ClaimAdventCalendarRemote отправлен")
+        end)
+        
+        if not success2 then
+            print("⚠️ Ошибка ClaimAdventCalendarRemote: " .. tostring(error2))
+        end
+        
+        -- GetSpawnedTokenRemote
+        local success3, error3 = pcall(function()
+            ReplicatedStorage.Remotes.GetSpawnedTokenRemote:InvokeServer()
+            print("✅ GetSpawnedTokenRemote отправлен")
+        end)
+        
+        if not success3 then
+            print("⚠️ Ошибка GetSpawnedTokenRemote: " .. tostring(error3))
+        end
+        
+        print("✅ Периодические запросы выполнены")
+    end
+end
+
+-- ========== ФАРМ МИССИЙ (УЛУЧШЕННАЯ ВЕРСИЯ) ==========
+local function startMissionFarm()
+    print("\n🚀 Запускаем улучшенный фарм миссий...")
+    
     local targetPlayer = game.Players.LocalPlayer
     
-    -- Ждем загрузки данных
     print("⏳ Ожидаем загрузки данных...")
     local playerGui = targetPlayer:WaitForChild("PlayerGui")
     local data = playerGui:WaitForChild("Data")
     local missions = data:WaitForChild("Missions")
     local regionMissions = missions:WaitForChild("RegionMissions")
     
-    print("✅ Данные загружены")
-    
     -- Ждем ремоуты
-    local ChangeRegionRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChangeRegionRemote")
-    local SetMissionRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetMissionRemote")
-    local MudRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Mud")
-    local FoodRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Food")
-    local DrinkRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("DrinkRemote")
-    local NPCDamageRemoteBreath = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("NPCDamageRemoteBreath")
+    local ChangeRegionRemote = ReplicatedStorage.Remotes.ChangeRegionRemote
+    local SetMissionRemote = ReplicatedStorage.Remotes.SetMissionRemote
+    local MudRemote = ReplicatedStorage.Remotes.Mud
+    local FoodRemote = ReplicatedStorage.Remotes.Food
+    local DrinkRemote = ReplicatedStorage.Remotes.DrinkRemote
+    local NPCDamageRemoteBreath = ReplicatedStorage.Remotes.NPCDamageRemoteBreath
     
     -- Координаты для телепортации
     local teleportPositions = {
@@ -749,9 +769,9 @@ local function startMissionFarm()
     -- Переменные
     local lastFoodDrinkTime = 0
     local lastAttackTime = 0
-    local foodItems = {"Grass", "Fruit", "Ribs", "NPC Carcass"}
-    local currentFoodIndex = 1
     local lastDeathCheck = 0
+    local foodItems = {"NPC Carcass", "Grass", "Fruit", "Ribs", "Plant"}
+    local currentFoodIndex = 1
     
     -- Список миссий которые нужно игнорировать
     local ignoreMissions = {
@@ -765,6 +785,7 @@ local function startMissionFarm()
         for _, region in pairs(regionMissions:GetChildren()) do
             for _, mission in pairs(region:GetChildren()) do
                 if mission:IsA("BoolValue") and not mission.Value then
+                    -- Пропускаем миссии из списка игнорируемых
                     if not ignoreMissions[mission.Name] then
                         table.insert(uncompleted, {
                             regionName = region.Name,
@@ -805,17 +826,15 @@ local function startMissionFarm()
     function useFoodAndWater()
         local currentTime = tick()
         if currentTime - lastFoodDrinkTime >= 2 then
-            -- Используем еду (пробуем разные варианты)
-            local foodTypes = {"NPC Carcass", "Grass", "Fruit", "Ribs", "Plant"}
-            
-            for _, foodName in ipairs(foodTypes) do
-                local food = workspace.Interactions.Food:FindFirstChild(foodName)
-                if food then
-                    local foodArgs = { food }
-                    FoodRemote:FireServer(unpack(foodArgs))
-                    print("🍎 Использована еда: " .. foodName)
-                    break
-                end
+            -- Используем еду
+            local foodName = foodItems[currentFoodIndex]
+            local food = workspace.Interactions.Food:FindFirstChild(foodName)
+            if food then
+                local foodArgs = { food }
+                FoodRemote:FireServer(unpack(foodArgs))
+                print("🍎 Использована еда: " .. foodName)
+            else
+                print("⚠️ Еда не найдена: " .. foodName)
             end
             
             -- Используем воду
@@ -825,18 +844,12 @@ local function startMissionFarm()
                 DrinkRemote:FireServer(unpack(drinkArgs))
                 print("💧 Использована вода")
             else
-                -- Пробуем найти любой источник воды
-                local lakesFolder = workspace.Interactions.Lakes
-                if lakesFolder then
-                    for _, waterItem in pairs(lakesFolder:GetChildren()) do
-                        if waterItem:IsA("BasePart") or waterItem:IsA("MeshPart") then
-                            local drinkArgs = { waterItem }
-                            DrinkRemote:FireServer(unpack(drinkArgs))
-                            print("💧 Использован источник воды: " .. waterItem.Name)
-                            break
-                        end
-                    end
-                end
+                print("⚠️ Вода не найдена")
+            end
+            
+            currentFoodIndex = currentFoodIndex + 1
+            if currentFoodIndex > #foodItems then
+                currentFoodIndex = 1
             end
             
             lastFoodDrinkTime = currentTime
@@ -891,7 +904,7 @@ local function startMissionFarm()
         return nil
     end
     
-    -- Функция для телепортации к NPC спавну
+    -- Функция для телепортации к NPC спавну (на 30 единиц выше)
     function teleportToRandomNPCSpawn()
         local npcSpawns = workspace.Interactions.NPCSpawns:GetChildren()
         if #npcSpawns > 0 then
@@ -937,16 +950,6 @@ local function startMissionFarm()
             
             useFoodAndWater()
             
-            -- Проверяем смерть каждые 10 секунд
-            local currentTime = tick()
-            if currentTime - lastDeathCheck >= 10 then
-                if checkDeathDuringFarm() then
-                    print("🔄 Возвращаемся к выполнению миссии после смерти...")
-                    wait(2)
-                end
-                lastDeathCheck = currentTime
-            end
-            
             local missionArgs = { 1 }
             SetMissionRemote:FireServer(unpack(missionArgs))
             
@@ -978,7 +981,7 @@ local function startMissionFarm()
         teleportPlayer(concealScentPosition)
         wait(2)
         
-        changeRegion(regionName)
+        changeRegion(regionName) -- Повторно устанавливаем регион после телепортации
         
         local missionCompleted = false
         local attempts = 0
@@ -987,16 +990,6 @@ local function startMissionFarm()
             attempts = attempts + 1
             
             useFoodAndWater()
-            
-            -- Проверяем смерть каждые 10 секунд
-            local currentTime = tick()
-            if currentTime - lastDeathCheck >= 10 then
-                if checkDeathDuringFarm() then
-                    print("🔄 Возвращаемся к выполнению миссии после смерти...")
-                    wait(2)
-                end
-                lastDeathCheck = currentTime
-            end
             
             local nearestMud = findNearestMud()
             if nearestMud then
@@ -1040,16 +1033,6 @@ local function startMissionFarm()
             
             useFoodAndWater()
             
-            -- Проверяем смерть каждые 10 секунд
-            local currentTime = tick()
-            if currentTime - lastDeathCheck >= 10 then
-                if checkDeathDuringFarm() then
-                    print("🔄 Возвращаемся к выполнению миссии после смерти...")
-                    wait(2)
-                end
-                lastDeathCheck = currentTime
-            end
-            
             local regionFolder = regionMissions:FindFirstChild(regionName)
             if regionFolder then
                 local eatMission = regionFolder:FindFirstChild("EatFoodDrinkWater")
@@ -1077,7 +1060,7 @@ local function startMissionFarm()
         
         if teleportToRandomNPCSpawn() then
             wait(2)
-            changeRegion(regionName)
+            changeRegion(regionName) -- Повторно устанавливаем регион после телепортации
         end
         
         local missionCompleted = false
@@ -1089,28 +1072,19 @@ local function startMissionFarm()
             useFoodAndWater()
             attackNPC()
             
-            -- Проверяем смерть каждые 10 секунд
-            local currentTime = tick()
-            if currentTime - lastDeathCheck >= 10 then
-                if checkDeathDuringFarm() then
-                    print("🔄 Возвращаемся к выполнению миссии после смерти...")
-                    wait(2)
-                end
-                lastDeathCheck = currentTime
-            end
-            
+            -- Проверяем выполнение миссии КАЖДЫЙ раз перед следующей атакой
             local regionFolder = regionMissions:FindFirstChild(regionName)
             if regionFolder then
                 local attackMission = regionFolder:FindFirstChild("AttackOrHealCreatureOrNPC")
                 if attackMission and attackMission.Value then
                     missionCompleted = true
                     print("✅ AttackOrHealCreatureOrNPC выполнена в регионе " .. regionName)
-                    break
+                    break -- Немедленно выходим из цикла
                 end
             end
             
             if not missionCompleted then
-                wait(0.5)
+                wait(0.5) -- КД 0.5 секунды между атаками
             end
         end
         
@@ -1131,24 +1105,15 @@ local function startMissionFarm()
             
             useFoodAndWater()
             
-            -- Проверяем смерть каждые 10 секунд
-            local currentTime = tick()
-            if currentTime - lastDeathCheck >= 10 then
-                if checkDeathDuringFarm() then
-                    print("🔄 Возвращаемся к выполнению миссии после смерти...")
-                    wait(2)
-                end
-                lastDeathCheck = currentTime
-            end
-            
             for i, pos in ipairs(teleportPositions) do
                 teleportPlayer(pos)
                 wait(2)
                 
                 if i == 1 then
-                    changeRegion(regionName)
+                    changeRegion(regionName) -- Повторно устанавливаем регион после первой телепортации
                 end
                 
+                -- Проверяем выполнение миссии после каждой телепортации
                 local regionFolder = regionMissions:FindFirstChild(regionName)
                 if regionFolder then
                     local distanceMission = regionFolder:FindFirstChild("DistanceTravelled")
@@ -1184,16 +1149,7 @@ local function startMissionFarm()
             checkCount = checkCount + 1
             useFoodAndWater()
             
-            -- Проверяем смерть каждые 10 секунд
-            local currentTime = tick()
-            if currentTime - lastDeathCheck >= 10 then
-                if checkDeathDuringFarm() then
-                    print("🔄 Возвращаемся к выполнению миссии после смерти...")
-                    wait(2)
-                end
-                lastDeathCheck = currentTime
-            end
-            
+            -- Проверяем, не появились ли другие миссии
             local otherMissions = getUncompletedMissions()
             for _, mission in ipairs(otherMissions) do
                 if mission.missionName ~= "TimePlayed" then
@@ -1220,16 +1176,15 @@ local function startMissionFarm()
         return missionCompleted
     end
     
-    -- Основная функция для миссий
+    -- Основная функция фарма
     function autoCompleteAllMissions()
-        print("🎯 Запуск выполнения невыполненных миссий...")
+        print("🚀 Запуск выполнения невыполненных миссий...")
         
         while true do
             local uncompleted = getUncompletedMissions()
             
             if #uncompleted == 0 then
                 print("🎉 Все миссии выполнены!")
-                print("🔄 Ждем появления новых миссий...")
                 wait(10)
             else
                 print("📋 Найдено невыполненных миссий: " .. #uncompleted)
@@ -1238,9 +1193,7 @@ local function startMissionFarm()
                 end
                 
                 for i, mission in ipairs(uncompleted) do
-                    print("\n" .. string.rep("-", 40))
-                    print("🎯 Миссия " .. i .. "/" .. #uncompleted .. ": " .. mission.regionName .. " - " .. mission.missionName)
-                    print(string.rep("-", 40))
+                    print("\n🎯 Миссия " .. i .. "/" .. #uncompleted .. ": " .. mission.regionName .. " - " .. mission.missionName)
                     
                     local success = false
                     
@@ -1262,6 +1215,12 @@ local function startMissionFarm()
                     
                     if success then
                         print("✅ Успешно выполнено!")
+                        
+                        -- После выполнения миссии проверяем, не появились ли другие
+                        local newMissions = getUncompletedMissions()
+                        if #newMissions > 0 then
+                            print("🔄 Обнаружены новые миссии, продолжаем...")
+                        end
                     else
                         print("❌ Не удалось выполнить")
                     end
@@ -1275,81 +1234,77 @@ local function startMissionFarm()
         end
     end
     
-    -- Запускаем выполнение миссий
+    -- Запускаем периодические запросы в отдельном потоке
+    spawn(periodicRemoteRequests)
+    
+    -- Запускаем фарм миссий
     autoCompleteAllMissions()
 end
 
 -- ========== ГЛАВНАЯ ЛОГИКА ==========
-print("🔧 Шаг 0: Проверяем смерть...")
+print("\n" .. string.rep("=", 50))
+print("🔧 ЗАПУСК СКРИПТА")
+print(string.rep("=", 50))
+
+print("\n🔧 Шаг 0: Проверяем смерть...")
 local deathHandled = handleDeath()
 
 if deathHandled then
-    print("⏳ Обработка смерти завершена, ждем 2 секунды...")
-    wait(2)
-end
-
-print("🔧 Шаг 1: Проверяем туториал...")
-local tutorialCompleted = completeTutorial()
-
-if tutorialCompleted then
-    print("⏳ Туториал завершен, ждем 2 секунды...")
-    wait(2)
-end
-
-print("🔧 Шаг 2: Закрываем мешающие GUI...")
-local closedSomething = closeAnnoyingGUIs()
-
-if closedSomething then
-    print("⏳ Шаг 3: Ждем 3 секунды...")
+    print("⏳ Обработка смерти завершена, проверяем туториал...")
     
-    -- Ждем 3 секунды и проверяем не появились ли новые мешающие GUI
-    local startTime = tick()
-    local waitTime = 3
+    -- После смерти проверяем туториал
+    print("\n🔧 Проверяем туториал...")
+    local tutorialHandled = handleTutorial()
     
-    while tick() - startTime < waitTime do
-        if hasActiveAnnoyingGUIs() then
-            print("⚠️ Обнаружены новые мешающие GUI, закрываем...")
-            closeAnnoyingGUIs()
-            startTime = tick() -- Сбрасываем таймер
-        end
-        wait(0.5)
+    if tutorialHandled then
+        print("⏳ Ждем 3 секунды...") -- Увеличенный КД
+        wait(3)
     end
     
-    print("✅ Шаг 4: Проверяем что мешающих GUI нет...")
+    print("\n🔧 Проверяем другие GUI...")
+    local otherGUIsHandled = handleOtherGUIs()
     
-    if not hasActiveAnnoyingGUIs() then
-        print("🎉 Нет мешающих GUI, выполняем наши клики!")
-        doOurClicks()
-        
-        -- После наших кликов запускаем фарм миссий
-        print("\n" .. string.rep("=", 50))
-        print("⏳ Переход к фарму миссий через 2 секунды...")
-        print(string.rep("=", 50))
-        wait(2)
-        
-        -- ЗАПУСКАЕМ ФАРМ МИССИЙ
-        startMissionFarm()
-        
-    else
-        print("❌ Все еще есть мешающие GUI, пропускаем наши клики")
-        -- Все равно запускаем фарм
-        wait(2)
-        startMissionFarm()
+    if otherGUIsHandled then
+        print("⏳ Ждем 3 секунды...") -- Увеличенный КД
+        wait(3)
     end
+    
+    print("\n" .. string.rep("=", 50))
+    print("🔧 Запускаем фарм миссий")
+    print(string.rep("=", 50))
+    print("⏳ Ждем 3 секунды...") -- Увеличенный КД
+    wait(3)
+    
+    startMissionFarm()
+    
 else
-    print("✅ Нет мешающих GUI, сразу выполняем наши клики!")
+    -- Если смерти не было, выполняем обычный порядок
+    print("\n🔧 Шаг 1: Проверяем туториал...")
+    local tutorialHandled = handleTutorial()
+    
+    if tutorialHandled then
+        print("⏳ Ждем 3 секунды...") -- Увеличенный КД
+        wait(3)
+    end
+    
+    print("\n🔧 Шаг 2: Проверяем другие GUI...")
+    local otherGUIsHandled = handleOtherGUIs()
+    
+    if otherGUIsHandled then
+        print("⏳ Ждем 3 секунды...") -- Увеличенный КД
+        wait(3)
+    end
+    
+    print("\n🔧 Шаг 3: Выполняем наши клики...")
     doOurClicks()
     
-    -- После наших кликов запускаем фарм миссий
     print("\n" .. string.rep("=", 50))
-    print("⏳ Переход к фарму миссий через 2 секунды...")
+    print("🔧 Шаг 4: Запускаем фарм миссий")
     print(string.rep("=", 50))
-    wait(2)
+    print("⏳ Ждем 3 секунды...") -- Увеличенный КД
+    wait(3)
     
-    -- ЗАПУСКАЕМ ФАРМ МИССИЙ
     startMissionFarm()
 end
 
-print("\n" .. string.rep("=", 50))
-print("✨ ВЕСЬ СКРИПТ ЗАВЕРШЕН!")
-print(string.rep("=", 50))
+print("\n✨ СКРИПТ ЗАВЕРШЕН!")
