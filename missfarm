@@ -836,9 +836,9 @@ local function startMissionFarm()
     
     -- Координаты для телепортации
     local teleportPositions = {
-        Vector3.new(2418.49072, 332.279358, -118.064125),
-        Vector3.new(2518.49072, 332.279358, -118.064125),
-        Vector3.new(2318.49072, 332.279358, -118.064125)
+        Vector3.new(2818.49072, 332.279358, -118.064125),
+        Vector3.new(2218.49072, 332.279358, -118.064125),
+        Vector3.new(2518.49072, 332.279358, -118.064125)
     }
     
     local concealScentPosition = Vector3.new(2434.90479, 277.143066, -1289.48108)
