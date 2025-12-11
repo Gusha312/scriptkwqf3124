@@ -331,7 +331,7 @@ local function handleTutorial()
                 clickAtPosition(cornerX, cornerY)
             end
             
-            wait(5) -- Увеличенный КД
+            wait(15) -- Увеличенный КД
             
             -- 2. КЛИК ПО КНОПКЕ PLAY В EDITORGUI
             print("\n2. Ищем кнопку PlayButton.UpperLabel...")
