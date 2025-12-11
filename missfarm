@@ -67,6 +67,99 @@ local function clickButtonEnhanced(button, buttonName)
     end
 end
 
+-- ========== ФУНКЦИЯ ДЛЯ ОБРАБОТКИ GUI ==========
+local function handleSpecialGUIs()
+    print("\n🎁 Проверка специальных GUI...")
+    
+    local player = game.Players.LocalPlayer
+    local playerGui = player.PlayerGui
+    local handled = false
+    
+    -- Специальные GUI для обработки
+    local specialGuis = {
+        {
+            name = "AdventCalendarGui",
+            path = "ContainerFrame.CloseButton.UpperLabel",
+            clicks = 1,
+            delay = 2
+        },
+        {
+            name = "DailyLoginGui", 
+            path = "ContainerFrame.CurrencyFrame.CloseButton.UpperLabel",
+            clicks = 2,  -- 2 клика с задержкой
+            delay = 2
+        },
+        {
+            name = "UpdateLogGui",
+            path = "ContainerFrame.CloseButton.UpperLabel",
+            clicks = 1,
+            delay = 2
+        },
+        {
+            name = "PromptGui",
+            special = true,  -- Особый случай, просто скрываем
+            delay = 1
+        }
+    }
+    
+    for _, guiInfo in ipairs(specialGuis) do
+        local gui = playerGui:FindFirstChild(guiInfo.name)
+        if gui and gui.Enabled == true then
+            print("🎯 " .. guiInfo.name .. " активен! Обрабатываем...")
+            handled = true
+            
+            if guiInfo.special then
+                -- Для PromptGui просто скрываем
+                gui.Enabled = false
+                print("✅ " .. guiInfo.name .. " скрыт")
+                wait(guiInfo.delay)
+            else
+                -- Для других GUI ищем кнопку закрытия и кликаем
+                local button = gui
+                local pathParts = string.split(guiInfo.path, ".")
+                
+                for _, part in ipairs(pathParts) do
+                    if button then
+                        button = button:FindFirstChild(part)
+                    end
+                end
+                
+                if button then
+                    -- Выполняем нужное количество кликов
+                    for i = 1, guiInfo.clicks do
+                        print("📍 Клик " .. i .. "/" .. guiInfo.clicks .. " по " .. guiInfo.name)
+                        local clicked = clickButtonEnhanced(button, guiInfo.name)
+                        
+                        if not clicked then
+                            print("⚠️ Не удалось кликнуть, делаем обычный клик")
+                            click()
+                        end
+                        
+                        if i < guiInfo.clicks then
+                            wait(guiInfo.delay)
+                        end
+                    end
+                    print("✅ " .. guiInfo.name .. " закрыт")
+                else
+                    print("⚠️ Кнопка закрытия не найдена в " .. guiInfo.name .. ", делаем обычный клик")
+                    click()
+                end
+                
+                wait(guiInfo.delay)
+            end
+        end
+    end
+    
+    if handled then
+        print("⏳ Ждем 3 секунды после закрытия GUI...")
+        wait(3)
+    else
+        print("✅ Нет активных специальных GUI")
+    end
+    
+    return handled
+end
+
 -- ========== ФУНКЦИЯ ДЛЯ КЛИКОВ ПОСЛЕ СОЗДАНИЯ СЛОТА ==========
 local function clickAfterSlotCreation()
     print("\n🎯 Выполняем клики после создания слота...")
@@ -76,6 +169,9 @@ local function clickAfterSlotCreation()
     
     print("⏳ Ждем 5 секунд перед кликами...") -- Увеличенный КД
     wait(5)
+    
+    -- Проверяем специальные GUI
+    handleSpecialGUIs()
     
     -- Пробуем открыть SaveSelectionGui если он не открыт
     local saveSelectionGui = playerGui:FindFirstChild("SaveSelectionGui")
@@ -235,7 +331,7 @@ local function handleTutorial()
                 clickAtPosition(cornerX, cornerY)
             end
             
-            wait(10) -- Увеличенный КД
+            wait(5) -- Увеличенный КД
             
             -- 2. КЛИК ПО КНОПКЕ PLAY В EDITORGUI
             print("\n2. Ищем кнопку PlayButton.UpperLabel...")
@@ -244,7 +340,7 @@ local function handleTutorial()
             if editorGui then
                 if not editorGui.Enabled then
                     editorGui.Enabled = true
-                    wait(4) -- Увеличенный КД
+                    wait(2) -- Увеличенный КД
                 end
                 
                 local upperLabel2 = editorGui.EditFrame.BottomFrame.ButtonsFrame.PlayButton.UpperLabel
@@ -302,15 +398,28 @@ local function handleTutorial()
             
             wait(0.5)
             
+            -- SurvivalBasics
+            local successSurvival, errorSurvival = pcall(function()
+                local ohString1 = "SurvivalBasics"
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(ohString1)
+                print("✅ SurvivalBasics отправлен")
+            end)
+            
+            if not successSurvival then
+                print("⚠️ Ошибка SurvivalBasics: " .. tostring(errorSurvival))
+            end
+            
+            wait(0.1)
+            
             -- Complete
-            local success3, error3 = pcall(function()
-                local args = {"Complete"}
-                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(unpack(args))
+            local successComplete, errorComplete = pcall(function()
+                local ohString1 = "Complete"
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(ohString1)
                 print("✅ Complete отправлен")
             end)
             
-            if not success3 then
-                print("⚠️ Ошибка Complete: " .. tostring(error3))
+            if not successComplete then
+                print("⚠️ Ошибка Complete: " .. tostring(errorComplete))
             end
             
             -- ДОПОЛНИТЕЛЬНО: Проверяем, изменился ли TutorialCompletedAt
@@ -330,12 +439,6 @@ local function handleTutorial()
             
             if newTutorialCompletedAt > 0 then
                 print("🎉 ТУТОРИАЛ УСПЕШНО ЗАВЕРШЕН!")
-            local ohString1 = "SurvivalBasics"
-            game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
-            wait(0.1)
-    
-            local ohString1 = "Complete"
-            game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
             else
                 print("⚠️ Туториал выполнен, но TutorialCompletedAt все еще 0")
             end
@@ -350,42 +453,6 @@ local function handleTutorial()
         print("✅ Туториал уже завершен (TutorialCompletedAt.Value = " .. tostring(tutorialCompletedAt) .. ")")
         return false
     end
-end
-
--- ========== ОБРАБОТКА ДРУГИХ GUI ==========
-local function handleOtherGUIs()
-    print("\n🎁 Проверка других GUI...")
-    
-    local player = game.Players.LocalPlayer
-    local playerGui = player.PlayerGui
-    local handled = false
-    
-    local guisToCheck = {
-        "AdventCalendarGui",
-        "DailyLoginGui", 
-        "UpdateLogGui",
-        "PromptGui"
-    }
-    
-    for _, guiName in ipairs(guisToCheck) do
-        local gui = playerGui:FindFirstChild(guiName)
-        if gui and gui.Enabled == true then
-            print("🎯 " .. guiName .. " активен! Кликаем...")
-            
-            for i = 1, 2 do
-                click()
-                wait(1) -- Увеличенный КД
-            end
-            
-            handled = true
-        end
-    end
-    
-    if not handled then
-        print("✅ Нет активных GUI")
-    end
-    
-    return handled
 end
 
 -- ========== ОБРАБОТКА СМЕРТИ ==========
@@ -592,6 +659,9 @@ local function doOurClicks()
     print("⏳ Ждем 7 секунд перед кликами...") -- Увеличенный КД
     wait(7)
     
+    -- Проверяем специальные GUI
+    handleSpecialGUIs()
+    
     -- Сначала попробуем открыть SaveSelectionGui
     local saveSelectionGui = playerGui:FindFirstChild("SaveSelectionGui")
     
@@ -757,12 +827,12 @@ local function startMissionFarm()
     local regionMissions = missions:WaitForChild("RegionMissions")
     
     -- Ждем ремоуты
-    local ChangeRegionRemote = ReplicatedStorage.Remotes.ChangeRegionRemote
-    local SetMissionRemote = ReplicatedStorage.Remotes.SetMissionRemote
-    local MudRemote = ReplicatedStorage.Remotes.Mud
-    local FoodRemote = ReplicatedStorage.Remotes.Food
-    local DrinkRemote = ReplicatedStorage.Remotes.DrinkRemote
-    local NPCDamageRemoteBreath = ReplicatedStorage.Remotes.NPCDamageRemoteBreath
+    local ChangeRegionRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChangeRegionRemote")
+    local SetMissionRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetMissionRemote")
+    local MudRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Mud")
+    local FoodRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Food")
+    local DrinkRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("DrinkRemote")
+    local NPCDamageRemoteBreath = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("NPCDamageRemoteBreath")
     
     -- Координаты для телепортации
     local teleportPositions = {
@@ -828,51 +898,50 @@ local function startMissionFarm()
     end
     
     -- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ИСПОЛЬЗОВАНИЯ ЕДЫ И ВОДЫ
-    -- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ИСПОЛЬЗОВАНИЯ ЕДЫ И ВОДЫ
-function useFoodAndWater()
-    local currentTime = tick()
-    if currentTime - lastFoodDrinkTime >= 2 then
-        -- ИСПРАВЛЕННЫЙ ПОИСК ЕДЫ: Используем объект из workspace
-        local foodFolder = workspace:WaitForChild("Interactions"):WaitForChild("Food")
-        
-        -- Ищем Carcass (труп) или другую доступную еду
-        local carcass = foodFolder:FindFirstChild("Carcass")
-        
-        if carcass then
-            -- ПРАВИЛЬНЫЙ ФОРМАТ: передаем сам объект carcass
-            local foodArgs = { carcass }
-            FoodRemote:FireServer(unpack(foodArgs))
-            print("🍎 Использована еда: Carcass")
-        else
-            -- Если Carcass нет, ищем другую еду
-            local foodItems = foodFolder:GetChildren()
-            if #foodItems > 0 then
-                -- Берем первый доступный элемент
-                local foodItem = foodItems[1]
-                local foodArgs = { foodItem }
-                FoodRemote:FireServer(unpack(foodArgs))
-                print("🍎 Использована еда: " .. foodItem.Name)
+    function useFoodAndWater()
+        local currentTime = tick()
+        if currentTime - lastFoodDrinkTime >= 2 then
+            -- ИСПРАВЛЕННЫЙ ПОИСК ЕДЫ: Используем рандомный элемент из списка еды
+            local foodFolder = workspace.Interactions.Food
+            local foodChildren = foodFolder:GetChildren()
+            
+            if #foodChildren > 0 then
+                -- Берем случайный элемент
+                local randomIndex = math.random(1, #foodChildren)
+                local foodItem = foodChildren[randomIndex]
+                
+                if foodItem then
+                    local foodArgs = { foodItem }
+                    FoodRemote:FireServer(unpack(foodArgs))
+                    print("🍎 Использована еда: " .. foodItem.Name .. " (случайный элемент #" .. randomIndex .. ")")
+                else
+                    print("⚠️ Рандомный элемент еды не найден")
+                end
             else
-                print("❌ В папке Food нет доступной еды")
+                print("❌ В папке Food нет элементов")
             end
+            
+            -- Используем воду
+            local lake = workspace.Interactions.Lakes:FindFirstChild("Lake")
+            if lake then
+                local drinkArgs = { lake }
+                DrinkRemote:FireServer(unpack(drinkArgs))
+                print("💧 Использована вода")
+            else
+                -- Пробуем найти альтернативный источник воды
+                local waterSource = workspace.Interactions.Lakes:FindFirstChildOfClass("Part")
+                if waterSource then
+                    local drinkArgs = { waterSource }
+                    DrinkRemote:FireServer(unpack(drinkArgs))
+                    print("💧 Использован альтернативный источник воды: " .. waterSource.Name)
+                else
+                    print("⚠️ Вода не найдена")
+                end
+            end
+            
+            lastFoodDrinkTime = currentTime
         end
-        
-        -- Используем воду (аналогичный подход)
-        local lakesFolder = workspace:WaitForChild("Interactions"):WaitForChild("Lakes")
-        local lake = lakesFolder:FindFirstChild("Lake") or lakesFolder:FindFirstChildOfClass("Part")
-        
-        if lake then
-            -- ПРАВИЛЬНЫЙ ФОРМАТ: передаем сам объект lake
-            local drinkArgs = { lake }
-            DrinkRemote:FireServer(unpack(drinkArgs))
-            print("💧 Использована вода: " .. lake.Name)
-        else
-            print("⚠️ Вода не найдена")
-        end
-        
-        lastFoodDrinkTime = currentTime
     end
-end
     
     -- Функция для поиска ближайшего Mud объекта
     function findNearestMud()
@@ -1199,6 +1268,12 @@ end
         print("🚀 Запуск выполнения невыполненных миссий...")
         
         while true do
+            -- Проверяем смерть во время фарма
+            if checkDeathDuringFarm() then
+                print("🔄 После смерти продолжаем фарм...")
+                wait(5)
+            end
+            
             local uncompleted = getUncompletedMissions()
             
             if #uncompleted == 0 then
@@ -1279,13 +1354,8 @@ if deathHandled then
         wait(3)
     end
     
-    print("\n🔧 Проверяем другие GUI...")
-    local otherGUIsHandled = handleOtherGUIs()
-    
-    if otherGUIsHandled then
-        print("⏳ Ждем 3 секунды...") -- Увеличенный КД
-        wait(3)
-    end
+    -- Проверяем специальные GUI
+    handleSpecialGUIs()
     
     print("\n" .. string.rep("=", 50))
     print("🔧 Запускаем фарм миссий")
@@ -1305,19 +1375,14 @@ else
         wait(3)
     end
     
-    print("\n🔧 Шаг 2: Проверяем другие GUI...")
-    local otherGUIsHandled = handleOtherGUIs()
+    -- Проверяем специальные GUI
+    handleSpecialGUIs()
     
-    if otherGUIsHandled then
-        print("⏳ Ждем 3 секунды...") -- Увеличенный КД
-        wait(3)
-    end
-    
-    print("\n🔧 Шаг 3: Выполняем наши клики...")
+    print("\n🔧 Шаг 2: Выполняем наши клики...")
     doOurClicks()
     
     print("\n" .. string.rep("=", 50))
-    print("🔧 Шаг 4: Запускаем фарм миссий")
+    print("🔧 Шаг 3: Запускаем фарм миссий")
     print(string.rep("=", 50))
     print("⏳ Ждем 3 секунды...") -- Увеличенный КД
     wait(3)
