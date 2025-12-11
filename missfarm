@@ -465,7 +465,7 @@ local function handleDeath()
     local deathGui = playerGui:FindFirstChild("DeathGui")
     if deathGui and deathGui.Enabled == true then
         print("💀 DeathGui активен! Обрабатываем...")
-        
+        wait(10)
         local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
         
         -- Используем улучшенную функцию для клика по Return
