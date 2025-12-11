@@ -269,8 +269,9 @@ local function handleTutorial()
                 click()
             end
             
-            -- Ждем перед отправкой Remote запросов
-            wait(3)
+            -- Ждем 2 секунды после спавна перед отправкой Remote запросов
+            print("⏳ Ждем 2 секунды после спавна...")
+            wait(2)
             
             -- 3. REMOTE ЗАПРОСЫ ДЛЯ ЗАВЕРШЕНИЯ ТУТОРИАЛА
             print("\n3. Выполняем Remote запросы для завершения туториала...")
@@ -286,7 +287,7 @@ local function handleTutorial()
                 print("⚠️ Ошибка SniffWater: " .. tostring(error1))
             end
             
-            wait(1)
+            wait(0.5)
             
             -- SniffFood
             local success2, error2 = pcall(function()
@@ -299,7 +300,7 @@ local function handleTutorial()
                 print("⚠️ Ошибка SniffFood: " .. tostring(error2))
             end
             
-            wait(1)
+            wait(0.5)
             
             -- Complete
             local success3, error3 = pcall(function()
@@ -329,6 +330,12 @@ local function handleTutorial()
             
             if newTutorialCompletedAt > 0 then
                 print("🎉 ТУТОРИАЛ УСПЕШНО ЗАВЕРШЕН!")
+            local ohString1 = "SurvivalBasics"
+            game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
+            wait(0.1)
+    
+            local ohString1 = "Complete"
+            game:GetService("ReplicatedStorage").Remotes.SetTutorialStageRemote:InvokeServer(ohString1)
             else
                 print("⚠️ Туториал выполнен, но TutorialCompletedAt все еще 0")
             end
@@ -770,8 +777,6 @@ local function startMissionFarm()
     local lastFoodDrinkTime = 0
     local lastAttackTime = 0
     local lastDeathCheck = 0
-    local foodItems = {"NPC Carcass", "Grass", "Fruit", "Ribs", "Plant"}
-    local currentFoodIndex = 1
     
     -- Список миссий которые нужно игнорировать
     local ignoreMissions = {
@@ -822,39 +827,52 @@ local function startMissionFarm()
         end
     end
     
-    -- Функция для использования еды и воды
-    function useFoodAndWater()
-        local currentTime = tick()
-        if currentTime - lastFoodDrinkTime >= 2 then
-            -- Используем еду
-            local foodName = foodItems[currentFoodIndex]
-            local food = workspace.Interactions.Food:FindFirstChild(foodName)
-            if food then
-                local foodArgs = { food }
+    -- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ИСПОЛЬЗОВАНИЯ ЕДЫ И ВОДЫ
+    -- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ИСПОЛЬЗОВАНИЯ ЕДЫ И ВОДЫ
+function useFoodAndWater()
+    local currentTime = tick()
+    if currentTime - lastFoodDrinkTime >= 2 then
+        -- ИСПРАВЛЕННЫЙ ПОИСК ЕДЫ: Используем объект из workspace
+        local foodFolder = workspace:WaitForChild("Interactions"):WaitForChild("Food")
+        
+        -- Ищем Carcass (труп) или другую доступную еду
+        local carcass = foodFolder:FindFirstChild("Carcass")
+        
+        if carcass then
+            -- ПРАВИЛЬНЫЙ ФОРМАТ: передаем сам объект carcass
+            local foodArgs = { carcass }
+            FoodRemote:FireServer(unpack(foodArgs))
+            print("🍎 Использована еда: Carcass")
+        else
+            -- Если Carcass нет, ищем другую еду
+            local foodItems = foodFolder:GetChildren()
+            if #foodItems > 0 then
+                -- Берем первый доступный элемент
+                local foodItem = foodItems[1]
+                local foodArgs = { foodItem }
                 FoodRemote:FireServer(unpack(foodArgs))
-                print("🍎 Использована еда: " .. foodName)
+                print("🍎 Использована еда: " .. foodItem.Name)
             else
-                print("⚠️ Еда не найдена: " .. foodName)
+                print("❌ В папке Food нет доступной еды")
             end
-            
-            -- Используем воду
-            local lake = workspace.Interactions.Lakes:FindFirstChild("Lake")
-            if lake then
-                local drinkArgs = { lake }
-                DrinkRemote:FireServer(unpack(drinkArgs))
-                print("💧 Использована вода")
-            else
-                print("⚠️ Вода не найдена")
-            end
-            
-            currentFoodIndex = currentFoodIndex + 1
-            if currentFoodIndex > #foodItems then
-                currentFoodIndex = 1
-            end
-            
-            lastFoodDrinkTime = currentTime
         end
+        
+        -- Используем воду (аналогичный подход)
+        local lakesFolder = workspace:WaitForChild("Interactions"):WaitForChild("Lakes")
+        local lake = lakesFolder:FindFirstChild("Lake") or lakesFolder:FindFirstChildOfClass("Part")
+        
+        if lake then
+            -- ПРАВИЛЬНЫЙ ФОРМАТ: передаем сам объект lake
+            local drinkArgs = { lake }
+            DrinkRemote:FireServer(unpack(drinkArgs))
+            print("💧 Использована вода: " .. lake.Name)
+        else
+            print("⚠️ Вода не найдена")
+        end
+        
+        lastFoodDrinkTime = currentTime
     end
+end
     
     -- Функция для поиска ближайшего Mud объекта
     function findNearestMud()
