@@ -235,7 +235,7 @@ local function handleTutorial()
                 clickAtPosition(cornerX, cornerY)
             end
             
-            wait(5) -- Увеличенный КД
+            wait(10) -- Увеличенный КД
             
             -- 2. КЛИК ПО КНОПКЕ PLAY В EDITORGUI
             print("\n2. Ищем кнопку PlayButton.UpperLabel...")
@@ -244,7 +244,7 @@ local function handleTutorial()
             if editorGui then
                 if not editorGui.Enabled then
                     editorGui.Enabled = true
-                    wait(2) -- Увеличенный КД
+                    wait(4) -- Увеличенный КД
                 end
                 
                 local upperLabel2 = editorGui.EditFrame.BottomFrame.ButtonsFrame.PlayButton.UpperLabel
