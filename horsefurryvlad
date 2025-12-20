@@ -1,0 +1,349 @@
+-- ════════════════════════════════════════════════════
+-- HL STATISTICS SENDER v1.0
+-- Автоматическая отправка статистики каждые 5 минут
+-- ====================================================
+
+-- ==== КОНФИГУРАЦИЯ ====
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
+local UPDATE_INTERVAL = 300 -- 5 минут в секундах
+local INITIAL_DELAY = 2 -- Задержка перед первой отправкой
+
+-- ==== ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ СТАТИСТИКИ HL ====
+local function getHLStats()
+    local player = game:GetService("Players").LocalPlayer
+    local username = player.Name
+    local displayName = player.DisplayName
+    
+    -- Получаем серебро
+    local silver = 0
+    pcall(function()
+        -- Основной путь для серебра
+        silver = player.PlayerGui.Data.Currency.Coins.Value
+    end)
+    
+    -- Альтернативные пути для серебра
+    if silver == 0 then
+        pcall(function()
+            silver = player.Data.Currency.Coins.Value
+        end)
+    end
+    
+    if silver == 0 then
+        pcall(function()
+            silver = player.leaderstats.Coins.Value
+        end)
+    end
+    
+    if silver == 0 then
+        pcall(function()
+            silver = player.leaderstats.Silver.Value
+        end)
+    end
+    
+    if silver == 0 then
+        pcall(function()
+            silver = player.leaderstats.Money.Value
+        end)
+    end
+    
+    -- Дополнительные ресурсы (если есть)
+    local additionalStats = ""
+    local foundAdditional = false
+    
+    -- Проверяем наличие других ресурсов
+    if pcall(function()
+        local gold = player.PlayerGui.Data.Currency.Gold.Value
+        if gold > 0 then
+            additionalStats = additionalStats .. "• Золото: " .. gold .. "\n"
+            foundAdditional = true
+        end
+    end) then end
+    
+    if pcall(function()
+        local gems = player.PlayerGui.Data.Currency.Gems.Value
+        if gems > 0 then
+            additionalStats = additionalStats .. "• Самоцветы: " .. gems .. "\n"
+            foundAdditional = true
+        end
+    end) then end
+    
+    if pcall(function()
+        local crystals = player.PlayerGui.Data.Currency.Crystals.Value
+        if crystals > 0 then
+            additionalStats = additionalStats .. "• Кристаллы: " .. crystals .. "\n"
+            foundAdditional = true
+        end
+    end) then end
+    
+    if pcall(function()
+        local tokens = player.PlayerGui.Data.Currency.Tokens.Value
+        if tokens > 0 then
+            additionalStats = additionalStats .. "• Токены: " .. tokens .. "\n"
+            foundAdditional = true
+        end
+    end) then end
+    
+    -- Проверяем уровень (если есть)
+    local level = ""
+    if pcall(function()
+        local lvl = player.PlayerGui.Data.Level.Value
+        if lvl > 0 then
+            level = "**Уровень:** " .. lvl .. "\n\n"
+        end
+    end) then end
+    
+    -- Проверяем опыт (если есть)
+    local xp = ""
+    if pcall(function()
+        local exp = player.PlayerGui.Data.XP.Value
+        if exp > 0 then
+            xp = "**Опыт:** " .. exp .. "\n\n"
+        end
+    end) then end
+    
+    -- Формируем сообщение
+    local message = string.format([[
+**СТАТИСТИКА HL:**
+👤 **Ник аккаунта:** %s (@%s)
+
+%s%s🛡️ **Серебро:** %d
+    ]], displayName, username, level, xp, silver)
+    
+    -- Добавляем дополнительные ресурсы если есть
+    if foundAdditional then
+        message = message .. "\n\n💎 **Дополнительные ресурсы:**\n" .. additionalStats
+    end
+    
+    -- Добавляем время и следующее обновление
+    local currentTime = os.date("%H:%M:%S")
+    local nextUpdate = os.time() + UPDATE_INTERVAL
+    local nextTime = os.date("%H:%M:%S", nextUpdate)
+    
+    message = message .. string.format([[
+    
+⏰ **Время отправки:** %s
+🔄 **Следующее обновление:** %s
+🎮 **Игра:** HL
+    ]], currentTime, nextTime)
+    
+    return message, silver
+end
+
+-- ==== ФУНКЦИЯ ОТПРАВКИ НА DISCORD ====
+local function sendStatsToWebhook()
+    print("🔄 Получение статистики HL...")
+    
+    local message, silver = getHLStats()
+    
+    print("✅ Статистика получена:")
+    print("👤 Игрок: " .. game:GetService("Players").LocalPlayer.Name)
+    print("🛡️ Серебро: " .. silver)
+    
+    -- Отправляем на вебхук
+    pcall(function()
+        local http = game:GetService("HttpService")
+        local headers = {
+            ["Content-Type"] = "application/json"
+        }
+        local data = {
+            ["content"] = message
+        }
+        
+        request({
+            Url = WEBHOOK_URL,
+            Method = "POST",
+            Headers = headers,
+            Body = http:JSONEncode(data)
+        })
+        
+        print("📤 Статистика отправлена на Discord!")
+    end)
+end
+
+-- ==== ОСНОВНАЯ ЛОГИКА ====
+print("🎮 HL Statistics Sender запущен!")
+print("⏳ Ожидание " .. INITIAL_DELAY .. " секунд перед первой отправкой...")
+print("🔄 Автоотправка каждые " .. UPDATE_INTERVAL .. " секунд")
+
+-- Ждем и делаем первую отправку
+wait(INITIAL_DELAY)
+
+local success, errorMsg = pcall(sendStatsToWebhook)
+if success then
+    print("✅ Первая отправка выполнена успешно!")
+else
+    print("❌ Ошибка при первой отправке: " .. tostring(errorMsg))
+end
+
+-- ==== БЕСКОНЕЧНЫЙ ЦИКЛ ОТПРАВКИ ====
+while true do
+    -- Рассчитываем время следующей отправки
+    local nextUpdate = os.time() + UPDATE_INTERVAL
+    local nextTime = os.date("%H:%M:%S", nextUpdate)
+    
+    print("\n⏳ Ожидание " .. UPDATE_INTERVAL .. " секунд до следующей отправки...")
+    print("⏰ Следующая отправка в: " .. nextTime)
+    
+    -- Ждем указанное время
+    wait(UPDATE_INTERVAL)
+    
+    print("🔄 Отправляю статистику HL...")
+    
+    -- Пытаемся отправить статистику
+    local success, errorMsg = pcall(sendStatsToWebhook)
+    
+    if success then
+        print("✅ Статистика успешно отправлена!")
+        
+        -- Получаем текущее время для логов
+        local currentTime = os.date("%H:%M:%S")
+        print("🕐 Время отправки: " .. currentTime)
+        
+        -- Рассчитываем следующее обновление
+        local nextUpdate = os.time() + UPDATE_INTERVAL
+        local nextTime = os.date("%H:%M:%S", nextUpdate)
+        print("⏳ Следующая отправка в: " .. nextTime)
+    else
+        print("❌ Ошибка при отправке статистики: " .. tostring(errorMsg))
+        
+        -- Пробуем еще раз через 30 секунд при ошибке
+        print("🔄 Повторная попытка через 30 секунд...")
+        wait(30)
+        
+        local retrySuccess = pcall(sendStatsToWebhook)
+        if retrySuccess then
+            print("✅ Повторная отправка выполнена успешно!")
+        end
+    end
+    
+    print("🔄 Ожидание " .. UPDATE_INTERVAL .. " секунд до следующей отправки...")
+end
+
+-- ════════════════════════════════════════════════════
+-- АЛЬТЕРНАТИВНЫЙ ВАРИАНТ С ПРОВЕРКОЙ СОДЕРЖИМОГО
+-- ════════════════════════════════════════════════════
+
+--[[
+-- Если нужна проверка содержимого перед отправкой:
+local function getDetailedHLStats()
+    local player = game:GetService("Players").LocalPlayer
+    local username = player.Name
+    local displayName = player.DisplayName
+    
+    -- Собираем все доступные данные
+    local stats = {}
+    
+    -- Основные валюты
+    local currencies = {"Coins", "Silver", "Gold", "Gems", "Crystals", "Tokens", "Money"}
+    for _, currency in ipairs(currencies) do
+        pcall(function()
+            -- Пробуем разные пути
+            local paths = {
+                "PlayerGui.Data.Currency." .. currency,
+                "Data.Currency." .. currency,
+                "leaderstats." .. currency,
+                "PlayerGui.Data." .. currency
+            }
+            
+            for _, path in ipairs(paths) do
+                local success, value = pcall(function()
+                    local obj = player
+                    for part in path:gmatch("[^%.]+") do
+                        obj = obj:WaitForChild(part)
+                    end
+                    return obj.Value
+                end)
+                
+                if success and value > 0 then
+                    stats[currency] = value
+                    break
+                end
+            end
+        end)
+    end
+    
+    -- Уровень и опыт
+    pcall(function()
+        local levelPaths = {"PlayerGui.Data.Level", "Data.Level", "leaderstats.Level"}
+        for _, path in ipairs(levelPaths) do
+            local success, value = pcall(function()
+                local obj = player
+                for part in path:gmatch("[^%.]+") do
+                    obj = obj:WaitForChild(part)
+                end
+                return obj.Value
+            end)
+            
+            if success and value > 0 then
+                stats.Level = value
+                break
+            end
+        end
+    end)
+    
+    pcall(function()
+        local xpPaths = {"PlayerGui.Data.XP", "Data.XP", "leaderstats.XP", "PlayerGui.Data.Experience"}
+        for _, path in ipairs(xpPaths) do
+            local success, value = pcall(function()
+                local obj = player
+                for part in path:gmatch("[^%.]+") do
+                    obj = obj:WaitForChild(part)
+                end
+                return obj.Value
+            end)
+            
+            if success and value > 0 then
+                stats.XP = value
+                break
+            end
+        end
+    end)
+    
+    -- Формируем сообщение
+    local message = "**СТАТИСТИКА HL:**\n"
+    message = message .. "👤 **Ник аккаунта:** " .. displayName .. " (@" .. username .. ")\n\n"
+    
+    if stats.Level then
+        message = message .. "📊 **Уровень:** " .. stats.Level .. "\n"
+    end
+    
+    if stats.XP then
+        message = message .. "⭐ **Опыт:** " .. stats.XP .. "\n"
+    end
+    
+    message = message .. "\n💰 **Ресурсы:**\n"
+    
+    -- Добавляем все найденные ресурсы
+    for currency, value in pairs(stats) do
+        if currency ~= "Level" and currency ~= "XP" and value > 0 then
+            local icon = "•"
+            if currency == "Coins" or currency == "Silver" then
+                icon = "🛡️"
+            elseif currency == "Gold" then
+                icon = "🥇"
+            elseif currency == "Gems" then
+                icon = "💎"
+            elseif currency == "Crystals" then
+                icon = "🔮"
+            elseif currency == "Tokens" then
+                icon = "🎫"
+            end
+            
+            message = message .. icon .. " " .. currency .. ": " .. value .. "\n"
+        end
+    end
+    
+    -- Добавляем время
+    local currentTime = os.date("%H:%M:%S")
+    message = message .. "\n⏰ **Время:** " .. currentTime
+    
+    return message, stats
+end
+--]]
+
+print("\n" .. string.rep("=", 60))
+print("✅ СКРИПТ HL ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
+print("🎮 Игра: HL")
+print("🔄 Интервал: каждые " .. UPDATE_INTERVAL .. " секунд")
+print("📤 Вебхук: настроен")
+print(string.rep("=", 60))
