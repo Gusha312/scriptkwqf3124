@@ -1,0 +1,107 @@
+-- Функция для отправки статистики на Discord
+local function sendStatsToWebhook()
+    local player = game:GetService("Players").LocalPlayer
+    local webhookUrl = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
+    
+    -- Получаем данные
+    local username = player.Name
+    local displayName = player.DisplayName
+    
+    -- Получаем коины
+    local coins = 0
+    pcall(function()
+        coins = player.Data.Currency.Coins.Value
+    end)
+    
+    -- Получаем количество еды
+    local coconut = 0
+    local cacaoBean = 0
+    local avocado = 0
+    
+    pcall(function()
+        coconut = player.Data.Resources.Coconut.Value
+        cacaoBean = player.Data.Resources.CacaoBean.Value
+        avocado = player.Data.Resources.Avacado.Value
+    end)
+    
+    -- Рассчитываем стоимость еды
+    local coconutValue = coconut * 18
+    local cacaoBeanValue = cacaoBean * 35
+    local avocadoValue = avocado * 23
+    local totalFoodValue = coconutValue + cacaoBeanValue + avocadoValue
+    
+    -- Общая стоимость (коины + еда)
+    local totalValue = coins + totalFoodValue
+    
+    -- Формируем сообщение
+    local message = string.format([[
+**СТАТИСТИКА:**
+👤 **Ник аккаунта:** %s (@%s)
+
+💰 **Коины:** %d
+
+🥥 **Еда:**
+• Кокосы: %d шт. (стоимость: %d)
+• Какао-бобы: %d шт. (стоимость: %d)
+• Авокадо: %d шт. (стоимость: %d)
+
+📊 **Общая стоимость еды:** %d
+🏦 **Общая стоимость (коины + еда):** %d
+    ]], displayName, username, coins, 
+    coconut, coconutValue,
+    cacaoBean, cacaoBeanValue,
+    avocado, avocadoValue,
+    totalFoodValue, totalValue)
+    
+    -- Отправляем на вебхук
+    pcall(function()
+        local http = game:GetService("HttpService")
+        local headers = {
+            ["Content-Type"] = "application/json"
+        }
+        local data = {
+            ["content"] = message
+        }
+        
+        request({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = headers,
+            Body = http:JSONEncode(data)
+        })
+    end)
+end
+
+-- Первая отправка сразу при запуске
+wait(2)
+sendStatsToWebhook()
+print("📊 Первая отправка статистики выполнена!")
+
+-- Бесконечный цикл отправки каждые 5 минут (300 секунд)
+while true do
+    wait(300) -- 5 минут = 300 секунд
+    
+    print("🕐 Прошло 5 минут, отправляю статистику...")
+    
+    -- Повторно получаем данные и отправляем
+    local success = pcall(function()
+        sendStatsToWebhook()
+    end)
+    
+    if success then
+        print("✅ Статистика успешно отправлена на вебхук")
+        
+        -- Получаем текущее время для логов
+        local currentTime = os.date("%H:%M:%S")
+        print("⏰ Время отправки: " .. currentTime)
+        
+        -- Считаем и отображаем следующую отправку
+        local nextTime = os.time() + 300
+        local nextTimeFormatted = os.date("%H:%M:%S", nextTime)
+        print("⏳ Следующая отправка в: " .. nextTimeFormatted)
+    else
+        print("❌ Ошибка при отправке статистики")
+    end
+    
+    print("🔄 Ожидание 5 минут до следующей отправки...")
+end
