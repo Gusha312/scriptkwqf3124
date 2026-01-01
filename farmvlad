@@ -37,7 +37,7 @@ local function sendStatsToWebhook()
     end)
     
     -- Рассчитываем валюту (грибы)
-    local mushroomCurrency = (tikets * 100) + (sweetGacha * 50) + (monsterGacha * 50) + (mechaGacha * 5) + (explorerGacha * 5) + (galaxyGacha * 5)
+    local mushroomCurrency = (tikets * 800) + (sweetGacha * 50) + (monsterGacha * 50) + (mechaGacha * 5) + (explorerGacha * 5) + (galaxyGacha * 5)
     
     -- Формируем сообщение
     local message = string.format([[
