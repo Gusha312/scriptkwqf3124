@@ -1,5 +1,5 @@
 -- Получаем вебхук из глобальной переменной или используем дефолтный
-local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/141248120326330489830/wq6fMRWEnGhEDhruEv7jG4ge2V73LT6rp1KPNqofXSLo5SHz8hr188AblViZLHbvjoIo"
+local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1458175374310773022/6CySzBLqZwamvppCi-BtywbO2OQ6ukXd3lMADvdfGyYNnIRk9aqA7JJJebfcqXDKj5Of"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,6 +8,14 @@ local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+
+-- ДОБАВЛЕНО: Лимит монет для телепортации в обычный мир
+local COINS_LIMIT_FOR_NORMAL_WORLD = 1000  -- Установите нужное значение
+
+-- ДОБАВЛЕНО: Конфигурация CoS статистики (только для трейд-мира)
+local COS_STATS_WEBHOOK = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
+local COS_UPDATE_INTERVAL = 300  -- 5 минут
+local COS_INITIAL_DELAY = 2
 
 print("🤖 Скрипт запущен! Вебхук: " .. DISCORD_WEBHOOK)
 
@@ -25,6 +33,133 @@ end
 local MAX_FPS = 360
 local MIN_FPS = 5
 local RENDER = true
+
+-- Функция для получения количества монет
+local function getCoins()
+    local success, coins = pcall(function()
+        return localPlayer.Data.Coins.Value
+    end)
+    
+    if success then
+        return coins
+    else
+        warn("❌ Не удалось получить количество монет")
+        return 0
+    end
+end
+
+-- ДОБАВЛЕНА: Функция форматирования чисел для CoS статистики
+local function formatCoSNumber(value)
+    local str = tostring(value)
+    return str:reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
+end
+
+-- ДОБАВЛЕНА: Функция сбора CoS статистики (работает только в трейд-мире)
+local function getCoSStats()
+    if not isTargetWorld then
+        return nil
+    end
+    
+    local username = localPlayer.Name
+    local displayName = localPlayer.DisplayName
+    
+    local success, data = pcall(function()
+        return localPlayer:WaitForChild("Data")
+    end)
+    
+    if not success then
+        warn("❌ Не удалось получить Data игрока для CoS статистики")
+        return nil
+    end
+    
+    local revives = data.Items.CreatureReviveToken.Value
+    local maxGrows = data.Items.FullGrowToken.Value
+    local shooms = data.Coins.Value
+    local turnover = data.MarketStalls.ShoomsRaised.Value
+    
+    -- Формируем сообщение БЕЗ звездочек
+    local message = string.format([[
+СТАТИСТИКА АККАУНТА (CoS):
+👤 Ник: %s (@%s)
+
+🦴 Ревайв-токены: %s
+🌱 Фулл-гроу токены: %s
+🍄 Количество грибочков: %s 🍄
+🏪 Оборот в лавке: %s 🍄
+
+⏰ Время обновления: %s
+🔄 Следующее через: 5 минут
+]], 
+    displayName, 
+    username, 
+    formatCoSNumber(revives), 
+    formatCoSNumber(maxGrows), 
+    formatCoSNumber(shooms), 
+    formatCoSNumber(turnover),
+    os.date("%H:%M:%S")
+    )
+    
+    return message
+end
+
+-- ДОБАВЛЕНА: Функция отправки CoS статистики (только в трейд-мире)
+local function sendCoSStats()
+    if not isTargetWorld then
+        return
+    end
+    
+    local success, content = pcall(getCoSStats)
+    if not success then 
+        print("❌ Ошибка сбора данных CoS: " .. tostring(content))
+        return 
+    end
+
+    if not content then
+        return
+    end
+
+    local success, errorMsg = pcall(function()
+        local response = request({
+            Url = COS_STATS_WEBHOOK,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode({["content"] = content})
+        })
+        return response
+    end)
+    
+    if success then
+        print("✅ CoS статистика отправлена в Discord!")
+    else
+        warn("❌ Ошибка отправки CoS статистики: " .. tostring(errorMsg))
+    end
+end
+
+-- ДОБАВЛЕНА: Функция запуска CoS статистики (только в трейд-мире)
+local function startCoSStatsTimer()
+    if not isTargetWorld then
+        print("🚫 CoS статистика отключена (не трейд-мир)")
+        return
+    end
+    
+    print("🚀 CoS Stat-Sender запущен (только для трейд-мира)!")
+    task.wait(COS_INITIAL_DELAY)
+    
+    while isTargetWorld do
+        sendCoSStats()
+        
+        -- Ждем указанный интервал, но проверяем не изменился ли мир
+        for i = 1, COS_UPDATE_INTERVAL do
+            if game.PlaceId ~= 5233782396 then
+                print("🌍 Мир изменился, останавливаем CoS статистику")
+                return
+            end
+            wait(1)
+        end
+    end
+end
 
 -- Функция для установки FPS лимита (если доступна)
 local function setFpsCap(fps)
@@ -116,15 +251,7 @@ local function sendDiscordWebhook()
         return false
     end
     
-    local success, coins = pcall(function()
-        return localPlayer.Data.Coins.Value
-    end)
-    
-    if not success then
-        warn("❌ Не удалось получить количество монет")
-        return false
-    end
-    
+    local coins = getCoins()
     local playerName = localPlayer.Name
     
     local embed = {
@@ -354,22 +481,46 @@ local function checkWorldForStalls()
     return true
 end
 
--- Улучшенная проверка условий телепортации
+-- ДОБАВЛЕНА: Проверка условий телепортации с учетом монет
 local function checkTeleportConditions()
     local currentPlayers = #Players:GetPlayers()
     local currentPlaceId = game.PlaceId
+    local coins = getCoins()
     
     print("📍 Текущий плейс ID:", currentPlaceId)
     print("👥 Игроков на сервере:", currentPlayers)
+    print("💰 Монет у игрока:", coins)
     
-    -- Если текущий плейс = 5233782396, телепортироваться в 14119723130 на лучший сервер
-    if currentPlaceId == 5233782396 then
-        print("🚀 Обнаружен плейс 5233782396, ищем лучший сервер в 14119723130...")
+    -- ДОБАВЛЕНО: Проверка лимита монет
+    if coins >= COINS_LIMIT_FOR_NORMAL_WORLD then
+        print("💰💰💰 ЛИМИТ МОНЕТ ДОСТИГНУТ! ("..coins.." >= "..COINS_LIMIT_FOR_NORMAL_WORLD..")")
+        
+        -- Если мы в трейд-мире (5233782396) и достигли лимита монет
+        if currentPlaceId == 5233782396 then
+            print("🚫 ТЕЛЕПОРТАЦИЯ В ТРЕЙД-МИР ЗАПРЕЩЕНА! Остаемся в обычном мире")
+            return false  -- Не телепортируемся в трейд-мир
+        end
+        
+        -- Если мы в обычном мире с большим количеством монет
+        if currentPlaceId ~= 5233782396 then
+            print("✅ Остаемся в обычном мире (достаточно монет)")
+            -- Проверяем только сервер с малым онлайном
+            if currentPlayers <= 20 then
+                print("🔁 Мало игроков ("..currentPlayers.."), ищем лучший сервер в обычном мире...")
+                return teleportToBestServer(currentPlaceId)
+            end
+            return false  -- Не телепортируемся в трейд-мир
+        end
+    end
+    
+    -- Если текущий плейс = 5233782396 (трейд-мир) и монет меньше лимита
+    if currentPlaceId == 5233782396 and coins < COINS_LIMIT_FOR_NORMAL_WORLD then
+        print("🚀 Монет меньше лимита, ищем лучший сервер в 14119723130...")
         return teleportToBestServer(14119723130)
     end
     
-    -- Если игроков <= 20, перезайти в игру на лучший сервер (только для обычных миров)
-    if currentPlayers <= 20 and not isTargetWorld then
+    -- Если игроков <= 20 и монет меньше лимита, перезайти в игру на лучший сервер
+    if currentPlayers <= 20 and coins < COINS_LIMIT_FOR_NORMAL_WORLD and not isTargetWorld then
         print("🔁 Мало игроков ("..currentPlayers.."), ищем лучший сервер...")
         return teleportToBestServer(currentPlaceId)
     end
@@ -447,17 +598,22 @@ end
 -- Основная функция
 local function main()
     print("🎯 Скрипт запущен!")
+    print("💰 Лимит монет для остатка в обычном мире: " .. COINS_LIMIT_FOR_NORMAL_WORLD)
     print("⚡ Оптимизация FPS активна: "..MAX_FPS.." FPS (в фокусе), "..MIN_FPS.." FPS (не в фокусе)")
     print("🎨 Рендеринг: "..(RENDER and "включен" or "выключен"))
     
     if isTargetWorld then
-        print("🔒 РЕЖИМ ТЕЛЕПОРТАЦИИ: Все функции кроме телепортации отключены")
+        print("🔒 РЕЖИМ ТРЕЙД-МИРА: Включен CoS статистик-отправитель")
+        print("📊 CoS статистика будет отправляться каждые 5 минут")
     end
     
     local antiAFKConnection = setupAntiAFK()
     
-    -- Запускаем таймер вебхука только в обычных мирах
-    if not isTargetWorld then
+    -- ДОБАВЛЕНО: Запускаем CoS статистику в отдельном потоке (только в трейд-мире)
+    if isTargetWorld then
+        coroutine.wrap(startCoSStatsTimer)()
+    else
+        -- В обычном мире запускаем обычный вебхук
         coroutine.wrap(startWebhookTimer)()
         sendDiscordWebhook()
     end
