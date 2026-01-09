@@ -10,7 +10,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 -- ДОБАВЛЕНО: Лимит монет для телепортации в обычный мир
-local COINS_LIMIT_FOR_NORMAL_WORLD = 1000  -- Установите нужное значение
+local COINS_LIMIT_FOR_NORMAL_WORLD = 7000123  -- Установите нужное значение
 
 -- ДОБАВЛЕНО: Конфигурация CoS статистики (только для трейд-мира)
 local COS_STATS_WEBHOOK = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
