@@ -2,7 +2,6 @@
 local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1458175374310773022/6CySzBLqZwamvppCi-BtywbO2OQ6ukXd3lMADvdfGyYNnIRk9aqA7JJJebfcqXDKj5Of"
 local COS_STATS_WEBHOOK = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
 
--- Лимит 7 миллионов
 local COINS_LIMIT_FOR_NORMAL_WORLD = 7000000 
 local TRADE_WORLD_ID = 14119723130
 local NORMAL_WORLD_ID = 5233782396
@@ -20,61 +19,102 @@ local currentPlaceId = game.PlaceId
 local isTradeWorld = currentPlaceId == TRADE_WORLD_ID
 local isNormalWorld = currentPlaceId == NORMAL_WORLD_ID
 
--- [[ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ]]
+-- [[ УМНАЯ ТЕЛЕПОРТАЦИЯ (ФИКС ОШИБКИ 772) ]]
+local function teleportToAvailableServer(targetPlaceId)
+    print("🔍 Поиск активного сервера со свободными местами (защита от 772)...")
+    
+    local success, result = pcall(function()
+        local url = "https://games.roblox.com/v1/games/" .. targetPlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
+        local response = request({ Url = url, Method = "GET" })
+        return HttpService:JSONDecode(response.Body).data
+    end)
+    
+    if success and result then
+        for _, server in ipairs(result) do
+            -- Проверяем наличие минимум 2 свободных мест
+            local freeSlots = (server.maxPlayers or 30) - server.playing
+            if server.id ~= game.JobId and freeSlots >= 2 then
+                print("✅ Сервер найден! Игроков: " .. server.playing .. ". Телепортация...")
+                TeleportService:TeleportToPlaceInstance(targetPlaceId, server.id, localPlayer)
+                return true
+            end
+        end
+    end
+    
+    print("⚠️ Оптимальные серверы не найдены, использую стандартный телепорт.")
+    TeleportService:Teleport(targetPlaceId, localPlayer)
+end
 
+-- [[ ПРОВЕРКА ПРИ ВХОДЕ В МИР ]]
+if isNormalWorld then
+    print("🚀 Обнаружен Обычный Мир. Принудительный переход в Трейд Мир...")
+    task.wait(1.5)
+    teleportToAvailableServer(TRADE_WORLD_ID)
+end
+
+-- [[ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ]]
 local function getCoins()
     local success, coins = pcall(function() return localPlayer.Data.Coins.Value end)
     return success and coins or 0
 end
 
 local function formatNumber(value)
-    local str = tostring(value)
+    local str = tostring(value or 0)
     return str:reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
 end
 
--- Поиск лучшего сервера
-local function findBestServer(placeId)
-    local success, servers = pcall(function()
-        local response = request({
-            Url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100",
-            Method = "GET"
-        })
-        return HttpService:JSONDecode(response.Body).data
-    end)
+-- [[ ЛОГИКА ЛАВОК (ПОЛНЫЕ CFRAME) ]]
+local stallCFrames = {
+    CFrame.new(-115.76767, 31.4889774, -83.580658, -0.882971644, -0.469426453, -1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, -0.469426453, 0.882971644, 5.40614128e-05),
+    CFrame.new(-80.3615417, 31.4889774, -23.9790859, -0.0349992514, -0.999387324, 4.3451786e-05, -4.3451786e-05, 4.50015068e-05, 1, -0.999387324, 0.0349992514, -4.50611115e-05),
+    CFrame.new(-85.1257629, 31.4889774, 0.639569223, 0.342006564, -0.939697623, -7.00354576e-06, -7.00354576e-06, -1.00135803e-05, 1, -0.939697623, -0.342006564, -1.00135803e-05),
+    CFrame.new(-142.565216, 31.4889774, -92.6095505, -0.99452734, -0.104477406, 2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, -0.104477406, 0.99452728, -5.25712967e-05),
+    CFrame.new(-168.641525, 31.4889774, -90.8674011, -0.97028327, 0.241971374, -2.48849392e-06, 2.48849392e-06, 2.02655792e-05, 0.99999994, 0.241971374, 0.970283329, -2.02655792e-05),
+    CFrame.new(-191.504898, 31.4889774, -81.1337967, -0.787993431, 0.615683556, 1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, 0.615683556, 0.78799355, 4.12464142e-05),
+    CFrame.new(-160.504944, 31.4889774, 46.381073, 0.99452728, 0.104477406, -2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, 0.104477406, -0.99452728, 5.2511692e-05),
+    CFrame.new(-134.42865, 31.4889774, 44.6389275, 0.970283389, -0.241971403, 2.48104334e-06, 2.48104334e-06, 2.01463699e-05, 1.00000012, -0.241971403, -0.970283508, 2.01463699e-05),
+    CFrame.new(-187.302505, 31.4889774, 37.3521729, 0.882971585, 0.469426453, 1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, 0.469426453, -0.882971644, -5.41210175e-05),
+    CFrame.new(-111.565277, 31.4889774, 34.9053154, 0.78799355, -0.615683556, -1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, -0.615683556, -0.78799355, -4.12464142e-05)
+}
+
+local function findAnchorPartByCFrame(targetCFrame)
+    local marketStalls = workspace:FindFirstChild("Interactable") and workspace.Interactable:FindFirstChild("MarketStalls")
+    if not marketStalls then return nil end
     
-    if success and servers then
-        local bestServer = nil
-        local maxPlayers = 0
-        for _, server in ipairs(servers) do
-            if server.playing and server.playing > maxPlayers and server.id ~= game.JobId then
-                maxPlayers = server.playing
-                bestServer = server
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            -- Проверка дистанции (менее 1.5 студа)
+            if (child.CFrame.Position - targetCFrame.Position).Magnitude < 1.5 then
+                return child
             end
         end
-        return bestServer
     end
     return nil
 end
 
-local function teleportToBestServer(targetPlaceId)
-    local best = findBestServer(targetPlaceId)
-    if best then
-        TeleportService:TeleportToPlaceInstance(targetPlaceId, best.id, localPlayer)
-    else
-        TeleportService:Teleport(targetPlaceId, localPlayer)
+local function claimStallsForever()
+    if not isNormalWorld then return end
+    local ClaimStallRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ClaimStall")
+    print("🏪 Цикл захвата лавок активен (Лимит: 7М)")
+    
+    while isNormalWorld do
+        if getCoins() >= COINS_LIMIT_FOR_NORMAL_WORLD then 
+            print("💰 Лимит монет в 7М достигнут. Остановка захвата.")
+            break 
+        end
+        
+        for _, cf in ipairs(stallCFrames) do
+            local anchor = findAnchorPartByCFrame(cf)
+            if anchor then
+                pcall(function() ClaimStallRemote:FireServer(anchor) end)
+            end
+            task.wait(0.1)
+        end
+        task.wait(1)
     end
 end
 
--- [[ ПРОВЕРКА ПРИ ВХОДЕ ]]
--- Если зашли в обычный мир, сразу улетаем в трейд
-if isNormalWorld then
-    print("🚀 Авто-телепорт в Трейд Мир (7M лимит активен)...")
-    task.wait(2)
-    teleportToBestServer(TRADE_WORLD_ID)
-end
-
 -- [[ ЛОГИКА СТАТИСТИКИ (CoS) ]]
-
 local function getCoSStats()
     if not isTradeWorld then return nil end
     local success, data = pcall(function() return localPlayer:WaitForChild("Data") end)
@@ -98,7 +138,6 @@ local function getCoSStats()
 end
 
 local function sendCoSStats()
-    if not isTradeWorld then return end
     local content = getCoSStats()
     if content then
         pcall(function()
@@ -112,64 +151,11 @@ local function sendCoSStats()
     end
 end
 
--- [[ ПОЛНАЯ ЛОГИКА ЛАВОК ]]
-
-local stallCFrames = {
-    CFrame.new(-115.76767, 31.4889774, -83.580658),
-    CFrame.new(-80.3615417, 31.4889774, -23.9790859),
-    CFrame.new(-85.1257629, 31.4889774, 0.639569223),
-    CFrame.new(-142.565216, 31.4889774, -92.6095505),
-    CFrame.new(-168.641525, 31.4889774, -90.8674011),
-    CFrame.new(-191.504898, 31.4889774, -81.1337967),
-    CFrame.new(-160.504944, 31.4889774, 46.381073),
-    CFrame.new(-134.42865, 31.4889774, 44.6389275),
-    CFrame.new(-187.302505, 31.4889774, 37.3521729),
-    CFrame.new(-111.565277, 31.4889774, 34.9053154)
-}
-
-local function findAnchorPartByCFrame(targetCFrame)
-    local marketStalls = workspace:FindFirstChild("Interactable") and workspace.Interactable:FindFirstChild("MarketStalls")
-    if not marketStalls then return nil end
-    
-    for _, child in pairs(marketStalls:GetChildren()) do
-        if child:IsA("BasePart") and child.Name == "AnchorPart" then
-            if (child.CFrame.Position - targetCFrame.Position).Magnitude < 1 then
-                return child
-            end
-        end
-    end
-    return nil
-end
-
-local function claimStallsForever()
-    if not isNormalWorld then return end
-    local ClaimStall = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ClaimStall")
-    
-    print("♾️ Запуск цикла лавок...")
-    while true do
-        local coins = getCoins()
-        if coins >= COINS_LIMIT_FOR_NORMAL_WORLD then
-            print("💰 Лимит достигнут, переход в режим ожидания.")
-            break 
-        end
-
-        for i, stallCFrame in ipairs(stallCFrames) do
-            local anchorPart = findAnchorPartByCFrame(stallCFrame)
-            if anchorPart then
-                pcall(function() ClaimStall:FireServer(anchorPart) end)
-            end
-            wait(0.1)
-        end
-        wait(1)
-    end
-end
-
 -- [[ АНТИ-AFK И ОПТИМИЗАЦИЯ ]]
-
 local function setupAntiAFK()
     localPlayer.Idled:Connect(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        wait(0.2)
+        task.wait(0.2)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
     end)
 end
@@ -178,29 +164,28 @@ UserInputService.WindowFocused:Connect(function()
     RunService:Set3dRenderingEnabled(true) 
     if setfpscap then setfpscap(360) end 
 end)
+
 UserInputService.WindowFocusReleased:Connect(function() 
     RunService:Set3dRenderingEnabled(false) 
     if setfpscap then setfpscap(5) end 
 end)
 
 -- [[ ЗАПУСК ]]
-
 local function main()
     setupAntiAFK()
     
     if isTradeWorld then
-        print("🎯 Режим Трейд-мира активен.")
+        print("✅ Вы в Трейд Мире. Статистика будет отправляться каждые 5 минут.")
         task.spawn(function()
-            while true do
+            while isTradeWorld do
                 sendCoSStats()
-                wait(300) -- 5 минут
+                task.wait(300)
             end
         end)
     elseif isNormalWorld then
-        print("🌍 Режим Обычного мира активен.")
+        print("🌍 Вы в Обычном Мире. Запуск захвата лавок...")
         task.spawn(claimStallsForever)
     end
 end
 
-local success, err = pcall(main)
-if not success then warn("💥 Ошибка: " .. err) end
+pcall(main)
