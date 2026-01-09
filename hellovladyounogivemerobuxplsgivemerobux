@@ -1,8 +1,8 @@
--- [[ НАСТРОЙКИ ]]
+-- [[ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ]]
 local DISCORD_WEBHOOK = _G.Discord or "https://discord.com/api/webhooks/1458175374310773022/6CySzBLqZwamvppCi-BtywbO2OQ6ukXd3lMADvdfGyYNnIRk9aqA7JJJebfcqXDKj5Of"
 local COS_STATS_WEBHOOK = "https://discord.com/api/webhooks/1444688891448922305/sVqazCRydGmdq8Gb2AJCIkyddT2_LxYFIn8ytNZACFkNYAefxAZzMxt9p5t7kmFMt9bZ"
 
--- ИЗМЕНЕНО: Лимит 7 миллионов монет
+-- Лимит 7 миллионов
 local COINS_LIMIT_FOR_NORMAL_WORLD = 7000000 
 local TRADE_WORLD_ID = 14119723130
 local NORMAL_WORLD_ID = 5233782396
@@ -32,8 +32,8 @@ local function formatNumber(value)
     return str:reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
 end
 
+-- Поиск лучшего сервера
 local function findBestServer(placeId)
-    print("🔍 Поиск сервера для ID: " .. placeId)
     local success, servers = pcall(function()
         local response = request({
             Url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100",
@@ -43,15 +43,15 @@ local function findBestServer(placeId)
     end)
     
     if success and servers then
-        local best = nil
-        local maxP = 0
-        for _, s in ipairs(servers) do
-            if s.playing and s.playing > maxP and s.id ~= game.JobId then
-                maxP = s.playing
-                best = s
+        local bestServer = nil
+        local maxPlayers = 0
+        for _, server in ipairs(servers) do
+            if server.playing and server.playing > maxPlayers and server.id ~= game.JobId then
+                maxPlayers = server.playing
+                bestServer = server
             end
         end
-        return best
+        return bestServer
     end
     return nil
 end
@@ -65,27 +65,29 @@ local function teleportToBestServer(targetPlaceId)
     end
 end
 
--- [[ ЛОГИКА АВТО-ПЕРЕХОДА ПРИ ВХОДЕ ]]
+-- [[ ПРОВЕРКА ПРИ ВХОДЕ ]]
+-- Если зашли в обычный мир, сразу улетаем в трейд
 if isNormalWorld then
-    print("⚠️ Вы зашли в обычный мир. Авто-релокация в Трейд Мир...")
-    task.wait(3)
+    print("🚀 Авто-телепорт в Трейд Мир (7M лимит активен)...")
+    task.wait(2)
     teleportToBestServer(TRADE_WORLD_ID)
 end
 
--- [[ ЛОГИКА СТАТИСТИКИ ]]
+-- [[ ЛОГИКА СТАТИСТИКИ (CoS) ]]
 
 local function getCoSStats()
     if not isTradeWorld then return nil end
-    local data = localPlayer:WaitForChild("Data", 10)
-    if not data then return nil end
+    local success, data = pcall(function() return localPlayer:WaitForChild("Data") end)
+    if not success then return nil end
+    
     return string.format([[
 СТАТИСТИКА АККАУНТА (CoS):
 👤 Ник: %s (@%s)
 🦴 Ревайв-токены: %s
 🌱 Фулл-гроу токены: %s
-🍄 Грибочки: %s
-🏪 Оборот: %s
-⏰ Время: %s
+🍄 Количество грибочков: %s 🍄
+🏪 Оборот в лавке: %s 🍄
+⏰ Время обновления: %s
 ]], 
     localPlayer.DisplayName, localPlayer.Name,
     formatNumber(data.Items.CreatureReviveToken.Value),
@@ -96,6 +98,7 @@ local function getCoSStats()
 end
 
 local function sendCoSStats()
+    if not isTradeWorld then return end
     local content = getCoSStats()
     if content then
         pcall(function()
@@ -109,37 +112,53 @@ local function sendCoSStats()
     end
 end
 
--- [[ ЛОГИКА ЛАВОК (ДЛЯ ОБЫЧНОГО МИРА) ]]
+-- [[ ПОЛНАЯ ЛОГИКА ЛАВОК ]]
 
 local stallCFrames = {
-    CFrame.new(-115.767, 31.488, -83.580), CFrame.new(-80.361, 31.488, -23.979),
-    CFrame.new(-85.125, 31.488, 0.639), CFrame.new(-142.565, 31.488, -92.609),
-    CFrame.new(-168.641, 31.488, -90.867), CFrame.new(-191.504, 31.488, -81.133),
-    CFrame.new(-160.504, 31.488, 46.381), CFrame.new(-134.428, 31.488, 44.638),
-    CFrame.new(-187.302, 31.488, 37.352), CFrame.new(-111.565, 31.488, 34.905)
+    CFrame.new(-115.76767, 31.4889774, -83.580658),
+    CFrame.new(-80.3615417, 31.4889774, -23.9790859),
+    CFrame.new(-85.1257629, 31.4889774, 0.639569223),
+    CFrame.new(-142.565216, 31.4889774, -92.6095505),
+    CFrame.new(-168.641525, 31.4889774, -90.8674011),
+    CFrame.new(-191.504898, 31.4889774, -81.1337967),
+    CFrame.new(-160.504944, 31.4889774, 46.381073),
+    CFrame.new(-134.42865, 31.4889774, 44.6389275),
+    CFrame.new(-187.302505, 31.4889774, 37.3521729),
+    CFrame.new(-111.565277, 31.4889774, 34.9053154)
 }
 
-local function claimStallLoop()
-    if not isNormalWorld then return end
-    local ClaimRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ClaimStall")
+local function findAnchorPartByCFrame(targetCFrame)
+    local marketStalls = workspace:FindFirstChild("Interactable") and workspace.Interactable:FindFirstChild("MarketStalls")
+    if not marketStalls then return nil end
     
+    for _, child in pairs(marketStalls:GetChildren()) do
+        if child:IsA("BasePart") and child.Name == "AnchorPart" then
+            if (child.CFrame.Position - targetCFrame.Position).Magnitude < 1 then
+                return child
+            end
+        end
+    end
+    return nil
+end
+
+local function claimStallsForever()
+    if not isNormalWorld then return end
+    local ClaimStall = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ClaimStall")
+    
+    print("♾️ Запуск цикла лавок...")
     while true do
         local coins = getCoins()
         if coins >= COINS_LIMIT_FOR_NORMAL_WORLD then
-            print("💰 Лимит в 7М достигнут, прекращаю занятие лавок.")
-            break
+            print("💰 Лимит достигнут, переход в режим ожидания.")
+            break 
         end
 
-        local stalls = workspace:FindFirstChild("Interactable") and workspace.Interactable:FindFirstChild("MarketStalls")
-        if stalls then
-            for _, cf in ipairs(stallCFrames) do
-                for _, part in pairs(stalls:GetChildren()) do
-                    if part.Name == "AnchorPart" and (part.CFrame.Position - cf.Position).Magnitude < 2 then
-                        ClaimRemote:FireServer(part)
-                    end
-                end
-                wait(0.1)
+        for i, stallCFrame in ipairs(stallCFrames) do
+            local anchorPart = findAnchorPartByCFrame(stallCFrame)
+            if anchorPart then
+                pcall(function() ClaimStall:FireServer(anchorPart) end)
             end
+            wait(0.1)
         end
         wait(1)
     end
@@ -147,16 +166,22 @@ end
 
 -- [[ АНТИ-AFK И ОПТИМИЗАЦИЯ ]]
 
-UserInputService.WindowFocused:Connect(function() RunService:Set3dRenderingEnabled(true) if setfpscap then setfpscap(360) end end)
-UserInputService.WindowFocusReleased:Connect(function() RunService:Set3dRenderingEnabled(false) if setfpscap then setfpscap(5) end end)
-
 local function setupAntiAFK()
     localPlayer.Idled:Connect(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        wait(0.1)
+        wait(0.2)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
     end)
 end
+
+UserInputService.WindowFocused:Connect(function() 
+    RunService:Set3dRenderingEnabled(true) 
+    if setfpscap then setfpscap(360) end 
+end)
+UserInputService.WindowFocusReleased:Connect(function() 
+    RunService:Set3dRenderingEnabled(false) 
+    if setfpscap then setfpscap(5) end 
+end)
 
 -- [[ ЗАПУСК ]]
 
@@ -164,17 +189,18 @@ local function main()
     setupAntiAFK()
     
     if isTradeWorld then
-        print("🎯 Трейд-мир: запуск отправки CoS статистики")
+        print("🎯 Режим Трейд-мира активен.")
         task.spawn(function()
             while true do
                 sendCoSStats()
-                wait(300)
+                wait(300) -- 5 минут
             end
         end)
     elseif isNormalWorld then
-        print("🌍 Обычный мир: запуск цикла лавок")
-        task.spawn(claimStallLoop)
+        print("🌍 Режим Обычного мира активен.")
+        task.spawn(claimStallsForever)
     end
 end
 
-pcall(main)
+local success, err = pcall(main)
+if not success then warn("💥 Ошибка: " .. err) end
