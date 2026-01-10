@@ -1,6 +1,8 @@
--- [[ ПОЛНЫЙ СКРИПТ: ЗАХВАТ + ТЕЛЕПОРТ + РАСШИРЕННАЯ СТАТИСТИКА ]]
+-- [[ ПОЛНЫЙ СКРИПТ: ЗАХВАТ + ТЕЛЕПОРТ + СТАТИСТИКА + КОНТРОЛЬ ОНЛАЙНА ]]
 local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1458175374310773022/6CySzBLqZwamvppCi-BtywbO2OQ6ukXd3lMADvdfGyYNnIRk9aqA7JJJebfcqXDKj5Of"
 local COINS_LIMIT = 7000000
+local MIN_PLAYERS_THRESHOLD = 30 -- Если 30 или меньше, уходим
+local CHECK_INTERVAL = 150 -- КД проверки (2.5 минуты)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,7 +14,7 @@ local RunService = game:GetService("RunService")
 
 local localPlayer = Players.LocalPlayer
 local currentPlaceId = game.PlaceId
-local isTargetWorld = currentPlaceId == 5233782396
+local NORMAL_WORLD_ID = 5233782396
 local TRADE_WORLD_ID = 14119723130
 
 local MAX_FPS = 360
@@ -29,7 +31,7 @@ local stallCFrames = {
     CFrame.new(-191.504898, 31.4889774, -81.1337967, -0.787993431, 0.615683556, 1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, 0.615683556, 0.78799355, 4.12464142e-05),
     CFrame.new(-160.504944, 31.4889774, 46.381073, 0.99452728, 0.104477406, -2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, 0.104477406, -0.99452728, 5.2511692e-05),
     CFrame.new(-134.42865, 31.4889774, 44.6389275, 0.970283389, -0.241971403, 2.48104334e-06, 2.48104334e-06, 2.01463699e-05, 1.00000012, -0.241971403, -0.970283508, 2.01463699e-05),
-    CFrame.new(-187.302505, 31.4889774, 37.3521729, 0.882971585, 0.469426453, 1.34855509e-05, -1.34855509e-05, -5.41210175e-05, 1, 0.469426453, -0.882971644, -5.41210175e-05),
+    CFrame.new(-187.302505, 31.4889774, 37.3521729, 0.882971585, 0.469426453, 1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, 0.469426453, -0.882971644, -5.41210175e-05),
     CFrame.new(-111.565277, 31.4889774, 34.9053154, 0.78799355, -0.615683556, -1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, -0.615683556, -0.78799355, -4.12464142e-05)
 }
 
@@ -59,7 +61,6 @@ local function sendDiscordWebhook(customMessage)
     local data = localPlayer:FindFirstChild("Data")
     if not data then return end
 
-    -- Функция для безопасного получения значения предмета
     local function getItem(name)
         local item = data.Items:FindFirstChild(name)
         return item and formatNum(item.Value) or "0"
@@ -68,23 +69,8 @@ local function sendDiscordWebhook(customMessage)
     local shooms = formatNum(data.Coins.Value)
     local raised = data.MarketStalls:FindFirstChild("ShoomsRaised") and formatNum(data.MarketStalls.ShoomsRaised.Value) or "0"
 
-    -- Формируем текст статистики
     local statsText = customMessage or string.format(
-        "**СТАТИСТИКА АККАУНТА (CoS):**\n" ..
-        "👤 Ник: %s (@%s)\n" ..
-        "🍄 Грибочков: %s\n" ..
-        "🏪 Оборот: %s\n\n" ..
-        "**ОСНОВНЫЕ ТОКЕНЫ:**\n" ..
-        "🦴 Ревайвы: %s\n" ..
-        "🌱 Фулл-гроу: %s\n\n" ..
-        "**ТОКЕНЫ ПОГОДЫ:**\n" ..
-        "🔴 Blood Moon: %s\n" ..
-        "🌋 Volcano: %s\n" ..
-        "⛈️ Thunderstorm: %s\n" ..
-        "🌀 Hurricane: %s\n" ..
-        "☁️ Storm: %s\n" ..
-        "🌍 Earthquake: %s\n\n" ..
-        "⏰ Время: %s",
+        "**СТАТИСТИКА АККАУНТА (CoS):**\n👤 Ник: %s (@%s)\n🍄 Грибочков: %s\n🏪 Оборот: %s\n\n**ОСНОВНЫЕ ТОКЕНЫ:**\n🦴 Ревайвы: %s\n🌱 Фулл-гроу: %s\n\n**ТОКЕНЫ ПОГОДЫ:**\n🔴 Blood Moon: %s\n🌋 Volcano: %s\n⛈️ Thunderstorm: %s\n🌀 Hurricane: %s\n☁️ Storm: %s\n🌍 Earthquake: %s\n\n👥 Игроков на сервере: %d\n⏰ Время: %s",
         localPlayer.DisplayName, localPlayer.Name, shooms, raised,
         getItem("CreatureReviveToken"), 
         getItem("FullGrowToken"),
@@ -94,6 +80,7 @@ local function sendDiscordWebhook(customMessage)
         getItem("HurricaneSummonToken"),
         getItem("StormSummonToken"),
         getItem("EarthquakeSummonToken"),
+        #Players:GetPlayers(),
         os.date("%H:%M:%S")
     )
 
@@ -110,7 +97,7 @@ end
 -- [[ ЛОГИКА ЗАХВАТА ]]
 
 local function claimStallsForever()
-    if isTargetWorld then return end
+    if currentPlaceId == NORMAL_WORLD_ID then return end
     
     local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes")
     local ClaimStallRemote = MarketRemotes:WaitForChild("ClaimStall")
@@ -137,6 +124,24 @@ local function claimStallsForever()
     end
 end
 
+-- [[ ПРОВЕРКА ОНЛАЙНА ]]
+
+local function serverPlayerCheck()
+    while true do
+        task.wait(CHECK_INTERVAL)
+        local playerCount = #Players:GetPlayers()
+        
+        -- Если мы в Торговом мире и людей стало мало
+        if currentPlaceId == TRADE_WORLD_ID and playerCount <= MIN_PLAYERS_THRESHOLD then
+            print("📉 Мало игроков (" .. playerCount .. "). Ухожу в обычный мир...")
+            sendDiscordWebhook("⚠️ Сервер пустеет (" .. playerCount .. " чел). Рестарт сервера...")
+            task.wait(1)
+            TeleportService:Teleport(NORMAL_WORLD_ID, localPlayer)
+            break
+        end
+    end
+end
+
 -- [[ АНТИ-AFK ]]
 
 local function setupAntiAFK()
@@ -157,19 +162,22 @@ local function main()
     setFpsCap(MAX_FPS)
     setupAntiAFK()
 
-    if isTargetWorld then
+    if currentPlaceId == NORMAL_WORLD_ID then
         local currentCoins = 0
         pcall(function() currentCoins = localPlayer.Data.Coins.Value end)
         
         if currentCoins >= COINS_LIMIT then
-            sendDiscordWebhook("🛑 Лимит 7М достигнут. Бот остановлен.")
+            sendDiscordWebhook("🛑 Лимит 7М достигнут. Бот в простое.")
         else
-            task.wait(5)
+            task.wait(8) -- Ждем прогрузки перед прыжком
             TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
         end
     else
+        -- Мы в Торговом Мире
         sendDiscordWebhook()
         task.spawn(claimStallsForever)
+        task.spawn(serverPlayerCheck) -- Запуск контроля онлайна
+        
         task.spawn(function()
             while true do
                 task.wait(300)
