@@ -80,7 +80,6 @@ wait(3)
 -- Выполняем основной метод
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
 wait(0.7)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimAdventCalendarRemote"):FireServer()
 
 local ohString1 = 'CreatureEditor'
 local ohString2 = 'Sochuri'
