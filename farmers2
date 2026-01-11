@@ -7,7 +7,7 @@ end
 -- Функция для отправки статистики на Discord
 local function sendStatsToWebhook()
     local player = game:GetService("Players").LocalPlayer
-    local webhookUrl = "https://discord.com/api/webhooks/1444659438064767158/A881Kotwv1_0efAzP3fiAG4N3kKAHrykKupJ_i7DXEwBdhO0vwazrZ8kngS2TQe3Lrkp"
+    local webhookUrl = "https://discord.com/api/webhooks/1459938883817963602/7Zx8FUG1QVz4F48u3NIR48eFpB0tyHklYBCdq2AnTajr2kHMG9Bic97ec_RaBz4pozdD"
     
     -- Получаем данные
     local username = player.Name
