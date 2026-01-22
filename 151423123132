@@ -7,32 +7,28 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 
 -- [[ ФУНКЦИИ ПОМОЩНИКИ ]]
-local function forceExpandAndClick(obj)
-    if not obj then return end
-    
-    -- Берем саму кнопку (родителя), если передали Label
-    local button = obj:IsA("TextLabel") and obj.Parent or obj
+local function forceExpandAndClick(button)
+    if not button then return end
     
     local oldSize = button.Size
     local oldPos = button.Position
     local oldZ = button.ZIndex
     local oldAnchor = button.AnchorPoint
 
-    -- Функция для применения "раздутия"
+    -- Функция применения размера
     local function applyMassive()
         button.AnchorPoint = Vector2.new(0.5, 0.5)
-        button.Size = UDim2.new(0, 999999, 0, 999999)
+        button.Size = UDim2.new(0, 9999999, 0, 9999999)
         button.Position = UDim2.new(0.5, 0, 0.5, 0)
         button.ZIndex = 9999999
-        -- Отключаем ограничители пропорций
         for _, child in pairs(button:GetChildren()) do
             if child:IsA("UIAspectRatioConstraint") then child.Enabled = false end
         end
     end
 
-    -- ПЕРВЫЙ ЦИКЛ: Расширение -> Клик 1
+    -- Первый клик
     local t1 = tick()
-    while tick() - t1 < 0.5 do -- Держим размер 0.5 сек перед кликом
+    while tick() - t1 < 0.6 do
         applyMassive()
         task.wait()
     end
@@ -40,11 +36,11 @@ local function forceExpandAndClick(obj)
     task.wait(0.1)
     VirtualInputManager:SendMouseButtonEvent(500, 500, 0, false, game, 0)
     
-    task.wait(0.8) -- Пауза между кликами
+    task.wait(0.7)
 
-    -- ВТОРОЙ ЦИКЛ: Расширение -> Клик 2
+    -- Второй клик
     local t2 = tick()
-    while tick() - t2 < 0.5 do 
+    while tick() - t2 < 0.6 do
         applyMassive()
         task.wait()
     end
@@ -54,14 +50,11 @@ local function forceExpandAndClick(obj)
 
     task.wait(0.5)
     
-    -- Возвращаем всё назад
+    -- Возврат исходных данных
     button.AnchorPoint = oldAnchor
     button.Size = oldSize
     button.Position = oldPos
     button.ZIndex = oldZ
-    for _, child in pairs(button:GetChildren()) do
-        if child:IsA("UIAspectRatioConstraint") then child.Enabled = true end
-    end
 end
 
 local function applyDamage(targetName)
@@ -83,14 +76,15 @@ local function teleportTo(cframe)
     end
 end
 
--- [[ ЗАПУСК ]]
+-- [[ ИНИЦИАЛИЗАЦИЯ ]]
 print("Ожидание 9 секунд...")
 task.wait(9)
 
--- Инициализация (твоя логика)
+-- Базовые действия
 pcall(function()
     ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
     LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(true, true)
+    
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     for i = 1, 5 do
         remotes:WaitForChild("DeleteSlotRemote"):InvokeServer("Slot" .. i, false)
@@ -107,7 +101,7 @@ if LocalPlayer.PlayerGui:FindFirstChild("PromptGui") then
     LocalPlayer.PlayerGui.PromptGui.Enabled = false
 end
 
--- Спам урона
+-- Фоновый дамаг
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -115,37 +109,49 @@ task.spawn(function()
     end
 end)
 
--- Основной цикл фарма
+-- [[ ЦИКЛ ФАРМА ]]
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     while true do
+        -- 1. Подготовка слота
         pcall(function() remotes.RestartSlotRemote:InvokeServer("Slot1", false) end)
         task.wait(1)
         pcall(function() remotes.UseTokenRemote:InvokeServer("FullGrowToken", "Slot1") end)
         task.wait(1)
         
-        -- 1. Клик по кнопке Play (с двойным расширением)
+        -- 2. РАСШИРЕНИЕ И КЛИК НА СЛОТ
+        pcall(function()
+            local slotBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
+            forceExpandAndClick(slotBtn)
+        end)
+        
+        task.wait(1.5)
+        
+        -- 3. РАСШИРЕНИЕ И КЛИК НА КНОПКУ PLAY
         pcall(function()
             local playBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
             forceExpandAndClick(playBtn)
         end)
         
         task.wait(3)
+        
+        -- 4. ГЕЙМПЛЕЙ (ТП, Способность, Смерть)
         teleportTo(CFrame.new(-8413.09375, 270.407013, 8606.19043, 0.944378376, -0.0773099959, 0.31964457, 0.0959971324, 0.994448006, -0.0431005098, -0.314537793, 0.0713881552, 0.946556747))
         task.wait(3)
         pcall(function() remotes.ActivateAbility:FireServer("Spite") end)
         task.wait(2)
         remotes.OutOfBoundsSelfDamage:FireServer(25000)
         
+        -- 5. ВОЗВРАТ ПОСЛЕ СМЕРТИ
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do task.wait(0.5) end
         task.wait(8)
         
-        -- 2. Клик по кнопке Return (с двойным расширением)
         pcall(function()
             local returnBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
             forceExpandAndClick(returnBtn)
         end)
-        task.wait(2)
+        
+        task.wait(3)
     end
 end)
