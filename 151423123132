@@ -1,5 +1,3 @@
-local TargetName = "AdminServa22" -- Ник для ударов
-
 -- [[ СЕРВИСЫ ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -21,7 +19,6 @@ local function forceExpandAndClick(button)
         button.Size = UDim2.new(0, 9999999, 0, 9999999)
         button.Position = UDim2.new(0.5, 0, 0.5, 0)
         button.ZIndex = 9999999
-        -- Отключаем ограничения пропорций, чтобы кнопка реально стала на весь экран
         for _, child in pairs(button:GetChildren()) do
             if child:IsA("UIAspectRatioConstraint") then child.Enabled = false end
         end
@@ -56,14 +53,6 @@ local function forceExpandAndClick(button)
     button.Size = oldSize
     button.Position = oldPos
     button.ZIndex = oldZ
-end
-
-local function applyDamage(targetName)
-    local victim = Players:FindFirstChild(targetName)
-    if victim and victim.Character then
-        local args = {{victim.Character}}
-        ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CharactersDamageRemoteBreath"):FireServer(unpack(args))
-    end
 end
 
 local function teleportTo(cframe)
@@ -102,19 +91,11 @@ if LocalPlayer.PlayerGui:FindFirstChild("PromptGui") then
     LocalPlayer.PlayerGui.PromptGui.Enabled = false
 end
 
--- Фоновый дамаг
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        applyDamage(TargetName)
-    end
-end)
-
 -- [[ ЦИКЛ ФАРМА ]]
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     while true do
-        -- НОВОЕ: Проверка UpdateLogGui
+        -- Проверка UpdateLogGui
         pcall(function()
             local logGui = LocalPlayer.PlayerGui:FindFirstChild("UpdateLogGui")
             if logGui and logGui.Enabled then
