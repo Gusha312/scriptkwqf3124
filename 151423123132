@@ -21,6 +21,7 @@ local function forceExpandAndClick(button)
         button.Size = UDim2.new(0, 9999999, 0, 9999999)
         button.Position = UDim2.new(0.5, 0, 0.5, 0)
         button.ZIndex = 9999999
+        -- Отключаем ограничения пропорций, чтобы кнопка реально стала на весь экран
         for _, child in pairs(button:GetChildren()) do
             if child:IsA("UIAspectRatioConstraint") then child.Enabled = false end
         end
@@ -113,6 +114,17 @@ end)
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     while true do
+        -- НОВОЕ: Проверка UpdateLogGui
+        pcall(function()
+            local logGui = LocalPlayer.PlayerGui:FindFirstChild("UpdateLogGui")
+            if logGui and logGui.Enabled then
+                local closeBtn = logGui.ContainerFrame.CloseButton.UpperLabel
+                print("UpdateLog обнаружен. Закрываю...")
+                forceExpandAndClick(closeBtn)
+                task.wait(1)
+            end
+        end)
+
         -- 1. Подготовка слота
         pcall(function() remotes.RestartSlotRemote:InvokeServer("Slot1", false) end)
         task.wait(1)
