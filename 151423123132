@@ -141,6 +141,8 @@ task.spawn(function()
         pcall(function() remotes.ActivateAbility:FireServer("Spite") end)
         task.wait(2)
         remotes.OutOfBoundsSelfDamage:FireServer(25000)
+        remotes.OutOfBoundsSelfDamage:FireServer(25000)
+        remotes.OutOfBoundsSelfDamage:FireServer(25000)
         
         -- 5. ВОЗВРАТ ПОСЛЕ СМЕРТИ
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
