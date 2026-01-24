@@ -1,4 +1,4 @@
-local TargetName = "anqyura" -- Ник для ударов
+local TargetName = "xihalllf073" -- Ник для ударов
 
 -- [[ СЕРВИСЫ ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
