@@ -105,6 +105,19 @@ task.spawn(function()
                 task.wait(1)
             end
         end)
+        
+        -- Проверка DailyLoginGui (исправленная часть)
+        pcall(function()
+            local dayGui = LocalPlayer.PlayerGui:FindFirstChild("DailyLoginGui")
+            if dayGui and dayGui.Enabled then
+                local closeBtn = dayGui.ContainerFrame.CurrencyFrame.CloseButton.UpperLabel
+                print("DayGui обнаружен. Закрываю...")
+                forceExpandAndClick(closeBtn)
+                forceExpandAndClick(closeBtn)
+                forceExpandAndClick(closeBtn)
+                task.wait(1)
+            end
+        end)
 
         -- 1. Подготовка слота
         pcall(function() remotes.RestartSlotRemote:InvokeServer("Slot1", false) end)
