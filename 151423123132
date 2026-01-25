@@ -1,4 +1,4 @@
-x-- [[ СЕРВИСЫ ]]
+-- [[ СЕРВИСЫ ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
