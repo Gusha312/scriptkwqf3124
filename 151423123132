@@ -76,7 +76,7 @@ pcall(function()
     LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(true, true)
     
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
-    for i = 1, 5 do
+    for i = 1, 6 do
         remotes:WaitForChild("DeleteSlotRemote"):InvokeServer("Slot" .. i, false)
     end
 end)
