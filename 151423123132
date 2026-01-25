@@ -87,10 +87,6 @@ pcall(function()
 end)
 task.wait(2)
 
-if LocalPlayer.PlayerGui:FindFirstChild("PromptGui") then
-    LocalPlayer.PlayerGui.PromptGui.Enabled = false
-end
-
 -- [[ ЦИКЛ ФАРМА ]]
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -124,7 +120,9 @@ task.spawn(function()
         task.wait(1)
         pcall(function() remotes.UseTokenRemote:InvokeServer("FullGrowToken", "Slot1") end)
         task.wait(1)
-        
+        if LocalPlayer.PlayerGui:FindFirstChild("PromptGui") then
+        LocalPlayer.PlayerGui.PromptGui.Enabled = false
+        end
         -- 2. РАСШИРЕНИЕ И КЛИК НА СЛОТ
         pcall(function()
             local slotBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
