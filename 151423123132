@@ -151,13 +151,13 @@ task.spawn(function()
         -- 5. ВОЗВРАТ ПОСЛЕ СМЕРТИ
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do task.wait(0.5) end
-        task.wait(7)
+        task.wait(5)
         
         pcall(function()
             local returnBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
             forceExpandAndClick(returnBtn)
         end)
         
-        task.wait(3)
+        task.wait(2)
     end
 end)
