@@ -139,11 +139,11 @@ task.spawn(function()
             forceExpandAndClick(playBtn)
         end)
         
-        task.wait(3)
+        task.wait(2)
         
         -- 4. ГЕЙМПЛЕЙ (ТП, Способность, Смерть)
         teleportTo(CFrame.new(-2800.70728, 847.391663, -1802.94763, -4.8275429, -0.170097888, -0.0725309029, -0.152376592, 0.967143834, -0.203504667, 0.10476353, -0.188943073, -0.976383686))
-        task.wait(3)
+        task.wait(2)
         pcall(function() remotes.ActivateAbility:FireServer("Spite") end)
         task.wait(2)
         remotes.OutOfBoundsSelfDamage:FireServer(25000)
@@ -153,7 +153,7 @@ task.spawn(function()
         -- 5. ВОЗВРАТ ПОСЛЕ СМЕРТИ
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do task.wait(0.5) end
-        task.wait(8)
+        task.wait(7)
         
         pcall(function()
             local returnBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
