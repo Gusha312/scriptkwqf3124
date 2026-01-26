@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 -- [[ ФУНКЦИИ ПОМОЩНИКИ ]]
 local function forceExpandAndClick(button)
@@ -12,28 +13,33 @@ local function forceExpandAndClick(button)
     local oldZ = button.ZIndex
     local oldAnchor = button.AnchorPoint
 
-    -- Функция применения размера (раздуваем кнопку на весь экран)
+    -- Функция раздувания кнопки на весь экран
     local function applyMassive()
         button.AnchorPoint = Vector2.new(0.5, 0.5)
         button.Size = UDim2.new(0, 9999999, 0, 9999999)
         button.Position = UDim2.new(0.5, 0, 0.5, 0)
         button.ZIndex = 9999999
+        -- Отключаем ограничения пропорций, чтобы кнопка растянулась корректно
         for _, child in pairs(button:GetChildren()) do
             if child:IsA("UIAspectRatioConstraint") then child.Enabled = false end
         end
     end
 
+    -- Рассчитываем динамический центр экрана
+    local screenCenter = Camera.ViewportSize / 2
+    local clickX, clickY = screenCenter.X, screenCenter.Y
+
     -- --- ПЕРВЫЙ КЛИК ---
     local t1 = tick()
-    while tick() - t1 < 0.4 do -- Уменьшил время удержания для скорости
+    while tick() - t1 < 0.4 do
         applyMassive()
         task.wait()
     end
-    VirtualInputManager:SendMouseButtonEvent(500, 500, 0, true, game, 0)
+    VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
     task.wait(0.05)
-    VirtualInputManager:SendMouseButtonEvent(500, 500, 0, false, game, 0)
+    VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
     
-    task.wait(0.2) -- Короткая пауза между кликами
+    task.wait(0.4) -- Пауза между кликами
 
     -- --- ВТОРОЙ КЛИК ---
     local t2 = tick()
@@ -41,13 +47,13 @@ local function forceExpandAndClick(button)
         applyMassive()
         task.wait()
     end
-    VirtualInputManager:SendMouseButtonEvent(500, 500, 0, true, game, 0)
+    VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
     task.wait(0.05)
-    VirtualInputManager:SendMouseButtonEvent(500, 500, 0, false, game, 0)
+    VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
 
     task.wait(0.3)
     
-    -- Возврат исходных данных
+    -- Возврат исходных данных кнопки
     button.AnchorPoint = oldAnchor
     button.Size = oldSize
     button.Position = oldPos
@@ -66,15 +72,15 @@ local function teleportTo(cframe)
 end
 
 -- [[ ИНИЦИАЛИЗАЦИЯ ]]
-print("Ожидание запуска...")
+print("Скрипт запущен. Ожидание 9 секунд...")
 task.wait(9)
 
--- Базовые действия (очистка слотов)
+-- Базовые действия (Remotes)
 pcall(function()
-    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+    local remotes = ReplicatedStorage:WaitForChild("Remotes")
+    remotes:WaitForChild("ClaimDailyLoginRemote"):FireServer()
     LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(true, true)
     
-    local remotes = ReplicatedStorage:WaitForChild("Remotes")
     for i = 1, 6 do
         remotes:WaitForChild("DeleteSlotRemote"):InvokeServer("Slot" .. i, false)
     end
@@ -90,18 +96,16 @@ task.wait(2)
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     while true do
-        -- 0. Закрытие мешающих GUI
+        -- 0. Закрытие мешающих GUI (двойной клик применен везде)
         pcall(function()
             local logGui = LocalPlayer.PlayerGui:FindFirstChild("UpdateLogGui")
             if logGui and logGui.Enabled then
-                local closeBtn = logGui.ContainerFrame.CloseButton.UpperLabel
-                forceExpandAndClick(closeBtn)
+                forceExpandAndClick(logGui.ContainerFrame.CloseButton.UpperLabel)
             end
             
             local dayGui = LocalPlayer.PlayerGui:FindFirstChild("DailyLoginGui")
             if dayGui and dayGui.Enabled then
-                local closeBtn = dayGui.ContainerFrame.CurrencyFrame.CloseButton.UpperLabel
-                forceExpandAndClick(closeBtn)
+                forceExpandAndClick(dayGui.ContainerFrame.CurrencyFrame.CloseButton.UpperLabel)
             end
         end)
 
@@ -115,15 +119,15 @@ task.spawn(function()
             LocalPlayer.PlayerGui.PromptGui.Enabled = false
         end
 
-        -- 2. Клик на слот (теперь двойной внутри функции)
+        -- 2. Выбор слота
         pcall(function()
             local slotBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
             forceExpandAndClick(slotBtn)
         end)
         
-        task.wait(1)
+        task.wait(1.5)
         
-        -- 3. Клик на PLAY (двойной)
+        -- 3. Кнопка PLAY
         pcall(function()
             local playBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
             forceExpandAndClick(playBtn)
@@ -138,16 +142,16 @@ task.spawn(function()
         task.wait(1)
         for i=1,3 do remotes.OutOfBoundsSelfDamage:FireServer(25000) end
         
-        -- 5. ВОЗВРАТ ПОСЛЕ СМЕРТИ
+        -- 5. ВОЗВРАТ
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do task.wait(0.5) end
-        task.wait(2)
+        task.wait(5)
         
         pcall(function()
             local returnBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
             forceExpandAndClick(returnBtn)
         end)
         
-        task.wait(2)
+        task.wait(3)
     end
 end)
