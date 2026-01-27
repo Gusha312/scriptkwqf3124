@@ -1,169 +1,767 @@
+-- Полный скрипт: фарм миссий (УСКОРЕННЫЙ)
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
-local player = Players.LocalPlayer
-local pGui = player:WaitForChild("PlayerGui")
+wait(3) -- Уменьшенный стартовый КД
+print("🎮 Запуск скрипта (ускоренная версия)")
 
--- ========== ФУНКЦИЯ КЛИКА (С РАСШИРЕНИЕМ) ==========
-local function enhancedClick(button, clicks)
-    if not button then return false end
-    clicks = clicks or 1
-    
-    local originalSize = button.Size
-    local originalZIndex = button.ZIndex
-    local originalVisible = button.Visible
-    
-    button.Visible = true
-    button.Size = UDim2.new(0, 5000, 0, 5000)
-    button.ZIndex = 100000
-    task.wait(0.6)
-    
-    for i = 1, clicks do
-        local screen = workspace.CurrentCamera.ViewportSize
-        VirtualInputManager:SendMouseButtonEvent(screen.X/2, screen.Y/2, 0, true, game, 1)
-        task.wait(0.1)
-        VirtualInputManager:SendMouseButtonEvent(screen.X/2, screen.Y/2, 0, false, game, 1)
-        if i < clicks then task.wait(0.5) end
-    end
-    
-    button.Size = originalSize
-    button.ZIndex = originalZIndex
-    task.wait(0.5)
-    return true
+-- ========== ФУНКЦИИ ДЛЯ КЛИКА ==========
+-- Функция для клика по координатам
+local function clickAtPosition(posX, posY)
+    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
+    wait(0.05) -- Уменьшенный КД
+    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
 end
 
--- ========== ОЧИСТКА МЕНЮ (PROMPT, DAILY, UPDATE) ==========
-local function cleanGuis()
-    print("🧹 Проверка мешающих меню...")
-    if pGui:FindFirstChild("PromptGui") and pGui.PromptGui.Enabled then
-        pGui.PromptGui.Enabled = false
-    end
-    
-    if pGui:FindFirstChild("DailyLoginGui") and pGui.DailyLoginGui.Enabled then
-        local btn = pcall(function() return pGui.DailyLoginGui.ContainerFrame.CurrencyFrame.ClaimButton.UpperLabel end)
-        if btn then enhancedClick(btn, 3) end
-    end
-    
-    if pGui:FindFirstChild("UpdateLogGui") and pGui.UpdateLogGui.Enabled then
-        local btn = pcall(function() return pGui.UpdateLogGui.ContainerFrame.CloseButton.UpperLabel end)
-        if btn then enhancedClick(btn) end
-    end
-    task.wait(1)
+-- Функция клика в центре экрана
+local function click()
+    local screen = workspace.CurrentCamera.ViewportSize
+    clickAtPosition(screen.X/2, screen.Y/2)
 end
 
--- ========== ПОЛНАЯ ПЕРЕЗАГРУЗКА СЛОТОВ ==========
-local function resetAndCreateSlot()
-    print("♻️ Удаление старых слотов и создание Xeleviprex...")
-    local remotes = ReplicatedStorage:WaitForChild("Remotes")
+-- ========== ФУНКЦИЯ ДЛЯ ПРОВЕРКИ СМЕРТИ ВО ВРЕМЯ ФАРМА ==========
+local function checkDeathDuringFarm()
+    local player = game.Players.LocalPlayer
+    local playerGui = player.PlayerGui
     
-    -- 1. Удаляем слоты с 1 по 6
-    for i = 1, 6 do
-        pcall(function()
-            remotes.DeleteSlotRemote:InvokeServer("Slot" .. i, false)
-        end)
-    end
-    
-    -- 2. Обновляем избранное
-    pcall(function()
-        player:WaitForChild("UpdateFavoritedRemote"):FireServer(true, true)
-    end)
-    
-    task.wait(5)
-    
-    -- 3. Создаем Xeleviprex
-    pcall(function()
-        remotes.CreateSlotRemote:InvokeServer("Xeleviprex")
-    end)
-    
-    task.wait(2)
-end
-
--- ========== ВХОД В ИГРУ ==========
-local function enterGame()
-    cleanGuis()
-    print("🎮 Выбираем новый слот...")
-    pcall(function()
-        local saveGui = pGui:WaitForChild("SaveSelectionGui", 10)
-        if saveGui then
-            local slot = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
-            enhancedClick(slot)
-            task.wait(2)
-            local playBtn = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
-            enhancedClick(playBtn)
+    local deathGui = playerGui:FindFirstChild("DeathGui")
+    if deathGui and deathGui.Enabled == true then
+        print("\n💀 ОБНАРУЖЕНА СМЕРТЬ ВО ВРЕМЯ ФАРМА!")
+        
+        wait(8) -- Уменьшенный КД
+        
+        local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
+        
+        -- Кликаем по Return
+        if returnButton then
+            click()
+            wait(0.3)
+            click()
+        else
+            click()
+            wait(0.3)
+            click()
         end
-    end)
+        
+        -- Ждем пока GUI полностью закроется
+        wait(3) -- Уменьшенный КД
+        
+        -- 1. ВЫЗЫВАЕМ DESPAWNREMOTE ДЛЯ ВЫХОДА
+        print("🚪 Вызываем DespawnRemote для выхода...")
+        local despawnSuccess, despawnError = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
+            return true
+        end)
+        
+        if despawnSuccess then
+            print("✅ DespawnRemote успешно вызван")
+        else
+            print("❌ Ошибка DespawnRemote: " .. tostring(despawnError))
+        end
+        
+        wait(2) -- Уменьшенный КД
+        
+        -- 2. УДАЛЕНИЕ СЛОТА
+        print("🗑️ Удаляем слот Slot1...")
+        local deleteSuccess, deleteError = pcall(function()
+            local args = {"Slot1", false}
+            ReplicatedStorage.Remotes.DeleteSlotRemote:InvokeServer(unpack(args))
+            return true
+        end)
+        
+        if deleteSuccess then
+            print("✅ Запрос удаления отправлен")
+        else
+            print("❌ Ошибка удаления: " .. tostring(deleteError))
+        end
+        
+        wait(3) -- Уменьшенный КД
+        
+        -- 3. СОЗДАНИЕ НОВОГО СЛОТА
+        print("➕ Создаем новый слот Sochuri...")
+        local createSuccess, createError = pcall(function()
+            local args = {"Sochuri"}
+            ReplicatedStorage.Remotes.CreateSlotRemote:InvokeServer(unpack(args))
+            return true
+        end)
+        
+        if createSuccess then
+            print("✅ Запрос создания отправлен")
+        else
+            print("❌ Ошибка создания: " .. tostring(createError))
+        end
+        
+        wait(3) -- Уменьшенный КД
+        
+        -- 4. ВЫПОЛНЯЕМ КЛИКИ ДЛЯ ВОЗОБНОВЛЕНИЯ ИГРЫ
+        print("🔄 Выполняем клики для возобновления игры...")
+        wait(2)
+        click()
+        wait(1)
+        click()
+        
+        print("✅ Обработка смерти завершена!")
+        return true
+    end
+    
+    return false
 end
 
--- ========== ЛОГИКА ТУТОРИАЛА ==========
-local function checkTutorial()
-    cleanGuis()
-    local tutorialVal = 1
-    pcall(function() tutorialVal = pGui.Data.Tutorial.TutorialCompletedAt.Value end)
+-- ========== ФУНКЦИЯ ДЛЯ ПЕРИОДИЧЕСКИХ REMOTE ЗАПРОСОВ ==========
+local function periodicRemoteRequests()
+    print("⏰ Запускаем периодические Remote запросы...")
     
-    if tutorialVal == 0 then
-        print("📚 Прохождение туториала...")
-        local selectBtn = pGui:WaitForChild("TutorialGui").SelectionFrame.SlotsFrame.Sochuri.InnerFrame.SelectButton.UpperLabel
-        enhancedClick(selectBtn)
-        task.wait(10)
-        cleanGuis()
-        local playBtn = pGui:WaitForChild("EditorGui").EditFrame.BottomFrame.ButtonsFrame.PlayButton.UpperLabel
-        enhancedClick(playBtn)
-        task.wait(5)
-        local remotes = ReplicatedStorage:WaitForChild("Remotes")
-        remotes.PostTutorialStageRemote:FireServer("SniffWater")
-        remotes.PostTutorialStageRemote:FireServer("SniffFood")
-        remotes.SetTutorialStageRemote:InvokeServer("Complete")
+    while true do
+        wait(7) -- Уменьшено с 10 до 7 секунд
+        
+        print("\n🔄 Выполняем периодические Remote запросы...")
+        
+        -- ClaimDailyLoginRemote
+        local success1, error1 = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
+            print("✅ ClaimDailyLoginRemote отправлен")
+        end)
+        
+        if not success1 then
+            print("⚠️ Ошибка ClaimDailyLoginRemote: " .. tostring(error1))
+        end
+        
+        wait(0.3) -- Уменьшено
+        
+        -- GetSpawnedTokenRemote
+        local success3, error3 = pcall(function()
+            ReplicatedStorage.Remotes.GetSpawnedTokenRemote:InvokeServer()
+            print("✅ GetSpawnedTokenRemote отправлен")
+        end)
+        
+        if not success3 then
+            print("⚠️ Ошибка GetSpawnedTokenRemote: " .. tostring(error3))
+        end
+        
+        print("✅ Периодические запросы выполнены")
     end
 end
 
--- ========== УМНЫЙ ТЕЛЕПОРТ К ЕДЕ (Grass/Ribs) ==========
-local function teleportToFood()
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-    local root = player.Character.HumanoidRootPart
-    local target = nil
-    local dist = math.huge
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name == "Grass" or obj.Name:find("Ribs") then
-            local pos = (obj:IsA("BasePart") and obj.Position) or (obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.Position)
-            if pos then
-                local d = (root.Position - pos).Magnitude
-                if d < dist then dist = d; target = pos end
+-- ========== ФАРМ МИССИЙ (УСКОРЕННАЯ ВЕРСИЯ) ==========
+local function startMissionFarm()
+    print("\n🚀 Запускаем УСКОРЕННЫЙ фарм миссий...")
+    
+    local targetPlayer = game.Players.LocalPlayer
+    
+    print("⏳ Ожидаем загрузки данных...")
+    local playerGui = targetPlayer:WaitForChild("PlayerGui")
+    local data = playerGui:WaitForChild("Data")
+    local missions = data:WaitForChild("Missions")
+    local regionMissions = missions:WaitForChild("RegionMissions")
+    
+    -- Ждем ремоуты
+    local ChangeRegionRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChangeRegionRemote")
+    local SetMissionRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetMissionRemote")
+    local MudRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Mud")
+    local FoodRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Food")
+    local DrinkRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("DrinkRemote")
+    local NPCDamageRemoteBreath = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("NPCDamageRemoteBreath")
+    
+    -- Координаты для телепортации
+    local teleportPositions = {
+        Vector3.new(2818.49072, 332.279358, -118.064125),
+        Vector3.new(2218.49072, 332.279358, -118.064125),
+        Vector3.new(2518.49072, 332.279358, -118.064125)
+    }
+    
+    local concealScentPosition = Vector3.new(2434.90479, 277.143066, -1289.48108)
+    
+    -- Переменные
+    local lastFoodDrinkTime = 0
+    local lastAttackTime = 0
+    local lastDeathCheck = 0
+    local currentRegion = nil -- Текущий регион
+    
+    -- Список миссий которые нужно игнорировать
+    local ignoreMissions = {
+        ShoomPilesCollected = true
+    }
+    
+    -- Функция для получения невыполненных миссий
+    function getUncompletedMissions()
+        local uncompleted = {}
+        
+        for _, region in pairs(regionMissions:GetChildren()) do
+            for _, mission in pairs(region:GetChildren()) do
+                if mission:IsA("BoolValue") and not mission.Value then
+                    -- Пропускаем миссии из списка игнорируемых
+                    if not ignoreMissions[mission.Name] then
+                        table.insert(uncompleted, {
+                            regionName = region.Name,
+                            missionName = mission.Name,
+                            missionObject = mission
+                        })
+                    else
+                        print("⏭️ Пропускаем миссию: " .. region.Name .. "." .. mission.Name)
+                    end
+                end
+            end
+        end
+        
+        return uncompleted
+    end
+    
+    -- Функция для смены региона
+    function changeRegion(regionName)
+        print("📍 Меняем регион на: " .. regionName)
+        currentRegion = regionName
+        local args = { regionName }
+        ChangeRegionRemote:FireServer(unpack(args))
+        wait(0.5) -- Уменьшено с 1 до 0.5
+    end
+    
+    -- Функция для телепортации игрока
+    function teleportPlayer(position)
+        local character = targetPlayer.Character
+        if character then
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                humanoidRootPart.CFrame = CFrame.new(position)
+                print("📍 Телепортировались в: " .. tostring(position))
             end
         end
     end
-    if target then root.CFrame = CFrame.new(target + Vector3.new(0, 3, 0)) end
-end
-
--- ========== ЦИКЛ ПРОВЕРКИ СМЕРТИ ==========
-spawn(function()
-    while true do
-        if pGui:FindFirstChild("DeathGui") and pGui.DeathGui.Enabled then
-            print("💀 Смерть!")
-            task.wait(10)
-            local returnBtn = pGui.DeathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
-            enhancedClick(returnBtn)
-            task.wait(10)
-            cleanGuis()
-            resetAndCreateSlot()
-            enterGame()
+    
+    -- Функция для получения позиции объекта (работает с Part, MeshPart и Model)
+    function getObjectPosition(obj)
+        if obj:IsA("Model") then
+            -- Для Model используем PrimaryPart или первый дочерний Part
+            if obj.PrimaryPart then
+                return obj.PrimaryPart.Position
+            else
+                -- Ищем любой Part внутри модели
+                for _, child in pairs(obj:GetDescendants()) do
+                    if child:IsA("Part") or child:IsA("MeshPart") or child:IsA("UnionOperation") then
+                        return child.Position
+                    end
+                end
+                return obj:GetExtentsSize() / 2 -- Запасной вариант
+            end
+        elseif obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+            -- Для Part и подобных объектов
+            return obj.Position
+        else
+            -- Для других типов объектов
+            return Vector3.new(0, 0, 0)
         end
-        task.wait(5)
     end
-end)
-
--- ========== СТАРТ СКРИПТА ==========
-checkTutorial()
-resetAndCreateSlot()
-enterGame()
-
--- Цикл фарма
-while true do
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        teleportToFood()
-        pcall(function()
-            ReplicatedStorage.Remotes.ChangeRegionRemote:FireServer("Mountains")
-        end)
+    
+    -- Функция для поиска Grass (еды) в папке Food
+    function findNearestGrass()
+        local character = targetPlayer.Character
+        if not character then return nil end
+        
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return nil end
+        
+        local playerPos = humanoidRootPart.Position
+        local nearestGrass = nil
+        local nearestDistance = math.huge
+        
+        -- Ищем Grass (еду) в папке Interactions.Food
+        local foodFolder = workspace.Interactions.Food
+        if foodFolder then
+            for _, foodItem in pairs(foodFolder:GetChildren()) do
+                -- Ищем Grass по имени
+                if foodItem.Name:lower():find("grass") then
+                    local foodPos = getObjectPosition(foodItem)
+                    local distance = (playerPos - foodPos).Magnitude
+                    if distance < nearestDistance then
+                        nearestDistance = distance
+                        nearestGrass = foodItem
+                    end
+                end
+            end
+        end
+        
+        -- Если Grass не нашли, берем любой элемент из Food
+        if not nearestGrass and foodFolder then
+            local foodChildren = foodFolder:GetChildren()
+            if #foodChildren > 0 then
+                nearestGrass = foodChildren[1]
+            end
+        end
+        
+        return nearestGrass
     end
-    task.wait(15)
+    
+    -- УСКОРЕННАЯ ФУНКЦИЯ ДЛЯ ИСПОЛЬЗОВАНИЯ ЕДЫ И ВОДЫ
+    function useFoodAndWater()
+        local currentTime = tick()
+        if currentTime - lastFoodDrinkTime >= 1.5 then -- Уменьшено с 2 до 1.5
+            -- ИСПРАВЛЕННЫЙ ПОИСК ЕДЫ: Ищем Grass (еду) в папке Food
+            local nearestGrass = findNearestGrass()
+            
+            if nearestGrass then
+                print("🍃 Найден Grass (еда): " .. nearestGrass.Name)
+                
+                -- Получаем позицию объекта (работает с Model тоже)
+                local grassPos = getObjectPosition(nearestGrass)
+                
+                -- Телепортируемся к Grass (еде)
+                teleportPlayer(grassPos + Vector3.new(0, 5, 0))
+                print("📍 Телепортировались к Grass (еде)")
+                
+                -- Ждем 1 секунду (уменьшено с 2)
+                wait(1)
+                
+                -- Меняем регион на текущий (если он установлен)
+                if currentRegion then
+                    print("🔄 Меняем регион после телепортации к Grass: " .. currentRegion)
+                    changeRegion(currentRegion)
+                end
+                
+                -- Используем найденную Grass (еду)
+                local foodArgs = { nearestGrass }
+                FoodRemote:FireServer(unpack(foodArgs))
+                print("🍎 Использована Grass (еда): " .. nearestGrass.Name)
+            else
+                -- Пробуем обычную еду из папки Food
+                local foodFolder = workspace.Interactions.Food
+                local foodChildren = foodFolder:GetChildren()
+                
+                if #foodChildren > 0 then
+                    -- Берем первый элемент
+                    local foodItem = foodChildren[1]
+                    
+                    if foodItem then
+                        local foodArgs = { foodItem }
+                        FoodRemote:FireServer(unpack(foodArgs))
+                        print("🍎 Использована еда: " .. foodItem.Name)
+                    end
+                end
+            end
+            
+            -- Используем воду
+            local lake = workspace.Interactions.Lakes:FindFirstChild("Lake")
+            if lake then
+                local drinkArgs = { lake }
+                DrinkRemote:FireServer(unpack(drinkArgs))
+                print("💧 Использована вода")
+            else
+                -- Пробуем найти альтернативный источник воды
+                local waterSource = workspace.Interactions.Lakes:FindFirstChildOfClass("Part")
+                if waterSource then
+                    local drinkArgs = { waterSource }
+                    DrinkRemote:FireServer(unpack(drinkArgs))
+                end
+            end
+            
+            lastFoodDrinkTime = currentTime
+        end
+    end
+    
+    -- Функция для поиска ближайшего Mud объекта
+    function findNearestMud()
+        local character = targetPlayer.Character
+        if not character then return nil end
+        
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return nil end
+        
+        local playerPos = humanoidRootPart.Position
+        local nearestMud = nil
+        local nearestDistance = math.huge
+        
+        local mudFolder = workspace.Interactions.Mud
+        if mudFolder then
+            for _, mudObject in pairs(mudFolder:GetChildren()) do
+                if mudObject:IsA("Part") or mudObject:IsA("MeshPart") or mudObject:IsA("Model") then
+                    local mudPos = getObjectPosition(mudObject)
+                    local distance = (playerPos - mudPos).Magnitude
+                    if distance < nearestDistance then
+                        nearestDistance = distance
+                        nearestMud = mudObject
+                    end
+                end
+            end
+        end
+        
+        return nearestMud
+    end
+    
+    -- Функция для поиска NPC для атаки
+    function findNPCForAttack()
+        -- Сначала пробуем найти Roots
+        local rootsNPC = workspace.Interactions.NPCs:FindFirstChild("Roots")
+        if rootsNPC then
+            local rootPart = rootsNPC:FindFirstChild("RootPart")
+            if rootPart then
+                return rootPart
+            end
+        end
+        
+        -- Ищем любого NPC с RootPart
+        for _, npc in pairs(workspace.Interactions.NPCs:GetChildren()) do
+            local rootPart = npc:FindFirstChild("RootPart") or npc:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                return rootPart
+            end
+        end
+        
+        return nil
+    end
+    
+    -- Функция для телепортации к NPC спавну
+    function teleportToRandomNPCSpawn()
+        local npcSpawns = workspace.Interactions.NPCSpawns:GetChildren()
+        if #npcSpawns > 0 then
+            local randomSpawn = npcSpawns[math.random(1, #npcSpawns)]
+            if randomSpawn then
+                local spawnPos = getObjectPosition(randomSpawn)
+                local spawnPosition = spawnPos + Vector3.new(0, 30, 0)
+                teleportPlayer(spawnPosition)
+                return true
+            end
+        end
+        return false
+    end
+    
+    -- УСКОРЕННАЯ ФУНКЦИЯ ДЛЯ АТАКИ NPC
+    function attackNPC()
+        local currentTime = tick()
+        if currentTime - lastAttackTime >= 0.2 then -- Уменьшено с 0.5 до 0.2
+            local targetNPC = findNPCForAttack()
+            if targetNPC then
+                local attackArgs = { { targetNPC } }
+                NPCDamageRemoteBreath:FireServer(unpack(attackArgs))
+                lastAttackTime = currentTime
+                return true
+            end
+        end
+        return false
+    end
+    
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ Sniff
+    function completeSniffMission(regionName)
+        print("🔄 Выполняем Sniff в регионе: " .. regionName)
+        
+        changeRegion(regionName)
+        
+        local missionCompleted = false
+        local attempts = 0
+        
+        while not missionCompleted and attempts < 25 do -- Уменьшено с 40 до 25
+            attempts = attempts + 1
+            
+            if attempts % 5 == 0 then -- Еда/вода каждые 5 попыток
+                useFoodAndWater()
+            end
+            
+            local missionArgs = { 1 }
+            SetMissionRemote:FireServer(unpack(missionArgs))
+            
+            local regionFolder = regionMissions:FindFirstChild(regionName)
+            if regionFolder then
+                local sniffMission = regionFolder:FindFirstChild("Sniff")
+                if sniffMission and sniffMission.Value then
+                    missionCompleted = true
+                    print("✅ Sniff выполнена в регионе " .. regionName)
+                else
+                    print("⏳ Sniff... (" .. attempts .. "/25)")
+                end
+            end
+            
+            if not missionCompleted then
+                wait(0.8) -- Уменьшено с 1.5 до 0.8
+            end
+        end
+        
+        return missionCompleted
+    end
+    
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ ConcealScent
+    function completeConcealScentMission(regionName)
+        print("🔄 Выполняем ConcealScent в регионе: " .. regionName)
+        
+        changeRegion(regionName)
+        
+        teleportPlayer(concealScentPosition)
+        wait(1) -- Уменьшено
+        
+        changeRegion(regionName)
+        
+        local missionCompleted = false
+        local attempts = 0
+        
+        while not missionCompleted and attempts < 40 do -- Уменьшено с 60 до 40
+            attempts = attempts + 1
+            
+            if attempts % 10 == 0 then -- Еда/вода каждые 10 попыток
+                useFoodAndWater()
+            end
+            
+            local nearestMud = findNearestMud()
+            if nearestMud then
+                local mudArgs = { nearestMud }
+                MudRemote:FireServer(unpack(mudArgs))
+            end
+            
+            local regionFolder = regionMissions:FindFirstChild(regionName)
+            if regionFolder then
+                local concealMission = regionFolder:FindFirstChild("ConcealScent")
+                if concealMission and concealMission.Value then
+                    missionCompleted = true
+                    print("✅ ConcealScent выполнена в регионе " .. regionName)
+                else
+                    print("⏳ ConcealScent... (" .. attempts .. "/40)")
+                end
+            end
+            
+            if not missionCompleted then
+                wait(0.5) -- Уменьшено с 1 до 0.5
+            end
+        end
+        
+        return missionCompleted
+    end
+    
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ EatFoodDrinkWater
+    function completeEatFoodDrinkWaterMission(regionName)
+        print("🔄 Выполняем EatFoodDrinkWater в регионе: " .. regionName)
+        
+        changeRegion(regionName)
+        
+        local missionCompleted = false
+        local attempts = 0
+        
+        while not missionCompleted and attempts < 15 do -- Уменьшено с 30 до 15
+            attempts = attempts + 1
+            
+            useFoodAndWater()
+            
+            local regionFolder = regionMissions:FindFirstChild(regionName)
+            if regionFolder then
+                local eatMission = regionFolder:FindFirstChild("EatFoodDrinkWater")
+                if eatMission and eatMission.Value then
+                    missionCompleted = true
+                    print("✅ EatFoodDrinkWater выполнена в регионе " .. regionName)
+                else
+                    print("⏳ EatFoodDrinkWater... (" .. attempts .. "/15)")
+                end
+            end
+            
+            if not missionCompleted then
+                wait(1) -- Уменьшено с 2 до 1
+            end
+        end
+        
+        return missionCompleted
+    end
+    
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ AttackOrHealCreatureOrNPC
+    function completeAttackOrHealMission(regionName)
+        print("🔄 Выполняем AttackOrHealCreatureOrNPC в регионе: " .. regionName)
+        
+        changeRegion(regionName)
+        
+        if teleportToRandomNPCSpawn() then
+            wait(1) -- Уменьшено
+            changeRegion(regionName)
+        end
+        
+        local missionCompleted = false
+        local attempts = 0
+        
+        while not missionCompleted and attempts < 60 do -- Уменьшено с 100 до 60
+            attempts = attempts + 1
+            
+            if attempts % 15 == 0 then -- Еда/вода каждые 15 попыток
+                useFoodAndWater()
+            end
+            
+            attackNPC()
+            
+            -- Проверяем выполнение миссии
+            local regionFolder = regionMissions:FindFirstChild(regionName)
+            if regionFolder then
+                local attackMission = regionFolder:FindFirstChild("AttackOrHealCreatureOrNPC")
+                if attackMission and attackMission.Value then
+                    missionCompleted = true
+                    print("✅ AttackOrHealCreatureOrNPC выполнена в регионе " .. regionName)
+                    break
+                end
+            end
+            
+            if not missionCompleted then
+                wait(0.3) -- Уменьшено с 0.5 до 0.3
+            end
+        end
+        
+        return missionCompleted
+    end
+    
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ DistanceTravelled
+    function completeDistanceTravelledMission(regionName)
+        print("🔄 Выполняем DistanceTravelled в регионе: " .. regionName)
+        
+        changeRegion(regionName)
+        
+        local missionCompleted = false
+        local attempts = 0
+        
+        while not missionCompleted and attempts < 50 do -- Уменьшено с 100 до 50
+            attempts = attempts + 1
+            
+            useFoodAndWater()
+            
+            for i, pos in ipairs(teleportPositions) do
+                teleportPlayer(pos)
+                wait(1) -- Уменьшено с 2 до 1
+                
+                if i == 1 then
+                    changeRegion(regionName)
+                end
+                
+                -- Проверяем выполнение миссии
+                local regionFolder = regionMissions:FindFirstChild(regionName)
+                if regionFolder then
+                    local distanceMission = regionFolder:FindFirstChild("DistanceTravelled")
+                    if distanceMission and distanceMission.Value then
+                        missionCompleted = true
+                        print("✅ DistanceTravelled выполнена в регионе " .. regionName)
+                        break
+                    end
+                end
+                
+                if missionCompleted then
+                    break
+                end
+            end
+            
+            if not missionCompleted then
+                print("⏳ DistanceTravelled... (" .. attempts .. "/50)")
+            end
+        end
+        
+        return missionCompleted
+    end
+    
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ TimePlayed
+    function completeTimePlayedMission(regionName)
+        print("🔄 Выполняем TimePlayed в регионе: " .. regionName)
+        print("⏰ Ожидаем...")
+        
+        changeRegion(regionName)
+        
+        local missionCompleted = false
+        local checkCount = 0
+        
+        while not missionCompleted do
+            checkCount = checkCount + 1
+            
+            if checkCount % 3 == 0 then -- Еда/вода каждые 3 проверки
+                useFoodAndWater()
+            end
+            
+            -- Проверяем, не появились ли другие миссии
+            local otherMissions = getUncompletedMissions()
+            for _, mission in ipairs(otherMissions) do
+                if mission.missionName ~= "TimePlayed" then
+                    print("⚠️ Появились другие миссии! Прерываем TimePlayed")
+                    return false
+                end
+            end
+            
+            local regionFolder = regionMissions:FindFirstChild(regionName)
+            if regionFolder then
+                local timeMission = regionFolder:FindFirstChild("TimePlayed")
+                if timeMission and timeMission.Value then
+                    missionCompleted = true
+                    print("✅ TimePlayed выполнена в регионе " .. regionName)
+                    break
+                else
+                    if checkCount % 5 == 0 then
+                        print("⏳ TimePlayed... (" .. checkCount .. " проверок)")
+                    end
+                end
+            end
+            
+            wait(5) -- Уменьшено с 10 до 5
+        end
+        
+        return missionCompleted
+    end
+    
+    -- УСКОРЕННАЯ ОСНОВНАЯ ФУНКЦИЯ ФАРМА
+    function autoCompleteAllMissions()
+        print("🚀 Запуск выполнения невыполненных миссий (ускоренный)...")
+        
+        while true do
+            -- Проверяем смерть во время фарма
+            if checkDeathDuringFarm() then
+                print("🔄 После смерти продолжаем фарм...")
+                wait(3) -- Уменьшено
+            end
+            
+            local uncompleted = getUncompletedMissions()
+            
+            if #uncompleted == 0 then
+                print("🎉 Все миссии выполнены!")
+                wait(5) -- Уменьшено
+            else
+                print("📋 Найдено невыполненных миссий: " .. #uncompleted)
+                
+                for i, mission in ipairs(uncompleted) do
+                    print("\n🎯 Миссия " .. i .. "/" .. #uncompleted .. ": " .. mission.regionName .. " - " .. mission.missionName)
+                    
+                    local success = false
+                    
+                    if mission.missionName == "Sniff" then
+                        success = completeSniffMission(mission.regionName)
+                    elseif mission.missionName == "ConcealScent" then
+                        success = completeConcealScentMission(mission.regionName)
+                    elseif mission.missionName == "EatFoodDrinkWater" then
+                        success = completeEatFoodDrinkWaterMission(mission.regionName)
+                    elseif mission.missionName == "AttackOrHealCreatureOrNPC" then
+                        success = completeAttackOrHealMission(mission.regionName)
+                    elseif mission.missionName == "DistanceTravelled" then
+                        success = completeDistanceTravelledMission(mission.regionName)
+                    elseif mission.missionName == "TimePlayed" then
+                        success = completeTimePlayedMission(mission.regionName)
+                    else
+                        print("❓ Неизвестный тип миссии: " .. mission.missionName)
+                    end
+                    
+                    if success then
+                        print("✅ Успешно выполнено!")
+                    else
+                        print("❌ Не удалось выполнить")
+                    end
+                    
+                    wait(0.5) -- Уменьшено
+                end
+                
+                print("\n🔄 Проверяем наличие новых миссий...")
+                wait(3) -- Уменьшено
+            end
+        end
+    end
+    
+    -- Запускаем периодические запросы в отдельном потоке
+    spawn(periodicRemoteRequests)
+    
+    -- Запускаем фарм миссий
+    autoCompleteAllMissions()
 end
+
+-- ========== ГЛАВНАЯ ЛОГИКА ==========
+print("\n" .. string.rep("=", 50))
+print("🔧 ЗАПУСК СКРИПТА (УСКОРЕННАЯ ВЕРСИЯ)")
+print(string.rep("=", 50))
+
+print("\n" .. string.rep("=", 50))
+print("🔧 Запускаем фарм миссий")
+print(string.rep("=", 50))
+print("⏳ Ждем 2 секунды...")
+wait(2)
+
+startMissionFarm()
+
+print("\n✨ СКРИПТ ЗАВЕРШЕН!")
