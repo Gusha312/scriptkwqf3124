@@ -1,0 +1,160 @@
+-- СКРИПТ №1: ВХОД, ТУТОРИАЛ, ЧИСТКА UpdateLogGui И ЛИМИТ 300
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local pGui = player:WaitForChild("PlayerGui")
+local remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local CREATURE_NAME = "Xeleviprex"
+
+-- ========== СИСТЕМА КЛИКОВ (РАЗДУВАНИЕ) ==========
+local function clickAtPosition(posX, posY)
+    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
+    wait(0.1)
+    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
+end
+
+local function click()
+    local screen = workspace.CurrentCamera.ViewportSize
+    clickAtPosition(screen.X/2, screen.Y/2)
+end
+
+local function clickButtonEnhanced(button, buttonName)
+    if button then
+        print("✅ Раздуваю кнопку для клика: " .. buttonName)
+        local originalSize = button.Size
+        local originalPosition = button.Position
+        local originalAnchorPoint = button.AnchorPoint
+        local originalZIndex = button.ZIndex
+        
+        button.Size = UDim2.new(100, 0, 100, 0)
+        button.Position = UDim2.new(0.5, 0, 0.5, 0)
+        button.AnchorPoint = Vector2.new(0.5, 0.5)
+        button.ZIndex = 99999
+        
+        wait(1.5) 
+        local screen = workspace.CurrentCamera.ViewportSize
+        clickAtPosition(screen.X / 2, screen.Y / 2)
+        
+        wait(0.5)
+        button.Size = originalSize
+        button.Position = originalPosition
+        button.AnchorPoint = originalAnchorPoint
+        button.ZIndex = originalZIndex
+        return true
+    end
+    return false
+end
+
+-- ========== СКРЫТИЕ МЕНЮ И ФИКС UpdateLogGui ==========
+local function cleanAllMenus()
+    print("🧹 Глубокая очистка GUI...")
+    
+    -- Прямое закрытие UpdateLogGui через раздувание кнопки
+    local updateLog = pGui:FindFirstChild("UpdateLogGui")
+    if updateLog and updateLog.Enabled then
+        local closeBtn = updateLog:FindFirstChild("ContainerFrame")
+        if closeBtn then closeBtn = closeBtn:FindFirstChild("CloseButton") end
+        if closeBtn then closeBtn = closeBtn:FindFirstChild("UpperLabel") end
+        
+        if closeBtn then
+            clickButtonEnhanced(closeBtn, "UpdateLogGui.CloseButton")
+        else
+            updateLog.Enabled = false -- Если кнопку не нашли, просто выключаем
+        end
+    end
+
+    -- Скрытие остальных мешающих окон
+    local guisToHide = {"PromptGui", "DialogGui", "DialogMenu", "SkipGui"}
+    for _, name in ipairs(guisToHide) do
+        local g = pGui:FindFirstChild(name)
+        if g then g.Enabled = false end
+    end
+end
+
+-- ========== ЛОГИКА ТУТОРИАЛА (GUI + REQUESТS) ==========
+local function handleTutorial()
+    local data = pGui:FindFirstChild("Data")
+    local tutorialVal = data and data:FindFirstChild("Tutorial") and data.Tutorial:FindFirstChild("TutorialCompletedAt")
+    
+    if tutorialVal and tutorialVal.Value == 0 then
+        print("📚 Туториал обнаружен. Прохожу...")
+        local tutorialGui = pGui:WaitForChild("TutorialGui")
+        if tutorialGui.Enabled then
+            local selectBtn = tutorialGui.SelectionFrame.SlotsFrame.Sochuri.InnerFrame.SelectButton.UpperLabel
+            clickButtonEnhanced(selectBtn, "TutorialSelect")
+            wait(15)
+            
+            local editorGui = pGui:WaitForChild("EditorGui")
+            local playBtn = editorGui.EditFrame.BottomFrame.ButtonsFrame.PlayButton.UpperLabel
+            clickButtonEnhanced(playBtn, "TutorialPlay")
+            
+            wait(2)
+            -- Отправка финальных запросов туториала
+            pcall(function() remotes.PostTutorialStageRemote:FireServer("SniffWater") end)
+            wait(0.5)
+            pcall(function() remotes.PostTutorialStageRemote:FireServer("SniffFood") end)
+            wait(0.5)
+            pcall(function() remotes.SetTutorialStageRemote:InvokeServer("SurvivalBasics") end)
+            wait(0.1)
+            pcall(function() remotes.SetTutorialStageRemote:InvokeServer("Complete") end)
+            print("🎉 Туториал завершен.")
+        end
+    end
+end
+
+-- ========== УПРАВЛЕНИЕ СЛОТАМИ ==========
+local function prepareSlots()
+    print("🗑️ Сброс слотов...")
+    for i = 1, 6 do pcall(function() remotes.DeleteSlotRemote:InvokeServer("Slot" .. i, false) end) end
+    wait(2)
+    pcall(function() player:WaitForChild("UpdateFavoritedRemote"):FireServer(true, true) end)
+    wait(1)
+    pcall(function() remotes.CreateSlotRemote:InvokeServer(CREATURE_NAME) end)
+    wait(15)
+end
+
+-- ========== ВХОД И ЦИКЛ ПРОВЕРКИ (300 МИССИЙ + СМЕРТЬ) ==========
+local function enterGame()
+    cleanAllMenus()
+    local saveGui = pGui:WaitForChild("SaveSelectionGui")
+    if saveGui.Enabled then
+        clickButtonEnhanced(saveGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"], "Page1")
+        wait(2)
+        clickButtonEnhanced(saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel, "PlayButton")
+        wait(0.5) click()
+    end
+end
+
+-- Слежка за состоянием игрока
+spawn(function()
+    while true do
+        -- 1. Фикс 300 миссий
+        pcall(function()
+            local missions = pGui.Data.Slot1.DeathStats.MissionsCompleted.Value
+            if missions >= 300 then
+                print("🏆 300 миссий! Ресет через OutOfBounds...")
+                remotes.OutOfBoundsSelfDamage:FireServer(25000)
+            end
+        end)
+
+        -- 2. Фикс DeathGui
+        local deathGui = pGui:FindFirstChild("DeathGui")
+        if deathGui and deathGui.Enabled then
+            print("💀 Смерть. Ожидание 12 сек...")
+            wait(12)
+            clickButtonEnhanced(deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel, "DeathReturn")
+            wait(10)
+            prepareSlots()
+            enterGame()
+        end
+        wait(5)
+    end
+end)
+
+-- СТАРТ
+prepareSlots()
+handleTutorial()
+enterGame()
