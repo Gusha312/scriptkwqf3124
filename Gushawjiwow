@@ -8,35 +8,23 @@ local player = Players.LocalPlayer
 -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 ---------------------------------------------------------
 
--- Клик в точку 100, 100 (гарантированно попадет в расширенную кнопку)
-local function tripleClick()
-    local x, y = 100, 100 
-    for i = 1, 3 do
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.15)
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
-        task.wait(0.2)
-    end
-end
-
--- Функция: Расширить -> Клик -> Пауза 2 сек -> Уменьшить
+-- Клик по центру элемента (один или три раза)
 local function clickAndReset(element, isTriple)
     if element and element:IsA("GuiObject") then
-        local oldSize = element.Size
-        element.Size = UDim2.new(0, 9999, 0, 9999)
-        task.wait(0.5)
-        
-        if isTriple then
-            tripleClick()
-        else
-            -- Обычный двойной клик для меню
-            VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 1)
-            task.wait(0.2)
-            VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 1)
+        -- Вычисляем центр элемента
+        local centerX = element.AbsolutePosition.X + element.AbsoluteSize.X / 2
+        local centerY = element.AbsolutePosition.Y + element.AbsoluteSize.Y / 2
+
+        -- Кликаем нужное количество раз
+        local clicks = isTriple and 3 or 1
+        for i = 1, clicks do
+            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 1)
+            task.wait(0.15)
+            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 1)
+            if i < clicks then
+                task.wait(0.2)
+            end
         end
-        
-        task.wait(2)
-        element.Size = oldSize
     end
 end
 
@@ -75,14 +63,14 @@ local function pressPlaySequence()
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
     
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
-    clickAndReset(page1)
+    clickAndReset(page1, false)
     
     task.wait(1.5)
     
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
     if playBtn then
-        clickAndReset(playBtn)
+        clickAndReset(playBtn, false)
     end
 end
 
@@ -172,7 +160,7 @@ while true do
     local deathGui = player.PlayerGui:WaitForChild("DeathGui")
     local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
     task.wait(6)
-    clickAndReset(retBtn)
+    clickAndReset(retBtn, false)
     
     task.wait(5)
 end
