@@ -175,6 +175,8 @@ while true do
     local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
     task.wait(6)
     clickAndReset(retBtn)
+    clickAndReset(retBtn)
+    clickAndReset(retBtn)
     
     task.wait(5)
 end
