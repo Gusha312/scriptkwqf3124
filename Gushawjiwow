@@ -8,17 +8,34 @@ local player = Players.LocalPlayer
 -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 ---------------------------------------------------------
 
--- Клик в центр указанного GuiObject (без изменения размера)
 local function clickAtElement(element, times)
     if not element or not element:IsA("GuiObject") then return end
 
-    -- Вычисляем абсолютный центр элемента
-    local absPos = element.AbsolutePosition
-    local absSize = element.AbsoluteSize
-    local centerX = absPos.X + absSize.X / 2
-    local centerY = absPos.Y + absSize.Y / 2
+    -- Сохраняем исходное состояние
+    local originalParent = element.Parent
+    local originalSize = element.Size
+    local originalPosition = element.Position
+    local originalZIndex = element.ZIndex
+    local originalVisible = element.Visible
 
-    -- Эмулируем серию кликов
+    -- Находим корневой ScreenGui (обычно PlayerGui)
+    local rootGui = player:FindFirstChild("PlayerGui") or originalParent
+    if not rootGui then return end
+
+    -- Перемещаем элемент в корень, делаем видимым и полноэкранным
+    element.Parent = rootGui
+    element.Size = UDim2.new(1, 0, 1, 0)
+    element.Position = UDim2.new(0, 0, 0, 0)
+    element.ZIndex = 9999
+    element.Visible = true
+    task.wait(0.1)
+
+    -- Центр экрана
+    local screenSize = rootGui.AbsoluteSize
+    local centerX = screenSize.X / 2
+    local centerY = screenSize.Y / 2
+
+    -- Эмулируем клики
     for i = 1, (times or 1) do
         VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 1)
         task.wait(0.1)
@@ -26,7 +43,16 @@ local function clickAtElement(element, times)
         task.wait(0.2)
     end
 
-    task.wait(1) -- Небольшая пауза после кликов
+    task.wait(1)
+
+    -- Возвращаем элемент в исходное состояние
+    element.Size = originalSize
+    element.Position = originalPosition
+    element.ZIndex = originalZIndex
+    element.Visible = originalVisible
+    if originalParent then
+        element.Parent = originalParent
+    end
 end
 
 -- Проверка на всплывающие окна (Daily, Update, Dialogue)
@@ -38,7 +64,7 @@ local function checkPopups()
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
         if btn then
-            clickAtElement(btn, 3) -- Тройной клик
+            clickAtElement(btn, 3)
         end
     end
 
@@ -47,7 +73,7 @@ local function checkPopups()
     if log and log.Enabled then
         local closeBtn = log.ContainerFrame:FindFirstChild("CloseButton")
         if closeBtn then
-            clickAtElement(closeBtn, 1) -- Одинарный клик
+            clickAtElement(closeBtn, 1)
         end
     end
 
@@ -60,7 +86,7 @@ end
 
 -- Последовательность выбора страницы и нажатия Play
 local function pressPlaySequence()
-    checkPopups() -- Проверяем мусор перед входом
+    checkPopups()
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
     
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
@@ -85,7 +111,7 @@ task.spawn(function()
         if promptGui and promptGui.Enabled then
             promptGui.Enabled = false
         end
-        checkPopups() -- Постоянно чекаем диалоги и меню в фоне
+        checkPopups()
         task.wait(0.5)
     end
 end)
@@ -157,11 +183,11 @@ while true do
     ReplicatedStorage.Remotes.OutOfBoundsSelfDamage:FireServer(25000)
     task.wait(10) 
 
-    -- Кнопка Return – кликаем по самой кнопке
+    -- Кнопка Return
     local deathGui = player.PlayerGui:WaitForChild("DeathGui")
     local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
-    task.wait(1)  -- дополнительная задержка для гарантии
-    clickAtElement(returnButton, 1)   -- одинарный клик
+    task.wait(1)
+    clickAtElement(returnButton, 1)
     
     task.wait(5)
 end
