@@ -24,18 +24,18 @@ local function clickAndReset(element, isTriple)
     if element and element:IsA("GuiObject") then
         local oldSize = element.Size
         element.Size = UDim2.new(0, 9999, 0, 9999)
-        task.wait(0.5)
+        task.wait(1.5)
         
         if isTriple then
             tripleClick()
         else
             -- Обычный двойной клик для меню
             VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 1)
-            task.wait(0.2)
+            task.wait(0.7)
             VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 1)
         end
         
-        task.wait(2)
+        task.wait(3)
         element.Size = oldSize
     end
 end
@@ -77,11 +77,13 @@ local function pressPlaySequence()
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
     clickAndReset(page1)
     
-    task.wait(1.5)
+    task.wait(3.5)
     
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
     if playBtn then
+        clickAndReset(playBtn)
+        clickAndReset(playBtn)
         clickAndReset(playBtn)
     end
 end
