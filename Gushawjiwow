@@ -79,12 +79,12 @@ local function pressPlaySequence()
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
     clickAtElement(page1, 1)
     
-    task.wait(1.5)
+    task.wait(3)
     
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
     if playBtn then
-        clickAtElement(playBtn, 1)
+        clickAtElement(playBtn, 3)
     end
 end
 
