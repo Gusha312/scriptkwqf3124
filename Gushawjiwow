@@ -8,8 +8,9 @@ local player = Players.LocalPlayer
 -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 ---------------------------------------------------------
 
--- Тройной клик в заданную точку
-local function tripleClick(x, y)
+-- Клик в точку 100, 100 (гарантированно попадет в расширенную кнопку)
+local function tripleClick()
+    local x, y = 100, 100 
     for i = 1, 3 do
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
         task.wait(0.15)
@@ -18,34 +19,24 @@ local function tripleClick(x, y)
     end
 end
 
--- Функция: Переместить в угол, растянуть, кликнуть, восстановить
+-- Функция: Расширить -> Клик -> Пауза 2 сек -> Уменьшить
 local function clickAndReset(element, isTriple)
     if element and element:IsA("GuiObject") then
-        -- Сохраняем старые значения
         local oldSize = element.Size
-        local oldPosition = element.Position
-        local oldAnchor = element.AnchorPoint
-
-        -- Перемещаем в левый верхний угол и растягиваем на весь экран
-        element.Size = UDim2.new(1, 0, 1, 0)
-        element.Position = UDim2.new(0, 0, 0, 0)
-        element.AnchorPoint = Vector2.new(0, 0)
+        element.Size = UDim2.new(0, 9999, 0, 9999)
         task.wait(0.5)
-
+        
         if isTriple then
-            tripleClick(100, 100)
+            tripleClick()
         else
+            -- Обычный двойной клик для меню
             VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 1)
             task.wait(0.2)
             VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 1)
         end
-
+        
         task.wait(2)
-
-        -- Возвращаем исходные параметры
         element.Size = oldSize
-        element.Position = oldPosition
-        element.AnchorPoint = oldAnchor
     end
 end
 
@@ -58,7 +49,7 @@ local function checkPopups()
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
         if btn then
-            clickAndReset(btn.UpperLabel, true)
+            clickAndReset(btn.UpperLabel, true) -- Кликаем 3 раза
         end
     end
 
@@ -80,18 +71,18 @@ end
 
 -- Последовательность выбора страницы и нажатия Play
 local function pressPlaySequence()
-    checkPopups()
+    checkPopups() -- Проверяем мусор перед входом
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
     
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
-    clickAndReset(page1, false)
+    clickAndReset(page1)
     
     task.wait(1.5)
     
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
     if playBtn then
-        clickAndReset(playBtn, false)
+        clickAndReset(playBtn)
     end
 end
 
@@ -105,7 +96,7 @@ task.spawn(function()
         if promptGui and promptGui.Enabled then
             promptGui.Enabled = false
         end
-        checkPopups()
+        checkPopups() -- Постоянно чекаем диалоги и меню в фоне
         task.wait(0.5)
     end
 end)
@@ -181,7 +172,7 @@ while true do
     local deathGui = player.PlayerGui:WaitForChild("DeathGui")
     local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
     task.wait(6)
-    clickAndReset(retBtn, false)
+    clickAndReset(retBtn)
     
     task.wait(5)
 end
