@@ -140,7 +140,7 @@ ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CreateSlotRemote"):Invok
 task.wait(7)
 
 ---------------------------------------------------------
--- ОСНОВНОЙ ЦИКЛ (с доработкой под раннюю смерть)
+-- ОСНОВНОЙ ЦИКЛ (исправленная версия)
 ---------------------------------------------------------
 while true do
     task.wait(6)
@@ -159,7 +159,7 @@ while true do
     task.wait(3)
     root.CFrame = CFrame.new(-2816.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243)
 
-    -- ========== НОВАЯ ЛОГИКА ОЖИДАНИЯ ==========
+    -- ========== ОЖИДАНИЕ СОБЫТИЯ (КИЛЛЫ ИЛИ СМЕРТЬ) ==========
     local killGoal = 150
     local killReached = false
     local deathGuiAppeared = false
@@ -174,31 +174,34 @@ while true do
         end
     end)
 
-    -- Соединение на появление/включение DeathGui
+    -- Проверяем текущее состояние DeathGui и подписываемся на его появление/включение
     local deathGui = player.PlayerGui:FindFirstChild("DeathGui")
-    local deathConn
+    local deathConn = nil
 
-    local function onDeathGuiEnabled(gui)
-        if gui.Enabled then
+    local function checkDeathGui(gui)
+        if gui and gui.Enabled then
             deathGuiAppeared = true
         end
     end
 
     if deathGui then
+        -- Если окно уже существует, проверяем включено ли оно
+        checkDeathGui(deathGui)
+        -- Подписываемся на изменение Enabled
         deathConn = deathGui:GetPropertyChangedSignal("Enabled"):Connect(function()
-            onDeathGuiEnabled(deathGui)
+            checkDeathGui(deathGui)
         end)
     else
+        -- Если окна нет, ждём его появления
         deathConn = player.PlayerGui.ChildAdded:Connect(function(child)
             if child.Name == "DeathGui" then
-                deathConn:Disconnect() -- больше не нужно, дальше слушаем сам гуи
+                -- Как только появилось, проверяем Enabled и подписываемся на его изменения
+                checkDeathGui(child)
+                -- Перенаправляем подписку на само окно (чтобы не пропустить включение)
+                deathConn:Disconnect() -- отключаем ChildAdded
                 deathConn = child:GetPropertyChangedSignal("Enabled"):Connect(function()
-                    onDeathGuiEnabled(child)
+                    checkDeathGui(child)
                 end)
-                -- если гуи уже включено при добавлении
-                if child.Enabled then
-                    deathGuiAppeared = true
-                end
             end
         end)
     end
@@ -208,9 +211,11 @@ while true do
         task.wait(1)
     until killReached or deathGuiAppeared
 
-    -- Отключаем обработчики
+    -- Отключаем обработчики (с проверкой на nil)
     killsConn:Disconnect()
-    deathConn:Disconnect()
+    if deathConn then
+        deathConn:Disconnect()
+    end
 
     -- Если достигли цели по киллам – вызываем самоубийство
     if killReached then
