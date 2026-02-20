@@ -19,25 +19,42 @@ local function tripleClick()
     end
 end
 
--- Функция: Расширить -> Клик -> Пауза 2 сек -> Уменьшить
+-- Универсальная функция для клика по элементу (расширяет, поднимает ZIndex, кликает)
 local function clickAndReset(element, isTriple)
-    if element and element:IsA("GuiObject") then
-        local oldSize = element.Size
-        element.Size = UDim2.new(0, 9999, 0, 9999)
-        task.wait(1.5)
-        
-        if isTriple then
-            tripleClick()
-        else
-            -- Обычный двойной клик для меню
-            VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 1)
-            task.wait(0.7)
-            VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 1)
-        end
-        
-        task.wait(3)
-        element.Size = oldSize
+    if not element or not element:IsA("GuiObject") then
+        warn("clickAndReset: элемент не найден или не GuiObject")
+        return
     end
+
+    -- Сохраняем оригинальные параметры
+    local oldSize = element.Size
+    local oldZIndex = element.ZIndex
+    local oldActive = element.Active
+    local oldVisible = element.Visible
+
+    -- Делаем элемент огромным, активным и поверх всего
+    element.Size = UDim2.new(0, 9999, 0, 9999)
+    element.ZIndex = 1000000
+    element.Active = true
+    element.Visible = true
+    task.wait(1.5)  -- ждём применения изменений
+
+    if isTriple then
+        tripleClick()
+    else
+        -- Обычный клик
+        VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 1)
+        task.wait(0.7)
+        VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 1)
+    end
+
+    task.wait(3)
+
+    -- Восстанавливаем исходные параметры
+    element.Size = oldSize
+    element.ZIndex = oldZIndex
+    element.Active = oldActive
+    element.Visible = oldVisible
 end
 
 -- Проверка на всплывающие окна (Daily, Update, Dialogue)
@@ -49,7 +66,7 @@ local function checkPopups()
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
         if btn then
-            clickAndReset(btn.UpperLabel, true)
+            clickAndReset(btn.UpperLabel, true)  -- здесь оставлено как было (если ClaimButton кликабелен через UpperLabel)
         end
     end
 
@@ -106,19 +123,17 @@ task.spawn(function()
         checkPopups()
         
         -- ========== АВАРИЙНОЕ ЗАКРЫТИЕ ОКНА СМЕРТИ ==========
-        -- Если DeathGui появилось раньше времени (баг, случайная смерть) – закрываем его
         local deathGui = pgui:FindFirstChild("DeathGui")
         if deathGui and deathGui.Enabled then
-            -- Ищем UpperLabel внутри кнопки Return
-            local retLabel = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return:FindFirstChild("UpperLabel")
-            if retLabel then
-                -- Используем стандартную функцию clickAndReset с тройным кликом
-                clickAndReset(retLabel, true)
+            -- Ищем саму кнопку Return (ImageButton/TextButton)
+            local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
+            if returnButton and (returnButton:IsA("ImageButton") or returnButton:IsA("TextButton")) then
+                clickAndReset(returnButton, true)  -- тройной клик по кнопке
             else
-                -- Если UpperLabel не найден, пробуем саму кнопку Return
-                local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
-                if returnButton then
-                    clickAndReset(returnButton, true)
+                -- Запасной вариант: кликаем по тексту (маловероятно, но вдруг)
+                local retLabel = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return:FindFirstChild("UpperLabel")
+                if retLabel then
+                    clickAndReset(retLabel, true)
                 end
             end
         end
@@ -243,12 +258,21 @@ while true do
     -- ========== ОБРАБОТКА DeathGui ==========
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
-        -- Используем UpperLabel кнопки Return (как в оригинале)
-        local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
-        task.wait(12)
-        clickAndReset(retBtn, true)  -- тройной клик
-        clickAndReset(retBtn, true)
-        clickAndReset(retBtn, true)
+        -- Находим саму кнопку Return
+        local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
+        if returnButton and (returnButton:IsA("ImageButton") or returnButton:IsA("TextButton")) then
+            task.wait(12)
+            clickAndReset(returnButton, true)  -- тройной клик
+            clickAndReset(returnButton, true)
+            clickAndReset(returnButton, true)
+        else
+            -- Запасной вариант: через UpperLabel
+            warn("Кнопка Return не найдена, используется запасной вариант")
+            local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
+            clickAndReset(retBtn, true)
+            clickAndReset(retBtn, true)
+            clickAndReset(retBtn, true)
+        end
     end
     
     task.wait(5)
