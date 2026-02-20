@@ -49,7 +49,7 @@ local function checkPopups()
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
         if btn then
-            clickAndReset(btn.UpperLabel, true) -- Кликаем 3 раза
+            clickAndReset(btn.UpperLabel, true)
         end
     end
 
@@ -71,7 +71,7 @@ end
 
 -- Последовательность выбора страницы и нажатия Play
 local function pressPlaySequence()
-    checkPopups() -- Проверяем мусор перед входом
+    checkPopups()
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
     
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
@@ -94,11 +94,48 @@ end
 
 task.spawn(function()
     while true do
-        local promptGui = player.PlayerGui:FindFirstChild("PromptGui")
+        local pgui = player.PlayerGui
+        
+        -- Закрываем PromptGui
+        local promptGui = pgui:FindFirstChild("PromptGui")
         if promptGui and promptGui.Enabled then
             promptGui.Enabled = false
         end
-        checkPopups() -- Постоянно чекаем диалоги и меню в фоне
+        
+        -- Проверяем всплывающие окна (ежедневка, обновления)
+        checkPopups()
+        
+        -- ========== АВАРИЙНОЕ ЗАКРЫТИЕ ОКНА СМЕРТИ ==========
+        -- Если DeathGui появилось раньше времени (баг, случайная смерть) – закрываем его
+        local deathGui = pgui:FindFirstChild("DeathGui")
+        if deathGui and deathGui.Enabled then
+            -- Ищем кнопку Return
+            local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
+            if returnButton and (returnButton:IsA("ImageButton") or returnButton:IsA("TextButton")) then
+                -- Кликаем в центр кнопки
+                local center = returnButton.AbsolutePosition + returnButton.AbsoluteSize / 2
+                -- Делаем несколько кликов для надёжности
+                for i = 1, 3 do
+                    VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
+                    task.wait(0.1)
+                    VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
+                    task.wait(0.2)
+                end
+            else
+                -- Запасной вариант: кликаем по тексту UpperLabel
+                local retLabel = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
+                if retLabel then
+                    local center = retLabel.AbsolutePosition + retLabel.AbsoluteSize / 2
+                    for i = 1, 3 do
+                        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
+                        task.wait(0.1)
+                        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
+                        task.wait(0.2)
+                    end
+                end
+            end
+        end
+        
         task.wait(0.5)
     end
 end)
@@ -140,7 +177,7 @@ ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CreateSlotRemote"):Invok
 task.wait(7)
 
 ---------------------------------------------------------
--- ОСНОВНОЙ ЦИКЛ (исправленная версия для DeathGui)
+-- ОСНОВНОЙ ЦИКЛ
 ---------------------------------------------------------
 while true do
     task.wait(6)
@@ -185,20 +222,15 @@ while true do
     end
 
     if deathGui then
-        -- Если окно уже существует, проверяем включено ли оно
         checkDeathGui(deathGui)
-        -- Подписываемся на изменение Enabled
         deathConn = deathGui:GetPropertyChangedSignal("Enabled"):Connect(function()
             checkDeathGui(deathGui)
         end)
     else
-        -- Если окна нет, ждём его появления
         deathConn = player.PlayerGui.ChildAdded:Connect(function(child)
             if child.Name == "DeathGui" then
-                -- Как только появилось, проверяем Enabled и подписываемся на его изменения
                 checkDeathGui(child)
-                -- Перенаправляем подписку на само окно (чтобы не пропустить включение)
-                deathConn:Disconnect() -- отключаем ChildAdded
+                deathConn:Disconnect()
                 deathConn = child:GetPropertyChangedSignal("Enabled"):Connect(function()
                     checkDeathGui(child)
                 end)
@@ -211,30 +243,25 @@ while true do
         task.wait(1)
     until killReached or deathGuiAppeared
 
-    -- Отключаем обработчики (с проверкой на nil)
     killsConn:Disconnect()
-    if deathConn then
-        deathConn:Disconnect()
-    end
+    if deathConn then deathConn:Disconnect() end
 
     -- Если достигли цели по киллам – вызываем самоубийство
     if killReached then
         task.wait(2)
         ReplicatedStorage.Remotes.OutOfBoundsSelfDamage:FireServer(25000)
-        task.wait(15) -- даём время появиться DeathGui
+        task.wait(15)
     end
 
-    -- ========== ИСПРАВЛЕННАЯ ОБРАБОТКА DeathGui ==========
-    -- Ждём появления окна смерти (если его ещё нет)
+    -- ========== ОБРАБОТКА DeathGui ==========
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
-        -- Пытаемся найти саму кнопку Return, а не её текст
+        -- Ищем кнопку Return
         local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
         
         if returnButton and (returnButton:IsA("ImageButton") or returnButton:IsA("TextButton")) then
             task.wait(12)
             
-            -- Функция клика в центр указанного объекта
             local function clickCenter(obj)
                 local center = obj.AbsolutePosition + obj.AbsoluteSize / 2
                 VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
@@ -242,12 +269,10 @@ while true do
                 VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
             end
             
-            -- Расширяем саму кнопку (аналогично clickAndReset)
             local oldSize = returnButton.Size
             returnButton.Size = UDim2.new(0, 9999, 0, 9999)
             task.wait(1.5)
             
-            -- Тройной клик в центр расширенной кнопки
             for i = 1, 3 do
                 clickCenter(returnButton)
                 task.wait(0.2)
@@ -256,7 +281,7 @@ while true do
             task.wait(3)
             returnButton.Size = oldSize
         else
-            -- Запасной вариант: используем старый метод через UpperLabel
+            -- Запасной вариант через UpperLabel
             warn("Кнопка Return не найдена, используется запасной вариант")
             local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
             clickAndReset(retBtn)
@@ -265,5 +290,5 @@ while true do
         end
     end
     
-    task.wait(5) -- пауза перед следующим циклом
+    task.wait(5)
 end
