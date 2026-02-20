@@ -5,60 +5,70 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 ---------------------------------------------------------
--- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+-- УНИВЕРСАЛЬНАЯ ФУНКЦИЯ КЛИКА ПО КНОПКЕ
 ---------------------------------------------------------
+local function clickButton(button, times, expand)
+    -- Проверяем, что передан кликабельный объект
+    if not button or not (button:IsA("ImageButton") or button:IsA("TextButton")) then
+        warn("clickButton: объект не является кнопкой")
+        return
+    end
 
--- Клик в точку 100, 100 (гарантированно попадет в расширенную кнопку)
-local function tripleClick()
-    local x, y = 100, 100 
-    for i = 1, 3 do
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+    times = times or 1  -- количество кликов (по умолчанию 1)
+
+    -- Если нужно временно растянуть кнопку на весь экран
+    if expand then
+        local oldSize = button.Size
+        local oldPos = button.Position
+        local oldAnchor = button.AnchorPoint
+
+        button.Size = UDim2.new(1, 0, 1, 0)
+        button.Position = UDim2.new(0, 0, 0, 0)
+        button.AnchorPoint = Vector2.new(0, 0)
+        task.wait(1.5)
+    end
+
+    -- Вычисляем центр кнопки в абсолютных координатах
+    local center = button.AbsolutePosition + button.AbsoluteSize / 2
+
+    -- Выполняем нужное количество кликов
+    for i = 1, times do
+        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
         task.wait(0.15)
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
         task.wait(0.2)
     end
-end
 
--- Функция: Расширить -> Клик -> Пауза 2 сек -> Уменьшить
-local function clickAndReset(element, isTriple)
-    if element and element:IsA("GuiObject") then
-        local oldSize = element.Size
-        element.Size = UDim2.new(0, 9999, 0, 9999)
-        task.wait(1.5)
-        
-        if isTriple then
-            tripleClick()
-        else
-            -- Обычный двойной клик для меню
-            VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 1)
-            task.wait(0.7)
-            VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 1)
-        end
-        
+    -- Возвращаем исходные размеры, если расширяли
+    if expand then
         task.wait(3)
-        element.Size = oldSize
+        button.Size = oldSize
+        button.Position = oldPos
+        button.AnchorPoint = oldAnchor
     end
 end
 
--- Проверка на всплывающие окна (Daily, Update, Dialogue)
+---------------------------------------------------------
+-- ПРОВЕРКА ВСПЛЫВАЮЩИХ ОКОН
+---------------------------------------------------------
 local function checkPopups()
     local pgui = player.PlayerGui
 
     -- 1. Ежедневная награда
     local daily = pgui:FindFirstChild("DailyLoginGui")
     if daily and daily.Enabled then
-        local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
-        if btn then
-            clickAndReset(btn.UpperLabel, true) -- Кликаем 3 раза
+        local claimButton = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
+        if claimButton and (claimButton:IsA("ImageButton") or claimButton:IsA("TextButton")) then
+            clickButton(claimButton, 3, true)  -- тройной клик с расширением
         end
     end
 
     -- 2. Лог обновлений
     local log = pgui:FindFirstChild("UpdateLogGui")
     if log and log.Enabled then
-        local closeBtn = log.ContainerFrame:FindFirstChild("CloseButton")
-        if closeBtn then
-            clickAndReset(closeBtn.UpperLabel, false)
+        local closeButton = log.ContainerFrame:FindFirstChild("CloseButton")
+        if closeButton and (closeButton:IsA("ImageButton") or closeButton:IsA("TextButton")) then
+            clickButton(closeButton, 1, true)  -- одиночный клик с расширением
         end
     end
 
@@ -69,41 +79,48 @@ local function checkPopups()
     end
 end
 
--- Последовательность выбора страницы и нажатия Play
+---------------------------------------------------------
+-- ПОСЛЕДОВАТЕЛЬНОСТЬ ВЫБОРА СЛОТА И PLAY
+---------------------------------------------------------
 local function pressPlaySequence()
-    checkPopups() -- Проверяем мусор перед входом
+    checkPopups() -- проверяем мусор перед входом
+
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
-    
+
+    -- Нажимаем на страницу 1
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
-    clickAndReset(page1)
-    
+    if page1 and (page1:IsA("ImageButton") or page1:IsA("TextButton")) then
+        clickButton(page1, 1, true)  -- выбираем страницу
+    end
+
     task.wait(3.5)
-    
+
+    -- Нажимаем на кнопку Play в первом слоте
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
-    if playBtn then
-        clickAndReset(playBtn)
-        clickAndReset(playBtn)
-        clickAndReset(playBtn)
+    if playBtn and (playBtn:IsA("ImageButton") or playBtn:IsA("TextButton")) then
+        -- Тройной клик с расширением (как в оригинале, но через нашу функцию)
+        clickButton(playBtn, 1, true)
+        clickButton(playBtn, 1, true)
+        clickButton(playBtn, 1, true)
     end
 end
 
 ---------------------------------------------------------
 -- ФОНОВЫЕ ПРОЦЕССЫ
 ---------------------------------------------------------
-
 task.spawn(function()
     while true do
         local promptGui = player.PlayerGui:FindFirstChild("PromptGui")
         if promptGui and promptGui.Enabled then
             promptGui.Enabled = false
         end
-        checkPopups() -- Постоянно чекаем диалоги и меню в фоне
+        checkPopups() -- постоянно проверяем диалоги
         task.wait(0.5)
     end
 end)
 
--- Еда и вода
+-- Автоматическое удовлетворение голода и жажды
 task.spawn(function()
     while true do
         task.wait(10)
@@ -123,7 +140,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- ЧАСТЬ 1: ПОДГОТОВКА СЛОТОВ
+-- ПОДГОТОВКА СЛОТОВ (удаление старых и создание нового)
 ---------------------------------------------------------
 local args = {true, true}
 player:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
@@ -140,11 +157,11 @@ ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CreateSlotRemote"):Invok
 task.wait(7)
 
 ---------------------------------------------------------
--- ОСНОВНОЙ ЦИКЛ (исправленная версия)
+-- ОСНОВНОЙ ЦИКЛ
 ---------------------------------------------------------
 while true do
     task.wait(6)
-    
+
     ReplicatedStorage.Remotes.RestartSlotRemote:InvokeServer("Slot1", false)
     task.wait(2)
 
@@ -153,87 +170,80 @@ while true do
     task.wait(5)
     local char = player.Character or player.CharacterAdded:Wait()
     local root = char:WaitForChild("HumanoidRootPart")
-    
-    -- ТП на точку фарма
-    root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243) 
+
+    -- Телепорт на точку фарма
+    root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243)
     task.wait(3)
     root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243)
 
-    -- ========== ОЖИДАНИЕ СОБЫТИЯ (КИЛЛЫ ИЛИ СМЕРТЬ) ==========
+    -- ========== ОЖИДАНИЕ ДОСТИЖЕНИЯ ЦЕЛИ ИЛИ СМЕРТИ ==========
     local killGoal = 150
     local killReached = false
     local deathGuiAppeared = false
 
-    -- Получаем статистику киллов
+    -- Мониторинг киллов
     local stats = player.PlayerGui:WaitForChild("Data"):WaitForChild("Slot1"):WaitForChild("DeathStats"):WaitForChild("CreatureKillsT5")
-    
-    -- Соединение на изменение киллов
     local killsConn = stats.Changed:Connect(function(newVal)
         if newVal >= killGoal then
             killReached = true
         end
     end)
 
-    -- Проверяем текущее состояние DeathGui и подписываемся на его появление/включение
+    -- Мониторинг появления окна смерти
     local deathGui = player.PlayerGui:FindFirstChild("DeathGui")
     local deathConn = nil
 
-    local function checkDeathGui(gui)
+    local function onDeathGuiEnabled(gui)
         if gui and gui.Enabled then
             deathGuiAppeared = true
         end
     end
 
     if deathGui then
-        -- Если окно уже существует, проверяем включено ли оно
-        checkDeathGui(deathGui)
-        -- Подписываемся на изменение Enabled
+        onDeathGuiEnabled(deathGui)
         deathConn = deathGui:GetPropertyChangedSignal("Enabled"):Connect(function()
-            checkDeathGui(deathGui)
+            onDeathGuiEnabled(deathGui)
         end)
     else
-        -- Если окна нет, ждём его появления
         deathConn = player.PlayerGui.ChildAdded:Connect(function(child)
             if child.Name == "DeathGui" then
-                -- Как только появилось, проверяем Enabled и подписываемся на его изменения
-                checkDeathGui(child)
-                -- Перенаправляем подписку на само окно (чтобы не пропустить включение)
-                deathConn:Disconnect() -- отключаем ChildAdded
+                onDeathGuiEnabled(child)
+                deathConn:Disconnect()
                 deathConn = child:GetPropertyChangedSignal("Enabled"):Connect(function()
-                    checkDeathGui(child)
+                    onDeathGuiEnabled(child)
                 end)
             end
         end)
     end
 
-    -- Ждём выполнения одного из условий
+    -- Ждём выполнения условия
     repeat
         task.wait(1)
     until killReached or deathGuiAppeared
 
-    -- Отключаем обработчики (с проверкой на nil)
     killsConn:Disconnect()
-    if deathConn then
-        deathConn:Disconnect()
-    end
+    if deathConn then deathConn:Disconnect() end
 
-    -- Если достигли цели по киллам – вызываем самоубийство
+    -- Если достигли цели по киллам – убиваем персонажа
     if killReached then
         task.wait(2)
         ReplicatedStorage.Remotes.OutOfBoundsSelfDamage:FireServer(25000)
-        task.wait(15) -- даём время появиться DeathGui
+        task.wait(15)
     end
 
-    -- ========== ОБРАБОТКА DeathGui ==========
-    -- Ждём появления окна смерти (если его ещё нет)
+    -- ========== ОБРАБОТКА ОКНА СМЕРТИ ==========
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
-        local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
-        task.wait(12)
-        clickAndReset(retBtn)
-        clickAndReset(retBtn)
-        clickAndReset(retBtn)
+        -- Ищем кнопку Return (не UpperLabel!)
+        local returnButton = deathGui.ContainerFrame.BottomFrame.ButtonsFrame:FindFirstChild("Return")
+        if returnButton and (returnButton:IsA("ImageButton") or returnButton:IsA("TextButton")) then
+            task.wait(12)
+            -- Тройной клик с расширением для гарантии
+            clickButton(returnButton, 3, true)
+        else
+            warn("Кнопка Return не найдена")
+        end
     end
-    
+
     task.wait(5) -- пауза перед следующим циклом
 end
