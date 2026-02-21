@@ -233,5 +233,5 @@ while true do
         clickAndReset(retBtn)
     end
     
-    task.wait(5) -- пауза перед следующим циклом
+    task.wait(9) -- пауза перед следующим циклом
 end
