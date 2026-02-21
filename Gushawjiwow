@@ -228,8 +228,8 @@ while true do
     -- Ждём появления окна смерти (если его ещё нет)
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
-        local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
-        task.wait(6)
+        local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
+        task.wait(40)
         clickAndReset(retBtn)
         clickAndReset(retBtn)
         clickAndReset(retBtn)
