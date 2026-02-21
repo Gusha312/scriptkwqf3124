@@ -231,8 +231,6 @@ while true do
         local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
         task.wait(16)
         clickAndReset(retBtn)
-        clickAndReset(retBtn)
-        clickAndReset(retBtn)
     end
     
     task.wait(5) -- пауза перед следующим циклом
