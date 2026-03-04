@@ -1,0 +1,484 @@
+--[[ ===== НАСТРОЙКИ ===== ]]
+local IS_MAIN    = false
+local SERVER_URL = "http://185.194.177.252:8001"
+--[[ ===================== ]]
+
+local PlaceId = game.PlaceId
+local validPlaces = { [5233782396] = true, [14119723130] = true }
+if not validPlaces[PlaceId] then return end
+
+task.wait(5)
+
+local Players           = game:GetService("Players")
+local HttpService       = game:GetService("HttpService")
+local TeleportService   = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player      = Players.LocalPlayer
+local myName      = player.Name
+local requestFunc = syn and syn.request or http_request or request
+
+local function httpPost(url, data)
+    if not requestFunc then return nil end
+    local ok, res = pcall(function()
+        return requestFunc({
+            Url = url, Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(data)
+        })
+    end)
+    return ok and res or nil
+end
+
+local function httpGet(url)
+    if not requestFunc then return nil end
+    local ok, res = pcall(function()
+        return requestFunc({ Url = url, Method = "GET" })
+    end)
+    if ok and res and res.Body then
+        local ok2, d = pcall(function() return HttpService:JSONDecode(res.Body) end)
+        if ok2 then return d end
+    end
+    return nil
+end
+
+-- ════════════════════════════════
+--  ОСНОВНОЙ — 14119723130
+-- ════════════════════════════════
+if IS_MAIN and PlaceId == 14119723130 then
+
+    task.spawn(function()
+        while true do
+            local ok, err = pcall(function()
+                httpPost(SERVER_URL .. "/api/mainjobid", { jobId = tostring(game.JobId), name = myName })
+            end)
+            if not ok then warn("[Main] mainjobid error:", tostring(err)) end
+            task.wait(5)
+        end
+    end)
+    print("[Main] Job ID отправляется:", game.JobId)
+
+    task.spawn(function()
+        while true do
+            local ok, err = pcall(function()
+
+                local data = httpGet(SERVER_URL .. "/api/queue/next")
+                if not (data and data.twink and data.twink ~= "") then
+                    task.wait(5)
+                    return
+                end
+
+                local twinkName = data.twink
+                print("[Main] Обрабатываем твинка:", twinkName)
+
+                httpPost(SERVER_URL .. "/api/teleportcmd", {
+                    target = twinkName, jobId = game.JobId, name = myName
+                })
+
+                local twinkPlayer, waited = nil, 0
+                repeat
+                    twinkPlayer = Players:FindFirstChild(twinkName)
+                    if not twinkPlayer then task.wait(2); waited += 2 end
+                until twinkPlayer or waited >= 60
+
+                if not twinkPlayer then
+                    print("[Main] Твинк не появился за 60 сек, пропускаем")
+                    httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                    task.wait(5)
+                    return
+                end
+
+                print("[Main] Твинк появился, ждём загрузки...")
+                task.wait(5)
+
+                local tradeGuiMain = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 30)
+                if not tradeGuiMain then
+                    warn("[Main] TradeGui не найден!")
+                    httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                    return
+                end
+
+                -- SendRequest пока TradeGui не откроется
+                -- Players:FindFirstChild с таймаутом чтобы не зависать если твинк вылетел
+                local sendWait = 0
+                while not tradeGuiMain.Enabled and sendWait < 60 do
+                    local twinkStillHere = Players:FindFirstChild(twinkName)
+                    if not twinkStillHere then
+                        print("[Main] Твинк вылетел во время SendRequest, пропускаем")
+                        httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                        return
+                    end
+                    pcall(function()
+                        player:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(
+                            "SendRequest", twinkStillHere
+                        )
+                    end)
+                    task.wait(2)
+                    sendWait += 2
+                end
+
+                -- Если TradeGui так и не открылся — твинк вылетел или отказал
+                if not tradeGuiMain.Enabled then
+                    print("[Main] TradeGui не открылся за 60 сек, пропускаем")
+                    httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                    return
+                end
+                print("[Main] TradeGui.Enabled:", tradeGuiMain.Enabled)
+
+                local tradeRemoteName = myName .. "-" .. twinkName .. "TradeRemote"
+                local tradeRem, remWait = nil, 0
+                repeat
+                    task.wait(1); remWait += 1
+                    -- Проверяем что твинк ещё в игре
+                    if not Players:FindFirstChild(twinkName) then
+                        print("[Main] Твинк вылетел пока ждали TradeRemote")
+                        httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                        return
+                    end
+                    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                    if remotes then tradeRem = remotes:FindFirstChild(tradeRemoteName) end
+                until tradeRem or remWait >= 30
+                print("[Main] TradeRemote найден:", tradeRem ~= nil)
+
+                if not tradeRem then
+                    print("[Main] TradeRemote не найден, пропускаем")
+                    httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                    return
+                end
+
+                -- Ждём tradestatus от твинка, параллельно следим за вылетом
+                local ready, timeout = false, 0
+                repeat
+                    task.wait(2); timeout += 2
+                    if not Players:FindFirstChild(twinkName) then
+                        print("[Main] Твинк вылетел пока ждали tradestatus")
+                        httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                        return
+                    end
+                    local status = httpGet(SERVER_URL .. "/api/tradestatus")
+                    if status and status.twinkReady then ready = true end
+                until ready or timeout >= 120
+
+                if not ready then
+                    print("[Main] Твинк не ответил за 2 мин, пропускаем")
+                    httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                    return
+                end
+
+                -- AcceptTrade в spawn чтобы InvokeServer не завис если твинк вылетит
+                print("[Main] Принимаем трейд...")
+                task.spawn(function()
+                    pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
+                    print("[Main] InvokeServer AcceptTrade завершён")
+                end)
+
+                -- Ждём закрытия TradeGui, параллельно следим за вылетом твинка
+                local acceptWait = 0
+                while tradeGuiMain.Enabled and acceptWait < 60 do
+                    task.wait(2)
+                    acceptWait += 2
+                    -- Если твинк вылетел — TradeGui закроется сам, просто ждём
+                end
+                print("[Main] TradeGui закрылся — трейд завершён (или твинк вылетел)")
+
+                httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
+                print("[Main] Ждём 10 сек перед следующим твинком...")
+                task.wait(10)
+
+            end)
+
+            if not ok then
+                warn("[Main] ОШИБКА в цикле:", tostring(err))
+                task.wait(5)
+            end
+        end
+    end)
+
+-- ════════════════════════════════
+--  ТВИНК — 5233782396
+-- ════════════════════════════════
+elseif not IS_MAIN and PlaceId == 5233782396 then
+
+    task.spawn(function()
+        while true do
+            local dataToSend = { name = myName }
+            local pg = player:FindFirstChild("PlayerGui")
+            if pg then
+                local data = pg:FindFirstChild("Data")
+                if data then
+                    local items = data:FindFirstChild("Items")
+                    if items then
+                        for _, n in ipairs({"CreatureReviveToken","GlimmerChanceToken","GlimmerForceToken","FullGrowToken","ChangeCreatureColorsToken","PartialGrowToken"}) do
+                            local t = items:FindFirstChild(n)
+                            dataToSend[n] = (t and (t:IsA("NumberValue") or t:IsA("IntValue"))) and t.Value or 0
+                        end
+                    end
+                    local unlocks = data:FindFirstChild("Unlocks")
+                    if unlocks then
+                        local d = unlocks:FindFirstChild("Dabaemura")
+                        dataToSend.Dabaemura = (d and (d:IsA("NumberValue") or d:IsA("IntValue"))) and d.Value or 0
+                        local p = unlocks:FindFirstChild("Pentagloss")
+                        dataToSend.Pentagloss = (p and (p:IsA("NumberValue") or p:IsA("IntValue"))) and p.Value or 0
+                    end
+                end
+            end
+            pcall(function()
+                requestFunc({
+                    Url = SERVER_URL, Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = HttpService:JSONEncode(dataToSend)
+                })
+            end)
+            task.wait(5)
+        end
+    end)
+    print("[Twink] Статистика запущена")
+
+    httpPost(SERVER_URL .. "/api/queue/join", { name = myName })
+    print("[Twink] В очереди:", myName)
+
+    local mainData = nil
+    repeat
+        task.wait(5)
+        local status = httpGet(SERVER_URL .. "/api/teleportcmd")
+        if status and status.target == myName and status.jobId and status.jobId ~= "" then
+            mainData = status
+        end
+    until mainData ~= nil
+
+    print("[Twink] Телепортируемся:", mainData.jobId)
+    TeleportService:TeleportToPlaceInstance(14119723130, mainData.jobId, player)
+
+-- ════════════════════════════════
+--  ТВИНК — 14119723130
+-- ════════════════════════════════
+elseif not IS_MAIN and PlaceId == 14119723130 then
+
+    local mainInfo = httpGet(SERVER_URL .. "/api/mainjobid")
+    local mainName = mainInfo and mainInfo.name or ""
+    print("[Twink14] Основной:", mainName)
+
+    if mainName == "" then
+        warn("[Twink14] Имя основного не получено!")
+        return
+    end
+
+    local tradeRemoteName = mainName .. "-" .. myName .. "TradeRemote"
+    local tokenNames    = {"CreatureReviveToken","GlimmerChanceToken","GlimmerForceToken","FullGrowToken","ChangeCreatureColorsToken","PartialGrowToken"}
+    local creatureNames = {"Dabaemura","Pentagloss"}
+
+    local function getDataFolder()
+        local pg = player:FindFirstChild("PlayerGui")
+        if pg then
+            local d = pg:FindFirstChild("Data")
+            if d then return d, "PlayerGui.Data" end
+        end
+        local d2 = player:FindFirstChild("Data")
+        if d2 then return d2, "player.Data" end
+        return nil, "NOT FOUND"
+    end
+
+    local function snapshot()
+        local result = {}
+        local total = 0
+        local dataFolder, path = getDataFolder()
+        print("[Twink14][snapshot] path:", path)
+        if not dataFolder then return result, 0 end
+
+        local items   = dataFolder:FindFirstChild("Items")
+        local unlocks = dataFolder:FindFirstChild("Unlocks")
+
+        if items then
+            for _, name in ipairs(tokenNames) do
+                local t = items:FindFirstChild(name)
+                local val = t and tonumber(t.Value) or 0
+                result[name] = val
+                total += val
+                if val > 0 then print("[Twink14][snapshot]", name, "=", val) end
+            end
+        else
+            print("[Twink14][snapshot] Items НЕ НАЙДЕНО в", path)
+        end
+
+        if unlocks then
+            for _, name in ipairs(creatureNames) do
+                local c = unlocks:FindFirstChild(name)
+                local val = c and c.Value or 0
+                if type(val) == "boolean" then val = val and 1 or 0 end
+                val = math.floor(tonumber(val) or 0)
+                result[name] = val
+                total += val
+                if val > 0 then print("[Twink14][snapshot]", name, "=", val) end
+            end
+        else
+            print("[Twink14][snapshot] Unlocks НЕ НАЙДЕНО в", path)
+        end
+
+        print("[Twink14][snapshot] Итого:", total)
+        return result, total
+    end
+
+    local function putItemsInTrade(tradeRem, snap)
+        local totalAdded = 0
+        for _, name in ipairs(tokenNames) do
+            if totalAdded >= 150 then break end
+            local amount = snap[name] or 0
+            if amount > 0 then
+                local ok, err = pcall(function()
+                    tradeRem:InvokeServer(unpack({"AddTradeItem", {
+                        Overwrite = true, ItemType = "Tokens", Name = name, Amount = amount
+                    }}))
+                end)
+                print("[Twink14] AddToken", name, amount, ok and "OK" or ("ERR:"..tostring(err)))
+                totalAdded += 1
+                task.wait(1)
+            end
+        end
+        for _, name in ipairs(creatureNames) do
+            if totalAdded >= 150 then break end
+            local amount = snap[name] or 0
+            if amount > 0 then
+                local ok, err = pcall(function()
+                    tradeRem:InvokeServer(unpack({"AddTradeItem", {
+                        Overwrite = true, ItemType = "Creatures", Name = name, Amount = amount
+                    }}))
+                end)
+                print("[Twink14] AddCreature", name, "x"..amount, ok and "OK" or ("ERR:"..tostring(err)))
+                totalAdded += 1
+                task.wait(1)
+            end
+        end
+        print("[Twink14] Итого положено:", totalAdded)
+    end
+
+    local function finishAndKick()
+        print("[Twink14] ✅ Всё передано! Удаляем статистику и кикаемся.")
+        httpPost(SERVER_URL .. "/api/account/remove", { name = myName })
+        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
+        task.wait(1)
+        player:Kick("Всё закончил я всё!")
+    end
+
+    -- Ждём пока предметы обнулятся (до 30 сек опрашиваем каждую секунду)
+    -- Начальный снимок
+    print("[Twink14] Начальный снимок:")
+    local _, totalBefore = snapshot()
+    if totalBefore == 0 then
+        print("[Twink14] Предметов нет изначально.")
+        finishAndKick()
+        return
+    end
+
+    local maxAttempts = 5
+    local attempt = 0
+
+    while attempt < maxAttempts do
+
+        local currentSnap, currentTotal = snapshot()
+        if currentTotal == 0 then
+            finishAndKick()
+            return
+        end
+
+        attempt += 1
+        print("[Twink14] === Попытка #" .. attempt .. " (предметов: " .. currentTotal .. ") ===")
+
+        -- Ждём TradeGui + AcceptRequest
+        local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
+        local accWait = 0
+        while tradeGui and not tradeGui.Enabled and accWait < 60 do
+            pcall(function()
+                Players:WaitForChild(mainName, 10)
+                    :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
+            end)
+            task.wait(2)
+            accWait += 2
+        end
+
+        if not tradeGui or not tradeGui.Enabled then
+            warn("[Twink14] Трейд не открылся, попытка #" .. attempt)
+            task.wait(5)
+            continue
+        end
+        print("[Twink14] Трейд принят, TradeGui открылся")
+        task.wait(2)
+
+        -- Ждём TradeRemote
+        local tradeRem, remWait = nil, 0
+        repeat
+            task.wait(1); remWait += 1
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            if remotes then tradeRem = remotes:FindFirstChild(tradeRemoteName) end
+        until tradeRem or remWait >= 30
+
+        if not tradeRem then
+            warn("[Twink14] TradeRemote не найден, попытка #" .. attempt)
+            task.wait(5)
+            continue
+        end
+        print("[Twink14] TradeRemote найден, кладём предметы...")
+
+        -- Кладём предметы
+        putItemsInTrade(tradeRem, currentSnap)
+
+        -- Принимаем трейд в spawn чтобы не блокировать
+        print("[Twink14] Принимаем трейд...")
+        task.spawn(function()
+            local ok, err = pcall(function()
+                tradeRem:InvokeServer(unpack({"AcceptTrade"}))
+            end)
+            print("[Twink14] AcceptTrade завершён:", ok and "OK" or tostring(err))
+        end)
+
+        -- Сигнал основному
+        httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = true, name = myName })
+
+        -- Ждём 10 сек и проверяем предметы каждую секунду (макс 30 сек)
+        print("[Twink14] Ждём обнуления предметов...")
+        local transferred = false
+        for i = 1, 30 do
+            task.wait(1)
+            local _, total = snapshot()
+            print("[Twink14][check] sec:", i, "total:", total)
+            if total == 0 then
+                transferred = true
+                break
+            end
+        end
+
+        if transferred then
+            finishAndKick()
+            return
+        end
+
+        -- Предметы остались — смотрим TradeGui
+        print("[Twink14] Предметы остались | TradeGui.Enabled =", tostring(tradeGui.Enabled))
+
+        if tradeGui.Enabled then
+            -- Трейд ещё открыт — перекладываем и повторяем
+            print("[Twink14] TradeGui открыт — перекладываем...")
+            local freshSnap, _ = snapshot()
+            putItemsInTrade(tradeRem, freshSnap)
+            task.spawn(function()
+                pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
+            end)
+            httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = true, name = myName })
+            for i = 1, 30 do
+                task.wait(1)
+                local _, total = snapshot()
+                print("[Twink14][retry] sec:", i, "total:", total)
+                if total == 0 then
+                    finishAndKick()
+                    return
+                end
+            end
+        else
+            -- TradeGui закрыт — новый трейд
+            print("[Twink14] TradeGui закрыт — стартуем новый трейд...")
+            task.wait(3)
+        end
+    end
+
+    warn("[Twink14] Исчерпаны все попытки (" .. maxAttempts .. "), трейд не завершён.")
+    httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
+
+end
