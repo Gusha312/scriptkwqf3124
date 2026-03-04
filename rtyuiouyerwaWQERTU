@@ -48,14 +48,15 @@ if IS_MAIN and PlaceId == 14119723130 then
 
     task.spawn(function()
         while true do
+            local jid = tostring(game.JobId or "")
+            print("[Main] Отправляю jobId:", jid, "| name:", myName)
             local ok, err = pcall(function()
-                httpPost(SERVER_URL .. "/api/mainjobid", { jobId = tostring(game.JobId), name = myName })
+                httpPost(SERVER_URL .. "/api/mainjobid", { jobId = jid, name = myName })
             end)
             if not ok then warn("[Main] mainjobid error:", tostring(err)) end
             task.wait(5)
         end
     end)
-    print("[Main] Job ID отправляется:", game.JobId)
 
     task.spawn(function()
         while true do
@@ -239,10 +240,22 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
     local mainData = nil
     repeat
         task.wait(5)
-        local status = httpGet(SERVER_URL .. "/api/teleportcmd")
-        if status and status.target == myName and status.jobId and status.jobId ~= "" then
-            mainData = status
-        end
+        -- POST с именем: сервер отдаёт команду только если она для нас, и сразу сбрасывает
+        pcall(function()
+            local r = requestFunc({
+                Url = SERVER_URL .. "/api/teleportcmd/read",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({ name = myName })
+            })
+            if r and r.Body then
+                local ok, d = pcall(function() return HttpService:JSONDecode(r.Body) end)
+                if ok and d and d.target == myName and d.jobId and d.jobId ~= "" then
+                    mainData = d
+                    print("[Twink] Получена команда телепорта:", d.jobId)
+                end
+            end
+        end)
     until mainData ~= nil
 
     print("[Twink] Телепортируемся:", mainData.jobId)
