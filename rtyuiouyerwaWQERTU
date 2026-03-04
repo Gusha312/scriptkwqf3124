@@ -1,6 +1,6 @@
 --[[ ===== НАСТРОЙКИ ===== ]]
 local IS_MAIN    = false
-local SERVER_URL = "http://192.168.1.64:8001"
+local SERVER_URL = "http://185.194.177.252:8001"
 --[[ ===================== ]]
 
 local PlaceId = game.PlaceId
@@ -70,10 +70,7 @@ if IS_MAIN and PlaceId == 14119723130 then
 
                 local twinkName = data.twink
                 print("[Main] Обрабатываем твинка:", twinkName)
-
-                httpPost(SERVER_URL .. "/api/teleportcmd", {
-                    target = twinkName, jobId = game.JobId, name = myName
-                })
+                -- teleportcmd уже отправил сайт при нажатии кнопки сбора
 
                 local twinkPlayer, waited = nil, 0
                 repeat
