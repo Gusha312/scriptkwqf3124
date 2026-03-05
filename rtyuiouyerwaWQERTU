@@ -212,10 +212,12 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                     end
                     local unlocks = data:FindFirstChild("Unlocks")
                     if unlocks then
-                        local d = unlocks:FindFirstChild("Dabaemura")
-                        dataToSend.Dabaemura = (d and (d:IsA("NumberValue") or d:IsA("IntValue"))) and d.Value or 0
-                        local p = unlocks:FindFirstChild("Pentagloss")
-                        dataToSend.Pentagloss = (p and (p:IsA("NumberValue") or p:IsA("IntValue"))) and p.Value or 0
+                        local creaturesRes = httpGet(SERVER_URL .. "/api/creatures")
+                        local dynamicCreatures = creaturesRes or {}
+                        for _, cName in ipairs(dynamicCreatures) do
+                            local c = unlocks:FindFirstChild(cName)
+                            dataToSend[cName] = (c and (c:IsA("NumberValue") or c:IsA("IntValue"))) and c.Value or 0
+                        end
                     end
                 end
             end
@@ -284,7 +286,17 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
     local tradeRemoteName = mainName .. "-" .. myName .. "TradeRemote"
     local tokenNames    = {"CreatureReviveToken","GlimmerChanceToken","GlimmerForceToken","FullGrowToken","ChangeCreatureColorsToken","PartialGrowToken"}
-    local creatureNames = {"Dabaemura","Pentagloss"}
+
+    -- Загружаем список существ с сервера (те что добавил на сайте)
+    local creatureNames = {}
+    local creaturesRes = httpGet(SERVER_URL .. "/api/creatures")
+    if creaturesRes and type(creaturesRes) == "table" then
+        creatureNames = creaturesRes
+        print("[Twink14] Существа загружены:", #creatureNames)
+        for _, n in ipairs(creatureNames) do print("  -", n) end
+    else
+        warn("[Twink14] Не удалось загрузить существ с сервера!")
+    end
 
     local function getDataFolder()
         local pg = player:FindFirstChild("PlayerGui")
