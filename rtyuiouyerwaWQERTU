@@ -244,6 +244,7 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                 Body = HttpService:JSONEncode({ name = myName })
             })
             if r and r.Body then
+                print("[Twink] teleportcmd/read ответ:", r.Body)
                 local ok, d = pcall(function() return HttpService:JSONDecode(r.Body) end)
                 if ok and d and d.jobId and d.jobId ~= "" then
                     jobId = d.jobId
