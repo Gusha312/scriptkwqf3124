@@ -76,10 +76,10 @@ if IS_MAIN and PlaceId == 14119723130 then
                 repeat
                     twinkPlayer = Players:FindFirstChild(twinkName)
                     if not twinkPlayer then task.wait(2); waited += 2 end
-                until twinkPlayer or waited >= 60
+                until twinkPlayer or waited >= 200
 
                 if not twinkPlayer then
-                    print("[Main] Твинк не появился за 60 сек, пропускаем")
+                    print("[Main] Твинк не появился за 200 сек, пропускаем")
                     httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
                     task.wait(5)
                     return
@@ -98,7 +98,7 @@ if IS_MAIN and PlaceId == 14119723130 then
                 -- SendRequest пока TradeGui не откроется
                 -- Players:FindFirstChild с таймаутом чтобы не зависать если твинк вылетел
                 local sendWait = 0
-                while not tradeGuiMain.Enabled and sendWait < 60 do
+                while not tradeGuiMain.Enabled and sendWait < 200 do
                     local twinkStillHere = Players:FindFirstChild(twinkName)
                     if not twinkStillHere then
                         print("[Main] Твинк вылетел во время SendRequest, пропускаем")
@@ -116,7 +116,7 @@ if IS_MAIN and PlaceId == 14119723130 then
 
                 -- Если TradeGui так и не открылся — твинк вылетел или отказал
                 if not tradeGuiMain.Enabled then
-                    print("[Main] TradeGui не открылся за 60 сек, пропускаем")
+                    print("[Main] TradeGui не открылся за 200 сек, пропускаем")
                     httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
                     return
                 end
