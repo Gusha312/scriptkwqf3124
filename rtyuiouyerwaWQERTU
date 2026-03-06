@@ -256,19 +256,30 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
         end)
     until jobId ~= nil
 
-    -- Перечитываем актуальный Job ID прямо перед телепортом
-    -- на случай если основной перезашёл пока ждали
-    local freshJobId = jobId
-    pcall(function()
-        local r = httpGet(SERVER_URL .. "/api/mainjobid")
-        if r and r.jobId and r.jobId ~= "" then
-            freshJobId = r.jobId
-            print("[Twink] Актуальный jobId:", freshJobId)
-        end
-    end)
+    -- Телепортируемся, повторяем при ошибке пока не получится
+    while true do
+        -- Берём самый свежий Job ID перед каждой попыткой
+        local freshJobId = jobId
+        pcall(function()
+            local r = httpGet(SERVER_URL .. "/api/mainjobid")
+            if r and r.jobId and r.jobId ~= "" then
+                freshJobId = r.jobId
+            end
+        end)
 
-    print("[Twink] Телепортируемся:", freshJobId)
-    TeleportService:TeleportToPlaceInstance(14119723130, freshJobId)
+        print("[Twink] Телепортируемся:", freshJobId)
+        local ok, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(14119723130, freshJobId)
+        end)
+
+        if ok then
+            print("[Twink] Телепорт запущен успешно")
+            task.wait(10) -- ждём пока Roblox перекинет
+        else
+            warn("[Twink] Ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
+            task.wait(5)
+        end
+    end
 
 -- ════════════════════════════════
 --  ТВИНК — 14119723130
@@ -391,14 +402,22 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     -- Ждём пока предметы обнулятся (до 30 сек опрашиваем каждую секунду)
-    -- Начальный снимок
-    print("[Twink14] Начальный снимок:")
-    local _, totalBefore = snapshot()
+    -- Ждём загрузки данных игрока (Data может появиться не сразу)
+    print("[Twink14] Ждём загрузки данных игрока...")
+    local _, totalBefore = 0, 0
+    for i = 1, 10 do
+        task.wait(3)
+        _, totalBefore = snapshot()
+        print("[Twink14] Попытка загрузки", i, "/ totalBefore:", totalBefore)
+        if totalBefore > 0 then break end
+    end
+
     if totalBefore == 0 then
-        print("[Twink14] Предметов нет изначально.")
-        finishAndKick()
+        print("[Twink14] Предметов нет или Data не загрузилась — выходим без удаления.")
+        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
+    print("[Twink14] Данные загружены, предметов:", totalBefore)
 
     local maxAttempts = 5
     local attempt = 0
@@ -407,7 +426,13 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         local currentSnap, currentTotal = snapshot()
         if currentTotal == 0 then
-            finishAndKick()
+            -- Повторно проверяем через 3 сек — может Data ещё не обновилась
+            task.wait(3)
+            currentSnap, currentTotal = snapshot()
+        end
+        if currentTotal == 0 then
+            print("[Twink14] Предметов нет в начале итерации — выходим без удаления")
+            httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
             return
         end
 
