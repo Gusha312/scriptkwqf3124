@@ -11,13 +11,39 @@ local PlaceId = game.PlaceId
 local validPlaces = { [5233782396] = true, [14119723130] = true }
 if not validPlaces[PlaceId] then return end
 
-task.wait(5)
+-- Ждём полной загрузки игры (важно для автоэкзекутора)
+-- 1. Ждём пока game не загрузится
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 
-local Players           = game:GetService("Players")
+-- 2. Ждём LocalPlayer
+local Players = game:GetService("Players")
+local player  = Players.LocalPlayer
+if not player then
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    player = Players.LocalPlayer
+end
+
+-- 3. Ждём CharacterAdded и появления персонажа
+if not player.Character then
+    player.CharacterAdded:Wait()
+end
+
+-- 4. Ждём полной прогрузки всех объектов
+local RunService = game:GetService("RunService")
+-- Даём 2 кадра чтобы всё успело создаться
+RunService.Heartbeat:Wait()
+RunService.Heartbeat:Wait()
+
+-- 5. Дополнительная пауза — на слабых ПК автоэкзекутор может стартовать очень рано
+task.wait(3)
+
+print("[Script] Игра загружена, запускаем скрипт. PlaceId:", PlaceId)
+
 local HttpService       = game:GetService("HttpService")
 local TeleportService   = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player      = Players.LocalPlayer
 local myName      = player.Name
 local requestFunc = syn and syn.request or http_request or request
 
