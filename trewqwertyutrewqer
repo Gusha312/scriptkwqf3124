@@ -376,13 +376,9 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     local function getDataFolder()
-        local pg = player:FindFirstChild("PlayerGui")
-        if pg then
-            local d = pg:FindFirstChild("Data")
-            if d then return d, "PlayerGui.Data" end
-        end
-        local d2 = player:FindFirstChild("Data")
-        if d2 then return d2, "player.Data" end
+        -- В трейд мире (14119723130) данные лежат в Players.LocalPlayer.Data
+        local d = player:FindFirstChild("Data")
+        if d then return d, "player.Data" end
         return nil, "NOT FOUND"
     end
 
@@ -636,38 +632,35 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
     -- ════ Основной поток твинка ════
 
-    -- ШАГ 1: ждём пока папка Data вообще появится в PlayerGui (до 3 минут)
-    -- После телепорта игра может грузиться долго — не торопимся
-    print("[Twink14] Ждём появления папки Data...")
-    local dataFolder = nil
-    local dataWaitMax = 180  -- секунд максимум ждём Data
+    -- ШАГ 1: ждём пока папка Data появится в Players.LocalPlayer (до 3 минут)
+    print("[Twink14] Ждём появления папки Data (player.Data)...")
+    local dataFound = false
+    local dataWaitMax = 180
     local dataWaited  = 0
     repeat
         task.wait(3)
         dataWaited += 3
-        local pg = player:FindFirstChild("PlayerGui")
-        if pg then
-            local d = pg:FindFirstChild("Data")
-            if d then
-                -- Data появилась — проверяем что внутри есть хоть что-то
-                local items   = d:FindFirstChild("Items")
-                local unlocks = d:FindFirstChild("Unlocks")
-                if items or unlocks then
-                    dataFolder = d
-                end
+
+        local d = player:FindFirstChild("Data")
+        if d then
+            local items   = d:FindFirstChild("Items")
+            local unlocks = d:FindFirstChild("Unlocks")
+            if items or unlocks then
+                dataFound = true
+                print("[Twink14] player.Data найдена! (" .. dataWaited .. " сек)")
             end
         end
-        if dataWaited % 15 == 0 then
-            print("[Twink14] Ждём Data... " .. dataWaited .. "/" .. dataWaitMax .. " сек")
-        end
-    until dataFolder or dataWaited >= dataWaitMax
 
-    if not dataFolder then
-        warn("[Twink14] Data не появилась за " .. dataWaitMax .. " сек — выходим без удаления из статистики.")
+        if not dataFound and dataWaited % 15 == 0 then
+            print("[Twink14] Ждём player.Data... " .. dataWaited .. "/" .. dataWaitMax .. " сек")
+        end
+    until dataFound or dataWaited >= dataWaitMax
+
+    if not dataFound then
+        warn("[Twink14] player.Data не появилась за " .. dataWaitMax .. " сек — выходим без удаления из статистики.")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
-    print("[Twink14] Папка Data найдена! (" .. dataWaited .. " сек)")
 
     -- ШАГ 2: Data есть, но значения могут ещё не подгрузиться — ждём ненулевых предметов
     -- Даём ещё до 60 сек на то чтобы значения стали > 0
