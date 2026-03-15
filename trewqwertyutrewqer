@@ -636,22 +636,63 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
     -- ════ Основной поток твинка ════
 
-    print("[Twink14] Ждём загрузки данных игрока...")
-    local snapInit, totalBefore = {}, 0
-    for i = 1, 10 do
+    -- ШАГ 1: ждём пока папка Data вообще появится в PlayerGui (до 3 минут)
+    -- После телепорта игра может грузиться долго — не торопимся
+    print("[Twink14] Ждём появления папки Data...")
+    local dataFolder = nil
+    local dataWaitMax = 180  -- секунд максимум ждём Data
+    local dataWaited  = 0
+    repeat
         task.wait(3)
-        snapInit, totalBefore = snapshot()
-        print("[Twink14] Попытка загрузки", i, "/ totalBefore:", totalBefore)
-        if totalBefore > 0 then break end
-    end
+        dataWaited += 3
+        local pg = player:FindFirstChild("PlayerGui")
+        if pg then
+            local d = pg:FindFirstChild("Data")
+            if d then
+                -- Data появилась — проверяем что внутри есть хоть что-то
+                local items   = d:FindFirstChild("Items")
+                local unlocks = d:FindFirstChild("Unlocks")
+                if items or unlocks then
+                    dataFolder = d
+                end
+            end
+        end
+        if dataWaited % 15 == 0 then
+            print("[Twink14] Ждём Data... " .. dataWaited .. "/" .. dataWaitMax .. " сек")
+        end
+    until dataFolder or dataWaited >= dataWaitMax
 
-    if totalBefore == 0 then
-        -- Предметов нет — просто убираемся из очереди, статистику не трогаем
-        print("[Twink14] Предметов нет или Data не загрузилась — выходим без удаления из статистики.")
+    if not dataFolder then
+        warn("[Twink14] Data не появилась за " .. dataWaitMax .. " сек — выходим без удаления из статистики.")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
-    print("[Twink14] Данные загружены, предметов:", totalBefore)
+    print("[Twink14] Папка Data найдена! (" .. dataWaited .. " сек)")
+
+    -- ШАГ 2: Data есть, но значения могут ещё не подгрузиться — ждём ненулевых предметов
+    -- Даём ещё до 60 сек на то чтобы значения стали > 0
+    print("[Twink14] Ждём загрузки значений предметов...")
+    local snapInit, totalBefore = {}, 0
+    local valWaitMax = 60
+    local valWaited  = 0
+    repeat
+        task.wait(3)
+        valWaited += 3
+        snapInit, totalBefore = snapshot()
+        if valWaited % 15 == 0 then
+            print("[Twink14] totalBefore =", totalBefore, "| ждём " .. valWaited .. "/" .. valWaitMax .. " сек")
+        end
+    until totalBefore > 0 or valWaited >= valWaitMax
+
+    if totalBefore == 0 then
+        -- После всего ожидания предметов нет — аккаунт реально пустой
+        -- НЕ удаляем из статистики на случай если это баг загрузки
+        warn("[Twink14] Предметов не обнаружено после " .. (dataWaited + valWaited) .. " сек ожидания.")
+        warn("[Twink14] Выходим из очереди, статистику НЕ удаляем.")
+        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
+        return
+    end
+    print("[Twink14] Данные загружены! Предметов:", totalBefore, "| Время загрузки:", (dataWaited + valWaited), "сек")
 
     -- Строим чанки
     local chunks, allSlots = buildChunks(snapInit)
