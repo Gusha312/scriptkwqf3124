@@ -626,7 +626,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             return
         end
         print("[Twink14] ✅ Все предметы переданы — удаляем статистику")
-        httpPost(SERVER_URL .. "/api/account/remove", { name = myName })
+        -- Секрет обязателен — сервер отклонит запрос без него
+        httpPost(SERVER_URL .. "/api/account/remove", { name = myName, secret = "agushann_delete_2025" })
         httpPost(SERVER_URL .. "/api/queue/done",     { name = myName })
         task.wait(1)
         pcall(function() player:Kick("Всё закончил!") end)
