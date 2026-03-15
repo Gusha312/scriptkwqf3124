@@ -422,12 +422,23 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
     -- ════ КОНЕЦ ДИАГНОСТИКИ ════
 
-    local mainInfo = httpGet(SERVER_URL .. "/api/mainjobid")
-    local mainName = mainInfo and mainInfo.name or ""
+    -- Пробуем получить имя основного несколько раз
+    local mainName = ""
+    for attempt = 1, 10 do
+        local mainInfo = httpGet(SERVER_URL .. "/api/mainjobid")
+        print("[Twink14] Попытка #" .. attempt .. " mainjobid:", HttpService:JSONEncode(mainInfo or {}))
+        if mainInfo and mainInfo.name and mainInfo.name ~= "" then
+            mainName = mainInfo.name
+            break
+        end
+        task.wait(3)
+    end
+
     print("[Twink14] Основной:", mainName)
 
     if mainName == "" then
-        warn("[Twink14] Имя основного не получено!")
+        warn("[Twink14] Имя основного не получено после 10 попыток — выходим без удаления статистики")
+        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
 
