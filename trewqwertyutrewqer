@@ -250,8 +250,23 @@ if IS_MAIN and PlaceId == 14119723130 then
 -- ════════════════════════════════
 elseif not IS_MAIN and PlaceId == 5233782396 then
 
+    -- Флаг остановки — когда телепортируемся, всё останавливаем
+    local STOPPED = false
+
+    -- Останавливаем всё при телепорте
+    TeleportService.LocalPlayerArrivingFromTeleport:Connect(function()
+        STOPPED = true
+    end)
+    player.OnTeleport:Connect(function(state)
+        if state == Enum.TeleportState.InProgress or
+           state == Enum.TeleportState.Started then
+            print("[Twink] Телепорт начался — останавливаем все циклы")
+            STOPPED = true
+        end
+    end)
+
     task.spawn(function()
-        while true do
+        while not STOPPED do
             local dataToSend = { name = myName }
             local pg = player:FindFirstChild("PlayerGui")
             if pg then
@@ -277,22 +292,27 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                     end
                 end
             end
-            pcall(function()
-                requestFunc({
-                    Url = SERVER_URL, Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = HttpService:JSONEncode(dataToSend)
-                })
-            end)
+            if not STOPPED then
+                pcall(function()
+                    requestFunc({
+                        Url = SERVER_URL, Method = "POST",
+                        Headers = { ["Content-Type"] = "application/json" },
+                        Body = HttpService:JSONEncode(dataToSend)
+                    })
+                end)
+            end
             task.wait(5)
         end
+        print("[Twink] Цикл статистики остановлен")
     end)
     print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
 
     -- ШАГ 1: ждём команду телепорта (появляется когда нажали "Начать сбор" на сайте)
     local jobId = nil
     repeat
+        if STOPPED then break end
         task.wait(10)
+        if STOPPED then break end
         pcall(function()
             local r = requestFunc({
                 Url = SERVER_URL .. "/api/teleportcmd/read",
@@ -309,24 +329,28 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                 end
             end
         end)
-    until jobId ~= nil
+    until jobId ~= nil or STOPPED
+
+    if STOPPED then
+        print("[Twink] Скрипт остановлен (телепорт)")
+        return
+    end
 
     -- ШАГ 2: ждём пока мы станем ТЕКУЩИМ (current) в очереди
-    -- Пока мы не current — сидим в лобби и не телепортируемся
     print("[Twink] Ожидаем своей очереди...")
     local myTurn = false
     repeat
+        if STOPPED then break end
         task.wait(10)
+        if STOPPED then break end
         pcall(function()
             local queueData = httpGet(SERVER_URL .. "/api/queue")
             if queueData then
                 local pos = -1
                 if queueData.current == myName then
-                    -- Мы текущий — телепортируемся
                     myTurn = true
                     print("[Twink] 🟢 Наша очередь! Телепортируемся.")
                 else
-                    -- Показываем позицию в очереди
                     if queueData.queue then
                         for i, n in ipairs(queueData.queue) do
                             if n == myName then pos = i; break end
@@ -341,10 +365,15 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                 end
             end
         end)
-    until myTurn
+    until myTurn or STOPPED
+
+    if STOPPED then
+        print("[Twink] Скрипт остановлен (телепорт во время ожидания очереди)")
+        return
+    end
 
     -- ШАГ 3: наша очередь — телепортируемся
-    while true do
+    while not STOPPED do
         local freshJobId = jobId
         pcall(function()
             local r = httpGet(SERVER_URL .. "/api/mainjobid")
