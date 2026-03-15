@@ -70,7 +70,6 @@ if IS_MAIN and PlaceId == 14119723130 then
 
                 local twinkName = data.twink
                 print("[Main] Обрабатываем твинка:", twinkName)
-                -- teleportcmd уже отправил сайт при нажатии кнопки сбора
 
                 local twinkPlayer, waited = nil, 0
                 repeat
@@ -95,8 +94,6 @@ if IS_MAIN and PlaceId == 14119723130 then
                     return
                 end
 
-                -- SendRequest пока TradeGui не откроется
-                -- Players:FindFirstChild с таймаутом чтобы не зависать если твинк вылетел
                 local sendWait = 0
                 while not tradeGuiMain.Enabled and sendWait < 60 do
                     local twinkStillHere = Players:FindFirstChild(twinkName)
@@ -114,7 +111,6 @@ if IS_MAIN and PlaceId == 14119723130 then
                     sendWait += 2
                 end
 
-                -- Если TradeGui так и не открылся — твинк вылетел или отказал
                 if not tradeGuiMain.Enabled then
                     print("[Main] TradeGui не открылся за 60 сек, пропускаем")
                     httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
@@ -126,7 +122,6 @@ if IS_MAIN and PlaceId == 14119723130 then
                 local tradeRem, remWait = nil, 0
                 repeat
                     task.wait(1); remWait += 1
-                    -- Проверяем что твинк ещё в игре
                     if not Players:FindFirstChild(twinkName) then
                         print("[Main] Твинк вылетел пока ждали TradeRemote")
                         httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
@@ -143,7 +138,6 @@ if IS_MAIN and PlaceId == 14119723130 then
                     return
                 end
 
-                -- Ждём tradestatus от твинка, параллельно следим за вылетом
                 local ready, timeout = false, 0
                 repeat
                     task.wait(2); timeout += 2
@@ -162,19 +156,16 @@ if IS_MAIN and PlaceId == 14119723130 then
                     return
                 end
 
-                -- AcceptTrade в spawn чтобы InvokeServer не завис если твинк вылетит
                 print("[Main] Принимаем трейд...")
                 task.spawn(function()
                     pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
                     print("[Main] InvokeServer AcceptTrade завершён")
                 end)
 
-                -- Ждём закрытия TradeGui, параллельно следим за вылетом твинка
                 local acceptWait = 0
                 while tradeGuiMain.Enabled and acceptWait < 60 do
                     task.wait(2)
                     acceptWait += 2
-                    -- Если твинк вылетел — TradeGui закроется сам, просто ждём
                 end
                 print("[Main] TradeGui закрылся — трейд завершён (или твинк вылетел)")
 
@@ -205,13 +196,17 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                 if data then
                     local items = data:FindFirstChild("Items")
                     if items then
-                        for _, n in ipairs({"CreatureReviveToken","GlimmerChanceToken","GlimmerForceToken","FullGrowToken","ChangeCreatureColorsToken","PartialGrowToken"}) do
+                        -- Загружаем токены динамически с сервера
+                        local tokensRes = httpGet(SERVER_URL .. "/api/tokens")
+                        local dynamicTokens = tokensRes or {}
+                        for _, n in ipairs(dynamicTokens) do
                             local t = items:FindFirstChild(n)
                             dataToSend[n] = (t and (t:IsA("NumberValue") or t:IsA("IntValue"))) and t.Value or 0
                         end
                     end
                     local unlocks = data:FindFirstChild("Unlocks")
                     if unlocks then
+                        -- Загружаем существ динамически с сервера
                         local creaturesRes = httpGet(SERVER_URL .. "/api/creatures")
                         local dynamicCreatures = creaturesRes or {}
                         for _, cName in ipairs(dynamicCreatures) do
@@ -233,8 +228,6 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
     end)
     print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
 
-    -- Ждём команду телепорта — она появится только когда ты нажмёшь "Начать сбор" на сайте
-    -- Опрашиваем каждые 10 сек чтобы не спамить сервер
     local jobId = nil
     repeat
         task.wait(10)
@@ -256,9 +249,7 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
         end)
     until jobId ~= nil
 
-    -- Телепортируемся, повторяем при ошибке пока не получится
     while true do
-        -- Берём самый свежий Job ID перед каждой попыткой
         local freshJobId = jobId
         pcall(function()
             local r = httpGet(SERVER_URL .. "/api/mainjobid")
@@ -274,7 +265,7 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 
         if ok then
             print("[Twink] Телепорт запущен успешно")
-            task.wait(10) -- ждём пока Roblox перекинет
+            task.wait(10)
         else
             warn("[Twink] Ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
             task.wait(5)
@@ -296,9 +287,19 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     local tradeRemoteName = mainName .. "-" .. myName .. "TradeRemote"
-    local tokenNames    = {"CreatureReviveToken","GlimmerChanceToken","GlimmerForceToken","FullGrowToken","ChangeCreatureColorsToken","PartialGrowToken"}
 
-    -- Загружаем список существ с сервера (те что добавил на сайте)
+    -- Загружаем токены динамически с сервера
+    local tokenNames = {}
+    local tokensRes = httpGet(SERVER_URL .. "/api/tokens")
+    if tokensRes and type(tokensRes) == "table" then
+        tokenNames = tokensRes
+        print("[Twink14] Токены загружены:", #tokenNames)
+        for _, n in ipairs(tokenNames) do print("  -", n) end
+    else
+        warn("[Twink14] Не удалось загрузить токены, список пуст!")
+    end
+
+    -- Загружаем существ динамически с сервера
     local creatureNames = {}
     local creaturesRes = httpGet(SERVER_URL .. "/api/creatures")
     if creaturesRes and type(creaturesRes) == "table" then
@@ -401,8 +402,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         player:Kick("Всё закончил я всё!")
     end
 
-    -- Ждём пока предметы обнулятся (до 30 сек опрашиваем каждую секунду)
-    -- Ждём загрузки данных игрока (Data может появиться не сразу)
     print("[Twink14] Ждём загрузки данных игрока...")
     local _, totalBefore = 0, 0
     for i = 1, 10 do
@@ -426,7 +425,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         local currentSnap, currentTotal = snapshot()
         if currentTotal == 0 then
-            -- Повторно проверяем через 3 сек — может Data ещё не обновилась
             task.wait(3)
             currentSnap, currentTotal = snapshot()
         end
@@ -439,7 +437,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         attempt += 1
         print("[Twink14] === Попытка #" .. attempt .. " (предметов: " .. currentTotal .. ") ===")
 
-        -- Ждём TradeGui + AcceptRequest
         local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
         local accWait = 0
         while tradeGui and not tradeGui.Enabled and accWait < 60 do
@@ -459,7 +456,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         print("[Twink14] Трейд принят, TradeGui открылся")
         task.wait(2)
 
-        -- Ждём TradeRemote
         local tradeRem, remWait = nil, 0
         repeat
             task.wait(1); remWait += 1
@@ -474,10 +470,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         end
         print("[Twink14] TradeRemote найден, кладём предметы...")
 
-        -- Кладём предметы
         putItemsInTrade(tradeRem, currentSnap)
 
-        -- Принимаем трейд в spawn чтобы не блокировать
         print("[Twink14] Принимаем трейд...")
         task.spawn(function()
             local ok, err = pcall(function()
@@ -486,10 +480,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             print("[Twink14] AcceptTrade завершён:", ok and "OK" or tostring(err))
         end)
 
-        -- Сигнал основному
         httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = true, name = myName })
 
-        -- Ждём 10 сек и проверяем предметы каждую секунду (макс 30 сек)
         print("[Twink14] Ждём обнуления предметов...")
         local transferred = false
         for i = 1, 30 do
@@ -507,11 +499,9 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             return
         end
 
-        -- Предметы остались — смотрим TradeGui
         print("[Twink14] Предметы остались | TradeGui.Enabled =", tostring(tradeGui.Enabled))
 
         if tradeGui.Enabled then
-            -- Трейд ещё открыт — перекладываем и повторяем
             print("[Twink14] TradeGui открыт — перекладываем...")
             local freshSnap, _ = snapshot()
             putItemsInTrade(tradeRem, freshSnap)
@@ -529,7 +519,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
                 end
             end
         else
-            -- TradeGui закрыт — новый трейд
             print("[Twink14] TradeGui закрыт — стартуем новый трейд...")
             task.wait(3)
         end
