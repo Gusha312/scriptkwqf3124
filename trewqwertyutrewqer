@@ -3,49 +3,37 @@ local IS_MAIN    = false
 local SERVER_URL = "http://185.194.177.252:8002"
 --[[ ===================== ]]
 
-local TRADE_SLOTS    = 9    -- максимум разных слотов в одном трейде
-local TRADE_COOLDOWN = 80   -- секунд между трейдами
-local AMOUNT_PER_SLOT = 150 -- максимум штук одного предмета в одном слоте
+local TRADE_SLOTS     = 9
+local TRADE_COOLDOWN  = 80
+local AMOUNT_PER_SLOT = 150
 
-local PlaceId = game.PlaceId
+local PlaceId     = game.PlaceId
 local validPlaces = { [5233782396] = true, [14119723130] = true }
 if not validPlaces[PlaceId] then return end
 
--- Ждём полной загрузки игры (важно для автоэкзекутора)
--- 1. Ждём пока game не загрузится
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
+-- Ждём загрузки игры
+if not game:IsLoaded() then game.Loaded:Wait() end
 
--- 2. Ждём LocalPlayer
-local Players = game:GetService("Players")
-local player  = Players.LocalPlayer
+local Players    = game:GetService("Players")
+local player     = Players.LocalPlayer
 if not player then
     Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
     player = Players.LocalPlayer
 end
+if not player.Character then player.CharacterAdded:Wait() end
 
--- 3. Ждём CharacterAdded и появления персонажа
-if not player.Character then
-    player.CharacterAdded:Wait()
-end
-
--- 4. Ждём полной прогрузки всех объектов
 local RunService = game:GetService("RunService")
--- Даём 2 кадра чтобы всё успело создаться
 RunService.Heartbeat:Wait()
 RunService.Heartbeat:Wait()
-
--- 5. Дополнительная пауза — на слабых ПК автоэкзекутор может стартовать очень рано
 task.wait(3)
 
-print("[Script] Игра загружена, запускаем скрипт. PlaceId:", PlaceId)
+print("[Script] Игра загружена. PlaceId:", PlaceId)
 
 local HttpService       = game:GetService("HttpService")
 local TeleportService   = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local myName      = player.Name
-local requestFunc = syn and syn.request or http_request or request
+local myName            = player.Name
+local requestFunc       = syn and syn.request or http_request or request
 
 local function httpPost(url, data)
     if not requestFunc then return nil end
@@ -76,22 +64,21 @@ end
 -- ════════════════════════════════
 if IS_MAIN and PlaceId == 14119723130 then
 
+    -- Постоянно шлём наш jobId
     task.spawn(function()
         while true do
             local jid = tostring(game.JobId or "")
-            print("[Main] Отправляю jobId:", jid, "| name:", myName)
-            local ok, err = pcall(function()
+            pcall(function()
                 httpPost(SERVER_URL .. "/api/mainjobid", { jobId = jid, name = myName })
             end)
-            if not ok then warn("[Main] mainjobid error:", tostring(err)) end
             task.wait(5)
         end
     end)
 
+    -- Основной цикл обработки твинков
     task.spawn(function()
         while true do
             local ok, err = pcall(function()
-
                 local data = httpGet(SERVER_URL .. "/api/queue/next")
                 if not (data and data.twink and data.twink ~= "") then
                     task.wait(5)
@@ -101,6 +88,7 @@ if IS_MAIN and PlaceId == 14119723130 then
                 local twinkName = data.twink
                 print("[Main] Обрабатываем твинка:", twinkName)
 
+                -- Ждём появления твинка в игре
                 local twinkPlayer, waited = nil, 0
                 repeat
                     twinkPlayer = Players:FindFirstChild(twinkName)
@@ -126,7 +114,6 @@ if IS_MAIN and PlaceId == 14119723130 then
 
                 local tradeRemoteName = myName .. "-" .. twinkName .. "TradeRemote"
 
-                -- Один цикл трейда со стороны основного
                 local function doOneTrade()
                     -- Шлём SendRequest пока TradeGui не откроется
                     local sendWait = 0
@@ -137,9 +124,9 @@ if IS_MAIN and PlaceId == 14119723130 then
                             return false
                         end
                         pcall(function()
-                            player:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer(
-                                "SendRequest", twinkStillHere
-                            )
+                            player:WaitForChild("Remotes")
+                                :WaitForChild("TradeRequestRemote")
+                                :FireServer("SendRequest", twinkStillHere)
                         end)
                         task.wait(2)
                         sendWait += 2
@@ -184,14 +171,12 @@ if IS_MAIN and PlaceId == 14119723130 then
                         return false
                     end
 
-                    -- Принимаем трейд
                     print("[Main] Принимаем трейд...")
                     task.spawn(function()
                         pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
                         print("[Main] AcceptTrade завершён")
                     end)
 
-                    -- Ждём закрытия TradeGui
                     local acceptWait = 0
                     while tradeGuiMain.Enabled and acceptWait < 60 do
                         task.wait(2); acceptWait += 2
@@ -200,11 +185,10 @@ if IS_MAIN and PlaceId == 14119723130 then
                     return true
                 end
 
-                -- Принимаем столько трейдов сколько нужно твинку
+                -- Принимаем столько трейдов сколько нужно
                 local maxTrades = 50
                 local tradesDone = 0
                 while tradesDone < maxTrades do
-                    -- Проверяем не завершил ли твинк всё
                     local queueStatus = httpGet(SERVER_URL .. "/api/queue")
                     local twinkInQueue = false
                     if queueStatus then
@@ -224,18 +208,17 @@ if IS_MAIN and PlaceId == 14119723130 then
                     tradesDone += 1
 
                     if not success then
-                        print("[Main] Трейд #" .. tradesDone .. " не удался, завершаем")
+                        print("[Main] Трейд #" .. tradesDone .. " не удался")
                         break
                     end
 
-                    print("[Main] Трейд #" .. tradesDone .. " принят, ждём следующего...")
+                    print("[Main] Трейд #" .. tradesDone .. " принят, ждём...")
                     task.wait(3)
                 end
 
                 httpPost(SERVER_URL .. "/api/queue/done", { name = twinkName })
                 print("[Main] Ждём 10 сек перед следующим твинком...")
                 task.wait(10)
-
             end)
 
             if not ok then
@@ -250,21 +233,17 @@ if IS_MAIN and PlaceId == 14119723130 then
 -- ════════════════════════════════
 elseif not IS_MAIN and PlaceId == 5233782396 then
 
-    -- Флаг остановки — когда телепортируемся, всё останавливаем
+    -- Флаг остановки при телепорте
     local STOPPED = false
 
-    -- Останавливаем всё при телепорте
-    TeleportService.LocalPlayerArrivingFromTeleport:Connect(function()
-        STOPPED = true
-    end)
     player.OnTeleport:Connect(function(state)
-        if state == Enum.TeleportState.InProgress or
-           state == Enum.TeleportState.Started then
-            print("[Twink] Телепорт начался — останавливаем все циклы")
+        if state == Enum.TeleportState.InProgress or state == Enum.TeleportState.Started then
+            print("[Twink] Телепорт начался — останавливаем циклы")
             STOPPED = true
         end
     end)
 
+    -- Цикл статистики
     task.spawn(function()
         while not STOPPED do
             local dataToSend = { name = myName }
@@ -275,8 +254,7 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                     local items = data:FindFirstChild("Items")
                     if items then
                         local tokensRes = httpGet(SERVER_URL .. "/api/tokens")
-                        local dynamicTokens = tokensRes or {}
-                        for _, n in ipairs(dynamicTokens) do
+                        for _, n in ipairs(tokensRes or {}) do
                             local t = items:FindFirstChild(n)
                             dataToSend[n] = (t and (t:IsA("NumberValue") or t:IsA("IntValue"))) and t.Value or 0
                         end
@@ -284,8 +262,7 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                     local unlocks = data:FindFirstChild("Unlocks")
                     if unlocks then
                         local creaturesRes = httpGet(SERVER_URL .. "/api/creatures")
-                        local dynamicCreatures = creaturesRes or {}
-                        for _, cName in ipairs(dynamicCreatures) do
+                        for _, cName in ipairs(creaturesRes or {}) do
                             local c = unlocks:FindFirstChild(cName)
                             dataToSend[cName] = (c and (c:IsA("NumberValue") or c:IsA("IntValue"))) and c.Value or 0
                         end
@@ -305,9 +282,10 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
         end
         print("[Twink] Цикл статистики остановлен")
     end)
-    print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
 
-    -- ШАГ 1: ждём команду телепорта (появляется когда нажали "Начать сбор" на сайте)
+    print("[Twink] Статистика запущена, ожидаем команду сбора...")
+
+    -- ШАГ 1: ждём команду телепорта с сайта
     local jobId = nil
     repeat
         if STOPPED then break end
@@ -321,22 +299,21 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                 Body = HttpService:JSONEncode({ name = myName })
             })
             if r and r.Body then
-                print("[Twink] teleportcmd/read ответ:", r.Body)
                 local ok, d = pcall(function() return HttpService:JSONDecode(r.Body) end)
                 if ok and d and d.jobId and d.jobId ~= "" then
                     jobId = d.jobId
-                    print("[Twink] Команда получена, добавлен в очередь. jobId:", jobId)
+                    print("[Twink] Команда получена, jobId:", jobId)
                 end
             end
         end)
     until jobId ~= nil or STOPPED
 
     if STOPPED then
-        print("[Twink] Скрипт остановлен (телепорт)")
+        print("[Twink] Остановлен (телепорт)")
         return
     end
 
-    -- ШАГ 2: ждём пока мы станем ТЕКУЩИМ (current) в очереди
+    -- ШАГ 2: ждём своей очереди
     print("[Twink] Ожидаем своей очереди...")
     local myTurn = false
     repeat
@@ -346,21 +323,18 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
         pcall(function()
             local queueData = httpGet(SERVER_URL .. "/api/queue")
             if queueData then
-                local pos = -1
                 if queueData.current == myName then
                     myTurn = true
-                    print("[Twink] 🟢 Наша очередь! Телепортируемся.")
+                    print("[Twink] 🟢 Наша очередь!")
                 else
+                    local pos = -1
                     if queueData.queue then
                         for i, n in ipairs(queueData.queue) do
                             if n == myName then pos = i; break end
                         end
                     end
                     if pos > 0 then
-                        print("[Twink] ⏳ Позиция в очереди: #" .. pos ..
-                            " | Сейчас передаёт: " .. tostring(queueData.current))
-                    else
-                        print("[Twink] ⏳ Ждём очереди... current:", tostring(queueData.current))
+                        print("[Twink] ⏳ Позиция #" .. pos .. " | Сейчас: " .. tostring(queueData.current))
                     end
                 end
             end
@@ -368,11 +342,11 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
     until myTurn or STOPPED
 
     if STOPPED then
-        print("[Twink] Скрипт остановлен (телепорт во время ожидания очереди)")
+        print("[Twink] Остановлен (телепорт во время ожидания очереди)")
         return
     end
 
-    -- ШАГ 3: наша очередь — телепортируемся
+    -- ШАГ 3: телепортируемся
     while not STOPPED do
         local freshJobId = jobId
         pcall(function()
@@ -384,7 +358,7 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
             TeleportService:TeleportToPlaceInstance(14119723130, freshJobId)
         end)
         if ok then
-            print("[Twink] Телепорт запущен успешно")
+            print("[Twink] Телепорт запущен")
             task.wait(10)
         else
             warn("[Twink] Ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
@@ -430,23 +404,24 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         warn("[Twink14] Не удалось загрузить существ!")
     end
 
+    -- Данные в трейд-мире: Players.LocalPlayer.Data
     local function getDataFolder()
-        -- В трейд мире (14119723130) данные лежат в Players.LocalPlayer.Data
         local d = player:FindFirstChild("Data")
-        if d then return d, "player.Data" end
-        return nil, "NOT FOUND"
+        if d then return d end
+        return nil
     end
 
-    -- Снапшот текущего состояния предметов
     local function snapshot()
         local result = {}
         local total  = 0
-        local dataFolder, path = getDataFolder()
-        print("[Twink14][snapshot] path:", path)
-        if not dataFolder then return result, 0 end
+        local folder = getDataFolder()
+        if not folder then
+            print("[Twink14][snapshot] Data НЕ НАЙДЕНА")
+            return result, 0
+        end
 
-        local items   = dataFolder:FindFirstChild("Items")
-        local unlocks = dataFolder:FindFirstChild("Unlocks")
+        local items   = folder:FindFirstChild("Items")
+        local unlocks = folder:FindFirstChild("Unlocks")
 
         if items then
             for _, name in ipairs(tokenNames) do
@@ -457,61 +432,50 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
                 if val > 0 then print("[Twink14][snapshot]", name, "=", val) end
             end
         else
-            print("[Twink14][snapshot] Items НЕ НАЙДЕНО в", path)
+            print("[Twink14][snapshot] Items не найдено")
         end
 
         if unlocks then
             for _, name in ipairs(creatureNames) do
                 local c   = unlocks:FindFirstChild(name)
-                local val = c and c.Value or 0
-                if type(val) == "boolean" then val = val and 1 or 0 end
-                val = math.floor(tonumber(val) or 0)
+                local val = 0
+                if c then
+                    if type(c.Value) == "boolean" then
+                        val = c.Value and 1 or 0
+                    else
+                        val = math.floor(tonumber(c.Value) or 0)
+                    end
+                end
                 result[name] = val
                 total += val
                 if val > 0 then print("[Twink14][snapshot]", name, "=", val) end
             end
         else
-            print("[Twink14][snapshot] Unlocks НЕ НАЙДЕНО в", path)
+            print("[Twink14][snapshot] Unlocks не найдено")
         end
 
         print("[Twink14][snapshot] Итого:", total)
         return result, total
     end
 
-    --[[
-        buildChunks(snap):
-        Разбивает все предметы на чанки с учётом двух ограничений:
-        1. Максимум TRADE_SLOTS разных слотов в одном трейде
-        2. Максимум AMOUNT_PER_SLOT штук одного предмета в одном слоте
-           (если у предмета 152 штуки → слот 150 + слот 2 в следующем/том же трейде)
-
-        Возвращает: массив чанков, каждый чанк = массив слотов { itemType, name, amount }
-    ]]
+    -- Разбивает снапшот на чанки по 9 слотов, каждый слот макс 150 штук
     local function buildChunks(snap)
-        -- Сначала разворачиваем все предметы в плоский список слотов
-        -- с учётом лимита AMOUNT_PER_SLOT
         local allSlots = {}
 
-        local function addSlots(itemType, name, totalAmount)
-            if totalAmount <= 0 then return end
-            local remaining = totalAmount
-            while remaining > 0 do
-                local portion = math.min(remaining, AMOUNT_PER_SLOT)
+        local function addSlots(itemType, name, totalAmt)
+            if totalAmt <= 0 then return end
+            local rem = totalAmt
+            while rem > 0 do
+                local portion = math.min(rem, AMOUNT_PER_SLOT)
                 table.insert(allSlots, { itemType = itemType, name = name, amount = portion })
-                remaining -= portion
+                rem -= portion
             end
         end
 
-        for _, name in ipairs(tokenNames) do
-            addSlots("Tokens", name, snap[name] or 0)
-        end
-        for _, name in ipairs(creatureNames) do
-            addSlots("Creatures", name, snap[name] or 0)
-        end
+        for _, name in ipairs(tokenNames)   do addSlots("Tokens",   name, snap[name] or 0) end
+        for _, name in ipairs(creatureNames) do addSlots("Creatures", name, snap[name] or 0) end
 
-        -- Теперь разбиваем плоский список слотов на чанки по TRADE_SLOTS
-        local chunks  = {}
-        local current = {}
+        local chunks, current = {}, {}
         for _, slot in ipairs(allSlots) do
             if #current >= TRADE_SLOTS then
                 table.insert(chunks, current)
@@ -519,14 +483,11 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             end
             table.insert(current, slot)
         end
-        if #current > 0 then
-            table.insert(chunks, current)
-        end
+        if #current > 0 then table.insert(chunks, current) end
 
         return chunks, allSlots
     end
 
-    -- Кладёт один чанк слотов в трейд
     local function putChunkInTrade(tradeRem, chunk)
         for _, slot in ipairs(chunk) do
             local ok, err = pcall(function()
@@ -537,35 +498,23 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
                     Amount    = slot.amount
                 }}))
             end)
-            print("[Twink14] Add", slot.itemType, slot.name,
-                "x" .. slot.amount, ok and "OK" or ("ERR:" .. tostring(err)))
+            print("[Twink14] Add", slot.itemType, slot.name, "x"..slot.amount,
+                ok and "OK" or ("ERR:"..tostring(err)))
             task.wait(1)
         end
         print("[Twink14] Чанк положен, слотов:", #chunk)
     end
 
-    --[[
-        Жёсткая проверка: сравниваем снапшот ДО и ПОСЛЕ трейда.
-        Трейд считается успешным ТОЛЬКО если суммарное количество
-        предметов реально уменьшилось на ожидаемую величину.
-        expectedDelta = сумма amount всех слотов в чанке.
-    ]]
+    -- Жёсткая проверка: предметы реально уменьшились
     local function verifyTradeSuccess(snapBefore, chunk)
-        -- Ждём обновления данных в игре (несколько попыток)
-        local maxChecks = 15
         local expectedDelta = 0
-        for _, slot in ipairs(chunk) do
-            expectedDelta += slot.amount
-        end
-
+        for _, slot in ipairs(chunk) do expectedDelta += slot.amount end
         print("[Twink14][verify] Ожидаем уменьшение на:", expectedDelta)
 
-        for attempt = 1, maxChecks do
+        for attempt = 1, 15 do
             task.wait(2)
             local snapAfter, _ = snapshot()
-
-            -- Считаем реальное уменьшение по каждому предмету чанка
-            local actualDelta = 0
+            local actualDelta  = 0
             local allDecreased = true
 
             for _, slot in ipairs(chunk) do
@@ -573,68 +522,64 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
                 local after  = snapAfter[slot.name]  or 0
                 local diff   = before - after
                 actualDelta += diff
-
-                if diff < slot.amount then
-                    allDecreased = false
-                end
-
-                print(string.format("[Twink14][verify] %s: до=%d после=%d разница=%d (ожидали=%d)",
+                if diff < slot.amount then allDecreased = false end
+                print(string.format("[Twink14][verify] %s: до=%d после=%d diff=%d ожид=%d",
                     slot.name, before, after, diff, slot.amount))
             end
 
-            print(string.format("[Twink14][verify] Попытка %d/%d | actualDelta=%d expectedDelta=%d",
-                attempt, maxChecks, actualDelta, expectedDelta))
+            print(string.format("[Twink14][verify] попытка %d/15 | delta=%d/%d",
+                attempt, actualDelta, expectedDelta))
 
-            -- Успех: всё что должно было уйти — ушло
             if allDecreased and actualDelta >= expectedDelta then
                 print("[Twink14][verify] ✅ Трейд подтверждён!")
                 return true, snapAfter
             end
         end
 
-        -- Все попытки исчерпаны — трейд не прошёл
+        warn("[Twink14][verify] ❌ Трейд не подтверждён!")
         -- Возвращаем snapBefore чтобы не потерять данные о предметах
-        warn("[Twink14][verify] ❌ Трейд НЕ подтверждён после " .. maxChecks .. " проверок!")
         return false, snapBefore
     end
 
-    -- Вызывается ТОЛЬКО когда remaining == 0 (все предметы реально переданы)
+    -- Финальный кик только если ВСЁ передано
     local function finishAndKick()
-        print("[Twink14] ✅ Все предметы переданы! Удаляем из статистики.")
+        print("[Twink14] ✅ Все предметы переданы!")
         httpPost(SERVER_URL .. "/api/account/remove", { name = myName })
-        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
+        httpPost(SERVER_URL .. "/api/queue/done",     { name = myName })
         task.wait(1)
-        player:Kick("Всё закончил я всё!")
+        player:Kick("Всё закончил!")
     end
 
-    -- Вызывается при любой ошибке — только убираем из очереди, статистику НЕ трогаем
+    -- При ошибке — только убираем из очереди, статистику НЕ трогаем
     local function failAndKick(reason)
-        warn("[Twink14] Завершаем с ошибкой: " .. tostring(reason))
-        warn("[Twink14] Статистика сохранена (предметы не были переданы).")
+        warn("[Twink14] Ошибка:", tostring(reason))
+        warn("[Twink14] Статистика сохранена.")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         task.wait(1)
-        player:Kick("Ошибка передачи: " .. tostring(reason))
+        player:Kick("Ошибка: " .. tostring(reason))
     end
 
-    -- Один полный трейд: принять запрос → положить чанк → AcceptTrade → жёсткая проверка
-    local function doOneTrade(chunk, chunkIndex, totalChunks, snapBefore)
-        print("[Twink14] === Трейд " .. chunkIndex .. "/" .. totalChunks .. " ===")
+    -- Один трейд: открыть → положить чанк → AcceptTrade → верификация
+    local function doOneTrade(chunk, chunkIdx, totalChunks, snapBefore)
+        print("[Twink14] === Трейд " .. chunkIdx .. "/" .. totalChunks .. " ===")
 
         local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
 
-        -- Принимаем запрос от основного пока TradeGui не откроется
+        -- Принимаем запрос от основного
         local accWait = 0
         while tradeGui and not tradeGui.Enabled and accWait < 60 do
             pcall(function()
                 Players:WaitForChild(mainName, 10)
-                    :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
+                    :WaitForChild("Remotes")
+                    :WaitForChild("TradeRequestRemote")
+                    :FireServer("AcceptRequest")
             end)
             task.wait(2)
             accWait += 2
         end
 
         if not tradeGui or not tradeGui.Enabled then
-            warn("[Twink14] Трейд " .. chunkIndex .. " не открылся (TradeGui)")
+            warn("[Twink14] Трейд " .. chunkIdx .. " не открылся")
             return false, snapBefore
         end
         print("[Twink14] TradeGui открылся")
@@ -649,106 +594,89 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         until tradeRem or remWait >= 30
 
         if not tradeRem then
-            warn("[Twink14] TradeRemote не найден, трейд " .. chunkIndex)
+            warn("[Twink14] TradeRemote не найден")
             return false, snapBefore
         end
 
-        -- Кладём предметы чанка
+        -- Кладём предметы
         putChunkInTrade(tradeRem, chunk)
 
         -- AcceptTrade
-        print("[Twink14] AcceptTrade трейд " .. chunkIndex .. "...")
+        print("[Twink14] AcceptTrade...")
         task.spawn(function()
             local ok, err = pcall(function()
                 tradeRem:InvokeServer(unpack({"AcceptTrade"}))
             end)
-            print("[Twink14] AcceptTrade spawn:", ok and "OK" or tostring(err))
+            print("[Twink14] AcceptTrade:", ok and "OK" or tostring(err))
         end)
 
-        -- Сигнал основному — мы готовы
+        -- Сигнал основному
         httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = true, name = myName })
 
-        -- Ждём закрытия TradeGui (знак что основной принял)
+        -- Ждём закрытия TradeGui
         local waitClose = 0
         while tradeGui.Enabled and waitClose < 90 do
             task.wait(1); waitClose += 1
         end
 
         if tradeGui.Enabled then
-            warn("[Twink14] TradeGui не закрылся за 90 сек — основной не принял?")
-            -- Не считаем успехом — жёсткая проверка всё равно покажет
+            warn("[Twink14] TradeGui не закрылся за 90 сек")
         else
             print("[Twink14] TradeGui закрылся")
         end
 
-        -- ЖЁСТКАЯ ПРОВЕРКА: смотрим реальное изменение данных
-        local verified, snapAfter = verifyTradeSuccess(snapBefore, chunk)
-        return verified, snapAfter
+        -- Жёсткая верификация
+        return verifyTradeSuccess(snapBefore, chunk)
     end
 
-    -- ════ Основной поток твинка ════
+    -- ════ Основной поток ════
 
-    -- ШАГ 1: ждём пока папка Data появится в Players.LocalPlayer (до 3 минут)
-    print("[Twink14] Ждём появления папки Data (player.Data)...")
-    local dataFound = false
-    local dataWaitMax = 180
-    local dataWaited  = 0
+    -- ШАГ 1: ждём появления player.Data (до 3 минут)
+    print("[Twink14] Ждём player.Data...")
+    local dataFound  = false
+    local dataWaited = 0
     repeat
-        task.wait(3)
-        dataWaited += 3
-
+        task.wait(3); dataWaited += 3
         local d = player:FindFirstChild("Data")
-        if d then
-            local items   = d:FindFirstChild("Items")
-            local unlocks = d:FindFirstChild("Unlocks")
-            if items or unlocks then
-                dataFound = true
-                print("[Twink14] player.Data найдена! (" .. dataWaited .. " сек)")
-            end
+        if d and (d:FindFirstChild("Items") or d:FindFirstChild("Unlocks")) then
+            dataFound = true
+            print("[Twink14] player.Data найдена! (" .. dataWaited .. " сек)")
         end
-
         if not dataFound and dataWaited % 15 == 0 then
-            print("[Twink14] Ждём player.Data... " .. dataWaited .. "/" .. dataWaitMax .. " сек")
+            print("[Twink14] Ждём Data... " .. dataWaited .. "/180 сек")
         end
-    until dataFound or dataWaited >= dataWaitMax
+    until dataFound or dataWaited >= 180
 
     if not dataFound then
-        warn("[Twink14] player.Data не появилась за " .. dataWaitMax .. " сек — выходим без удаления из статистики.")
+        warn("[Twink14] Data не появилась за 180 сек — выходим без удаления статистики")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
 
-    -- ШАГ 2: Data есть, но значения могут ещё не подгрузиться — ждём ненулевых предметов
-    -- Даём ещё до 60 сек на то чтобы значения стали > 0
-    print("[Twink14] Ждём загрузки значений предметов...")
+    -- ШАГ 2: ждём ненулевых значений (ещё до 60 сек)
+    print("[Twink14] Ждём загрузки значений...")
     local snapInit, totalBefore = {}, 0
-    local valWaitMax = 60
-    local valWaited  = 0
+    local valWaited = 0
     repeat
-        task.wait(3)
-        valWaited += 3
+        task.wait(3); valWaited += 3
         snapInit, totalBefore = snapshot()
         if valWaited % 15 == 0 then
-            print("[Twink14] totalBefore =", totalBefore, "| ждём " .. valWaited .. "/" .. valWaitMax .. " сек")
+            print("[Twink14] totalBefore=" .. totalBefore .. " | " .. valWaited .. "/60 сек")
         end
-    until totalBefore > 0 or valWaited >= valWaitMax
+    until totalBefore > 0 or valWaited >= 60
 
     if totalBefore == 0 then
-        -- После всего ожидания предметов нет — аккаунт реально пустой
-        -- НЕ удаляем из статистики на случай если это баг загрузки
-        warn("[Twink14] Предметов не обнаружено после " .. (dataWaited + valWaited) .. " сек ожидания.")
-        warn("[Twink14] Выходим из очереди, статистику НЕ удаляем.")
+        warn("[Twink14] Предметов нет после " .. (dataWaited+valWaited) .. " сек — выходим без удаления")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
-    print("[Twink14] Данные загружены! Предметов:", totalBefore, "| Время загрузки:", (dataWaited + valWaited), "сек")
+    print("[Twink14] Данные загружены! Предметов:", totalBefore)
 
     -- Строим чанки
     local chunks, allSlots = buildChunks(snapInit)
     local totalChunks = #chunks
 
-    -- Логируем план
-    print(string.format("[Twink14] Всего слотов: %d | Трейдов: %d", #allSlots, totalChunks))
+    print(string.format("[Twink14] Слотов: %d | Трейдов: %d", #allSlots, totalChunks))
     for i, chunk in ipairs(chunks) do
         local parts = {}
         for _, slot in ipairs(chunk) do
@@ -758,7 +686,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     if totalChunks == 0 then
-        print("[Twink14] Нечего передавать — убираемся из очереди.")
+        print("[Twink14] Нечего передавать")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
@@ -766,11 +694,11 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     -- Проходим по чанкам
     local currentSnap = snapInit
     local maxRetries  = 3
-    local allSuccess  = true  -- станет false если хоть один чанк провалился
+    local allSuccess  = true
 
     for i, chunk in ipairs(chunks) do
-        local success   = false
-        local attempts  = 0
+        local success  = false
+        local attempts = 0
 
         while not success and attempts < maxRetries do
             attempts += 1
@@ -779,13 +707,12 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             local verified, snapAfter = doOneTrade(chunk, i, totalChunks, currentSnap)
 
             if verified then
-                success = true
+                success     = true
                 currentSnap = snapAfter
-                print("[Twink14] ✅ Чанк " .. i .. " успешно передан!")
+                print("[Twink14] ✅ Чанк " .. i .. " передан!")
             else
-                warn("[Twink14] ❌ Чанк " .. i .. " не прошёл верификацию, попытка " .. attempts)
-                -- snapAfter уже равен snapBefore при провале (см. verifyTradeSuccess)
-                -- НЕ обновляем currentSnap — иначе при нулевых данных потеряем предметы
+                warn("[Twink14] ❌ Чанк " .. i .. " не прошёл, попытка " .. attempts)
+                -- При провале snapAfter == snapBefore — данные не теряются
                 currentSnap = snapAfter
                 task.wait(5)
             end
@@ -793,14 +720,13 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         if not success then
             allSuccess = false
-            warn("[Twink14] Чанк " .. i .. " провалился после " .. maxRetries .. " попыток! Прерываем.")
             failAndKick("Чанк " .. i .. " не передан после " .. maxRetries .. " попыток")
             return
         end
 
-        -- Кулдаун между трейдами (кроме последнего)
+        -- Кулдаун между трейдами
         if i < totalChunks then
-            print("[Twink14] Кулдаун " .. TRADE_COOLDOWN .. " сек перед трейдом " .. (i+1) .. "...")
+            print("[Twink14] Кулдаун " .. TRADE_COOLDOWN .. " сек...")
             for sec = TRADE_COOLDOWN, 1, -1 do
                 task.wait(1)
                 if sec % 10 == 0 or sec <= 5 then
@@ -810,21 +736,19 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         end
     end
 
-    -- Финальная проверка — только если ВСЕ чанки прошли успешно
+    -- Финальная проверка — только если allSuccess
     if not allSuccess then
-        -- Сюда не должны дойти (failAndKick делает return), но на всякий случай
         failAndKick("Не все чанки переданы")
         return
     end
 
     local _, remaining = snapshot()
-    print("[Twink14] Остаток предметов после всех трейдов:", remaining)
+    print("[Twink14] Остаток после всех трейдов:", remaining)
 
     if remaining == 0 then
         finishAndKick()
     else
-        -- Предметы остались — НЕ удаляем статистику
-        failAndKick("Остались предметы после всех трейдов: " .. remaining)
+        failAndKick("Остались предметы: " .. remaining)
     end
 
 end
