@@ -593,8 +593,9 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         end
 
         -- Все попытки исчерпаны — трейд не прошёл
+        -- Возвращаем snapBefore чтобы не потерять данные о предметах
         warn("[Twink14][verify] ❌ Трейд НЕ подтверждён после " .. maxChecks .. " проверок!")
-        return false, snapshot()
+        return false, snapBefore
     end
 
     -- Вызывается ТОЛЬКО когда remaining == 0 (все предметы реально переданы)
@@ -765,6 +766,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     -- Проходим по чанкам
     local currentSnap = snapInit
     local maxRetries  = 3
+    local allSuccess  = true  -- станет false если хоть один чанк провалился
 
     for i, chunk in ipairs(chunks) do
         local success   = false
@@ -778,19 +780,20 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
             if verified then
                 success = true
-                currentSnap = snapAfter  -- обновляем снапшот для следующих чанков
+                currentSnap = snapAfter
                 print("[Twink14] ✅ Чанк " .. i .. " успешно передан!")
             else
                 warn("[Twink14] ❌ Чанк " .. i .. " не прошёл верификацию, попытка " .. attempts)
-                -- Обновляем снапшот перед повтором — вдруг часть всё-таки прошла
-                currentSnap, _ = snapshot()
+                -- snapAfter уже равен snapBefore при провале (см. verifyTradeSuccess)
+                -- НЕ обновляем currentSnap — иначе при нулевых данных потеряем предметы
+                currentSnap = snapAfter
                 task.wait(5)
             end
         end
 
         if not success then
+            allSuccess = false
             warn("[Twink14] Чанк " .. i .. " провалился после " .. maxRetries .. " попыток! Прерываем.")
-            -- НЕ удаляем из статистики — предметы могли не уйти
             failAndKick("Чанк " .. i .. " не передан после " .. maxRetries .. " попыток")
             return
         end
@@ -807,15 +810,20 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         end
     end
 
-    -- Финальная проверка
+    -- Финальная проверка — только если ВСЕ чанки прошли успешно
+    if not allSuccess then
+        -- Сюда не должны дойти (failAndKick делает return), но на всякий случай
+        failAndKick("Не все чанки переданы")
+        return
+    end
+
     local _, remaining = snapshot()
     print("[Twink14] Остаток предметов после всех трейдов:", remaining)
 
     if remaining == 0 then
-        -- Всё передано — только теперь удаляем из статистики
         finishAndKick()
     else
-        -- Что-то осталось — НЕ удаляем из статистики чтобы было видно на сайте
+        -- Предметы остались — НЕ удаляем статистику
         failAndKick("Остались предметы после всех трейдов: " .. remaining)
     end
 
