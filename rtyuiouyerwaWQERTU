@@ -98,7 +98,7 @@ if IS_MAIN and PlaceId == 14119723130 then
                 -- SendRequest пока TradeGui не откроется
                 -- Players:FindFirstChild с таймаутом чтобы не зависать если твинк вылетел
                 local sendWait = 0
-                while not tradeGuiMain.Enabled and sendWait < 60 do
+                while not tradeGuiMain.Enabled and sendWait < 200 do
                     local twinkStillHere = Players:FindFirstChild(twinkName)
                     if not twinkStillHere then
                         print("[Main] Твинк вылетел во время SendRequest, пропускаем")
