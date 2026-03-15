@@ -546,12 +546,22 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         return false, snapshot()
     end
 
+    -- Вызывается ТОЛЬКО когда remaining == 0 (все предметы реально переданы)
     local function finishAndKick()
-        print("[Twink14] ✅ Всё передано!")
+        print("[Twink14] ✅ Все предметы переданы! Удаляем из статистики.")
         httpPost(SERVER_URL .. "/api/account/remove", { name = myName })
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         task.wait(1)
         player:Kick("Всё закончил я всё!")
+    end
+
+    -- Вызывается при любой ошибке — только убираем из очереди, статистику НЕ трогаем
+    local function failAndKick(reason)
+        warn("[Twink14] Завершаем с ошибкой: " .. tostring(reason))
+        warn("[Twink14] Статистика сохранена (предметы не были переданы).")
+        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
+        task.wait(1)
+        player:Kick("Ошибка передачи: " .. tostring(reason))
     end
 
     -- Один полный трейд: принять запрос → положить чанк → AcceptTrade → жёсткая проверка
@@ -636,7 +646,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     if totalBefore == 0 then
-        print("[Twink14] Предметов нет или Data не загрузилась — выходим.")
+        -- Предметов нет — просто убираемся из очереди, статистику не трогаем
+        print("[Twink14] Предметов нет или Data не загрузилась — выходим без удаления из статистики.")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
@@ -657,7 +668,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     if totalChunks == 0 then
-        print("[Twink14] Нечего передавать.")
+        print("[Twink14] Нечего передавать — убираемся из очереди.")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         return
     end
@@ -690,7 +701,9 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         if not success then
             warn("[Twink14] Чанк " .. i .. " провалился после " .. maxRetries .. " попыток! Прерываем.")
-            break
+            -- НЕ удаляем из статистики — предметы могли не уйти
+            failAndKick("Чанк " .. i .. " не передан после " .. maxRetries .. " попыток")
+            return
         end
 
         -- Кулдаун между трейдами (кроме последнего)
@@ -710,10 +723,11 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     print("[Twink14] Остаток предметов после всех трейдов:", remaining)
 
     if remaining == 0 then
+        -- Всё передано — только теперь удаляем из статистики
         finishAndKick()
     else
-        warn("[Twink14] Остались предметы (" .. remaining .. ") — не все трейды прошли.")
-        httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
+        -- Что-то осталось — НЕ удаляем из статистики чтобы было видно на сайте
+        failAndKick("Остались предметы после всех трейдов: " .. remaining)
     end
 
 end
