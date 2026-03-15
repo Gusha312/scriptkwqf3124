@@ -83,6 +83,16 @@ if IS_MAIN and PlaceId == 14119723130 then
                 repeat
                     twinkPlayer = Players:FindFirstChild(twinkName)
                     if not twinkPlayer then task.wait(2); waited += 2 end
+                    -- Если твинк сам вышел из очереди — не ждём больше
+                    local qs = httpGet(SERVER_URL .. "/api/queue")
+                    if qs and qs.current ~= twinkName then
+                        local stillThere = false
+                        if qs.queue then for _, n in ipairs(qs.queue) do if n == twinkName then stillThere = true end end end
+                        if not stillThere then
+                            print("[Main] Твинк " .. twinkName .. " вышел из очереди сам — пропускаем")
+                            return
+                        end
+                    end
                 until twinkPlayer or waited >= 200
 
                 if not twinkPlayer then
@@ -151,6 +161,18 @@ if IS_MAIN and PlaceId == 14119723130 then
                         if not Players:FindFirstChild(twinkName) then
                             print("[Main] Твинк вылетел пока ждали tradestatus")
                             return false
+                        end
+                        -- Если твинк сам вышел из очереди (finishAndKick/failAndKick) — выходим
+                        local qs2 = httpGet(SERVER_URL .. "/api/queue")
+                        if qs2 then
+                            local stillInQ = (qs2.current == twinkName)
+                            if not stillInQ and qs2.queue then
+                                for _, n in ipairs(qs2.queue) do if n == twinkName then stillInQ = true end end
+                            end
+                            if not stillInQ then
+                                print("[Main] Твинк " .. twinkName .. " вышел из очереди во время ожидания tradestatus")
+                                return false
+                            end
                         end
                         local status = httpGet(SERVER_URL .. "/api/tradestatus")
                         if status and status.twinkReady then ready = true end
