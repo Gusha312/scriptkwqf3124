@@ -139,7 +139,7 @@ task.spawn(function()
         teleportTo(CFrame.new(-2800.70728, 847.391663, -1802.94763))
         task.wait(2)
         pcall(function() remotes.ActivateAbility:FireServer("Spite") end)
-        task.wait(4)
+        task.wait(7)
         for i=1,3 do remotes.OutOfBoundsSelfDamage:FireServer(25000) end
         
         -- 5. ВОЗВРАТ
