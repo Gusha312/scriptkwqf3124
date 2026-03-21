@@ -354,13 +354,20 @@ end
 
 local function clickButton(btn)
     if not btn then return end
+    -- Запоминаем оригинальный размер
+    local origSize = btn.Size
+    -- Растягиваем на весь экран
     btn.Size = UDim2.new(9999999, 9999999, 9999999, 9999999)
     task.wait(0.2)
-    VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+    -- Кликаем по центру экрана (кнопка покрывает весь экран)
+    local screen = Workspace.CurrentCamera.ViewportSize
+    local cx = math.floor(screen.X / 2)
+    local cy = math.floor(screen.Y / 2)
+    VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
     task.wait(0.1)
-    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
     task.wait(0.2)
-    btn.Size = UDim2.new(1, 1, 1, 1)
+    btn.Size = origSize
     task.wait(0.2)
 end
 
@@ -492,18 +499,44 @@ local function runBossCycle()
     if LootFrame then
         task.wait(1)
 
-        -- Кнопка 1
-        local ok1, btn1 = pcall(function() return LootFrame:WaitForChild("ChestsFrame", 3):WaitForChild("3", 3):WaitForChild("ClaimButton", 3):WaitForChild("UpperLabel", 3) end)
-        if ok1 and btn1 then
-            clickButton(btn1)
-            -- Проверяем что кнопка исчезла или стала неактивной
-            waitUntil(function()
-                local ok, v = pcall(function() return not btn1.Parent end)
-                return ok and v
-            end, 3, 0.2)
+        -- Находим лучший сундук (приоритет Potion, иначе 3)
+        local chestsFrame = LootFrame:FindFirstChild("ChestsFrame")
+        local bestChest = nil
+        if chestsFrame then
+            -- Ищем сундук с Potion
+            for _, chestNum in ipairs({"1", "2", "3"}) do
+                local chest = chestsFrame:FindFirstChild(chestNum)
+                if chest then
+                    local ok, nameText = pcall(function()
+                        return chest.ItemLabel.NameLabel.Text
+                    end)
+                    if ok and nameText and nameText:find("Potion") then
+                        bestChest = chest
+                        print("[BOT] Нашли Potion в сундуке " .. chestNum)
+                        break
+                    end
+                end
+            end
+            -- Если Potion не нашли — берём 3й
+            if not bestChest then
+                bestChest = chestsFrame:FindFirstChild("3")
+                print("[BOT] Potion не найден, берём сундук 3")
+            end
         end
 
-        -- Кнопка 2
+        -- Кликаем на выбранный сундук
+        if bestChest then
+            local ok1, btn1 = pcall(function() return bestChest:WaitForChild("ClaimButton", 3):WaitForChild("UpperLabel", 3) end)
+            if ok1 and btn1 then
+                clickButton(btn1)
+                waitUntil(function()
+                    local ok, v = pcall(function() return not btn1.Parent end)
+                    return ok and v
+                end, 3, 0.2)
+            end
+        end
+
+        -- Кнопка ClaimButton основная
         local ok2, btn2 = pcall(function() return LootFrame:WaitForChild("ClaimButton", 3):WaitForChild("UpperLabel", 3) end)
         if ok2 and btn2 then
             clickButton(btn2)
@@ -602,8 +635,16 @@ local function runMainPlace()
         end
 
         if isMissionDone() then
-            print("[QUEST] Миссия выполнена! Ждём 5 мин...")
-            task.wait(300)
+            print("[QUEST] Миссия выполнена! Фармим боссов 5 мин...")
+            local missionWait = tick()
+            while tick() - missionWait < 300 do
+                local success = runBossCycle()
+                if success then
+                    cycles = cycles + 1
+                    print("[BOT] Цикл #" .. cycles .. " (во время кд миссии)")
+                end
+                task.wait(1)
+            end
             continue
         end
 
@@ -644,9 +685,17 @@ local function runMainPlace()
             continue
         end
 
-        -- Все квесты выполнены
-        print("[QUEST] Все квесты выполнены! Ждём 5 мин...")
-        task.wait(300)
+        -- Все квесты выполнены — фармим боссов пока ждём
+        print("[QUEST] Все квесты выполнены! Фармим боссов 5 мин...")
+        local allDoneWait = tick()
+        while tick() - allDoneWait < 300 do
+            local success = runBossCycle()
+            if success then
+                cycles = cycles + 1
+                print("[BOT] Цикл #" .. cycles .. " (во время кд квестов)")
+            end
+            task.wait(1)
+        end
     end
 end
 
