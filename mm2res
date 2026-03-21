@@ -437,6 +437,16 @@ end
 local function runBossCycle()
     local fightId = nil
 
+    -- Ждём пока старый FightId пропадёт
+    local oldId = getFightId()
+    if oldId then
+        print("[BOT] Ждём пока старый FightId пропадёт: " .. oldId)
+        waitUntil(function()
+            return getFightId() == nil
+        end, 30, 0.5)
+        task.wait(1)
+    end
+
     -- Проверяем здоровье дракона перед циклом
     checkAndReviveDragon()
 
@@ -516,7 +526,14 @@ local function runBossCycle()
             while stage1Active do attackBoss(fightId) task.wait(0.05) end
         end)
     end
-    while getStage(fightId) ~= 2 do task.wait(0.1) end
+    local stage1Start = tick()
+    while getStage(fightId) ~= 2 do
+        task.wait(0.5)
+        if tick() - stage1Start > 10 then
+            stage1Start = tick()
+            print("[BOT] Stage 1 текущий: " .. tostring(getStage(fightId)) .. " FightId: " .. tostring(fightId))
+        end
+    end
     stage1Active = false
     print("[BOT] Stage 2!")
 
