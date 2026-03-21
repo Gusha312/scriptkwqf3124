@@ -95,7 +95,23 @@ local PLACE_MAIN = 3475419198      -- босс, квесты, фарм
 local PLACE_STORMBOUND = 3475397644 -- инкубаторы
 
 print("[BOT] Загрузка... PlaceId=" .. PLACE_ID)
-task.wait(10) -- КД на загрузку
+task.wait(10)
+
+-- Ждём загрузки данных игрока
+print("[BOT] Ждём загрузки Data...")
+local dataWaited = 0
+repeat
+    task.wait(2)
+    dataWaited = dataWaited + 2
+    if dataWaited % 10 == 0 then
+        print("[BOT] Ждём Data... " .. dataWaited .. " сек")
+    end
+until (pcall(function()
+    local d = player.Data
+    assert(d and d:FindFirstChildOfClass("Folder") or d:FindFirstChildOfClass("IntValue") or d:FindFirstChildOfClass("NumberValue") or d:FindFirstChildOfClass("StringValue"))
+end)) or dataWaited >= 120
+print("[BOT] Data загружена! Запуск через 3 сек...")
+task.wait(3)
 print("[BOT] Запуск!")
 
 -- ======= ХЕЛПЕРЫ =======
@@ -738,9 +754,17 @@ end
 local function runStormboundPlace()
     print("[STORMBOUND] Запуск в Stormbound плейсе...")
 
-    -- КД на загрузку плейса
-    print("[STORMBOUND] Ждём 10 сек загрузки...")
-    task.wait(10)
+    -- Если сразу 0 яиц — сразу возвращаемся
+    if getStormboundCount() <= 0 then
+        print("[STORMBOUND] Яиц нет сразу — возвращаемся на фарм!")
+        local attempts0 = 0
+        repeat
+            attempts0 = attempts0 + 1
+            Remotes:WaitForChild("WorldTeleportRemote"):InvokeServer(3475419198, {MoveBackToAdventure = true})
+            task.wait(5)
+        until (attempts0 >= 5)
+        return
+    end
 
     -- Телепортируемся к своему плоту
     print("[STORMBOUND] Телепортируемся к плоту...")
@@ -754,35 +778,29 @@ local function runStormboundPlace()
     print("[STORMBOUND] На плоту!")
     task.wait(1)
 
-    while true do
-        -- Собираем из инкубаторов
-        claimIncubators()
+    -- Собираем из инкубаторов
+    claimIncubators()
+    task.wait(0.5)
+
+    -- Управляем драконами
+    manageDragons()
+    task.wait(0.5)
+
+    -- Если есть яйца — ставим
+    if getStormboundCount() > 0 then
+        placeEggs("StormboundEgg")
         task.wait(0.5)
-
-        -- Управляем драконами
-        manageDragons()
-        task.wait(0.5)
-
-        -- Если есть яйца — ставим
-        if getStormboundCount() > 0 then
-            placeEggs("StormboundEgg")
-        end
-
-        -- Если яиц нет — возвращаемся
-        if getStormboundCount() <= 0 then
-            print("[STORMBOUND] Яиц нет, возвращаемся!")
-            local posBefore2 = hrp.Position
-            local attempts2 = 0
-            repeat
-                attempts2 = attempts2 + 1
-                Remotes:WaitForChild("WorldTeleportRemote"):InvokeServer(3475419198, {MoveBackToAdventure = true})
-                task.wait(5)
-            until (hrp.Position - posBefore2).Magnitude > 50 or attempts2 >= 5
-            task.wait(5)
-        end
-
-        task.wait(30)
     end
+
+    -- Возвращаемся
+    print("[STORMBOUND] Готово, возвращаемся на фарм!")
+    local posBefore2 = hrp.Position
+    local attempts2 = 0
+    repeat
+        attempts2 = attempts2 + 1
+        Remotes:WaitForChild("WorldTeleportRemote"):InvokeServer(3475419198, {MoveBackToAdventure = true})
+        task.wait(5)
+    until (hrp.Position - posBefore2).Magnitude > 50 or attempts2 >= 5
 end
 
 -- ======= ОСНОВНОЙ ПЛЕЙС =======
