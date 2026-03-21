@@ -509,15 +509,19 @@ local function runBossCycle()
             end, 3, 0.2)
         end
 
-        -- Кнопка LeaveButton — ждём пока LootFrame пропадёт
+        -- Кнопка LeaveButton — спамим пока LootFrame не скроется
         local ok3, btn3 = pcall(function() return LootFrame:WaitForChild("LeaveButton", 3):WaitForChild("UpperLabel", 3) end)
         if ok3 and btn3 then
-            clickButton(btn3)
-            -- Ждём пока LootFrame скроется
-            waitUntil(function()
-                local ok, v = pcall(function() return not LootFrame.Visible end)
-                return ok and v
-            end, 5, 0.2)
+            local leaveStart = tick()
+            while LootFrame.Visible and tick() - leaveStart < 15 do
+                clickButton(btn3)
+                task.wait(0.3)
+            end
+            if not LootFrame.Visible then
+                print("[BOT] LeaveButton нажата успешно!")
+            else
+                print("[BOT] LeaveButton не сработала за 15 сек!")
+            end
         end
 
         print("[BOT] Награды собраны!")
