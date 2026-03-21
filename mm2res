@@ -26,6 +26,7 @@ local PLOT_NAME = player.Name .. "_Plot"
 local DATA_PATH = "ArchiesConservationProjectEventVeidreki"
 local STORMBOUND_LIMIT = 10
 local PLACE_ID = game.PlaceId
+local collectingLoot = false -- флаг сбора наград
 
 local PLACE_MAIN = 3475419198      -- босс, квесты, фарм
 local PLACE_STORMBOUND = 3475397644 -- инкубаторы
@@ -351,11 +352,13 @@ local function clickButton(btn)
     if not btn then return end
     btn.Size = UDim2.new(1000, 1000, 1000, 1000)
     task.wait(0.2)
-    local pos = btn.AbsolutePosition
-    local size = btn.AbsoluteSize
-    VIM:SendMouseButtonEvent(pos.X + size.X/2, pos.Y + size.Y/2, 0, true, game, 1)
+    -- Используем центр экрана так как кнопка растянута на весь экран
+    local screenSize = Workspace.CurrentCamera.ViewportSize
+    local cx = screenSize.X / 2
+    local cy = screenSize.Y / 2
+    VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
     task.wait(0.1)
-    VIM:SendMouseButtonEvent(pos.X + size.X/2, pos.Y + size.Y/2, 0, false, game, 1)
+    VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
     task.wait(0.2)
     btn.Size = UDim2.new(1, 1, 1, 1)
     task.wait(0.2)
@@ -474,6 +477,7 @@ local function runBossCycle()
     print("[BOT] Босс убит!")
 
     -- Ждём GUI наград (макс 30 сек)
+    collectingLoot = true
     local LootFrame = nil
     print("[BOT] Ждём GUI наград...")
     waitUntil(function()
@@ -528,6 +532,7 @@ local function runBossCycle()
     else
         print("[BOT] GUI наград не появился!")
     end
+    collectingLoot = false
 
     -- Ждём пока FightId пропадёт
     local oldId = fightId
@@ -590,7 +595,7 @@ local function runMainPlace()
                     waitUntil(function() return isQuestDone(1) end, 1200, 2)
                 end
 
-                if not isQuestDone(2) then doQuest2() end
+                if not isQuestDone(2) and not collectingLoot then doQuest2() end
                 if not isQuestDone(3) then doQuest3() end
 
                 if isQuestDone(1) and isQuestDone(2) and isQuestDone(3) then
@@ -602,18 +607,6 @@ local function runMainPlace()
                 task.wait(300)
             end
             task.wait(5)
-        end
-    end)
-
-    -- Инкубаторы в отдельном потоке
-    task.spawn(function()
-        while true do
-            claimIncubators()
-            task.wait(0.5)
-            manageDragons()
-            task.wait(0.5)
-            placeEggs("DesertEgg")
-            task.wait(30)
         end
     end)
 
