@@ -450,19 +450,24 @@ local function runBossCycle()
     -- Проверяем здоровье дракона перед циклом
     checkAndReviveDragon()
 
-    print("[BOT] Создаём очередь...")
-    Remotes.CreateBossQueueRemote:InvokeServer("Everyone")
-    Remotes.StartBossQueueRemote:InvokeServer()
+    -- Создаём очередь с повторами пока не появится FightId
+    fightId = nil
+    local queueAttempts = 0
+    while not fightId do
+        queueAttempts = queueAttempts + 1
+        print("[BOT] Создаём очередь (попытка " .. queueAttempts .. ")...")
+        Remotes.CreateBossQueueRemote:InvokeServer("Everyone")
+        Remotes.StartBossQueueRemote:InvokeServer()
 
-    local found = waitUntil(function()
-        fightId = getFightId()
-        return fightId ~= nil
-    end, 30, 0.5)
+        waitUntil(function()
+            fightId = getFightId()
+            return fightId ~= nil
+        end, 15, 0.5)
 
-    if not found or not fightId then
-        print("[BOT] FightId не найден, повтор...")
-        task.wait(2)
-        return false
+        if not fightId then
+            print("[BOT] FightId не появился, ждём 5 сек...")
+            task.wait(5)
+        end
     end
     print("[BOT] FightId: " .. fightId)
 
