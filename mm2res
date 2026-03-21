@@ -7,16 +7,26 @@ local player = Players.LocalPlayer
 
 -- Ждём персонажа
 local character
-repeat
-    character = player.Character
-    if not character then task.wait(0.5) end
-until character and character.Parent
-local hrp = character:WaitForChild("HumanoidRootPart")
+local hrp
 
--- Обновляем character при респавне
+local function updateCharacter(char)
+    character = char
+    hrp = char:WaitForChild("HumanoidRootPart")
+end
+
+local function waitForCharacter()
+    local char = player.Character
+    if not char or not char.Parent then
+        char = player.CharacterAdded:Wait()
+    end
+    updateCharacter(char)
+end
+
+waitForCharacter()
+
+-- Обновляем при респавне
 player.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    hrp = newChar:WaitForChild("HumanoidRootPart")
+    updateCharacter(newChar)
 end)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
