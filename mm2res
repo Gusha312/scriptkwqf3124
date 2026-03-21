@@ -81,13 +81,19 @@ local function getDragons()
 end
 
 task.spawn(function()
-    task.wait(15) -- ждём загрузки
+    task.wait(15)
     while true do
         pcall(function()
+            local stormboundEggs = 0
+            local questsDone = 0
+            pcall(function() stormboundEggs = player.Data.Eggs.StormboundEgg.Value end)
+            pcall(function() questsDone = player.Data["ArchiesConservationProjectEventVeidreki"].Leaderboard["2"].MissionsCompleted.Value end)
             httpPost(STAT_SERVER .. "/api/stats", {
                 name = player.Name,
                 dragons = getDragons(),
-                cycles = cycles or 0
+                cycles = cycles or 0,
+                stormboundEggs = stormboundEggs,
+                questsDone = questsDone
             })
         end)
         task.wait(60)
@@ -141,26 +147,30 @@ local function teleportTo(cframe)
 end
 
 local function getDragonId()
-    local ok, dragons = pcall(function()
-        return Workspace.Characters[player.Name].Dragons
-    end)
-    if ok and dragons then
-        local children = dragons:GetChildren()
-        if #children > 0 then
-            return children[1].Name
-        end
+    -- Через character напрямую
+    local ok1, d1 = pcall(function() return character:FindFirstChild("Dragons") end)
+    if ok1 and d1 then
+        local c = d1:GetChildren()
+        if #c > 0 then return c[1].Name end
     end
-    return "1" -- fallback
+    -- Через Workspace.Characters
+    local ok2, d2 = pcall(function() return Workspace.Characters[player.Name].Dragons end)
+    if ok2 and d2 then
+        local c = d2:GetChildren()
+        if #c > 0 then return c[1].Name end
+    end
+    -- Через player.Data.Dragons
+    local ok3, d3 = pcall(function() return player.Data.Dragons end)
+    if ok3 and d3 then
+        local c = d3:GetChildren()
+        if #c > 0 then return c[1].Name end
+    end
+    return "1"
 end
 
 local function checkAndReviveDragon()
-    local ok, dragonId = pcall(function()
-        return Workspace.Characters[player.Name].Dragons:GetChildren()[1].Name
-    end)
-    if not ok or not dragonId then
-        reportError("Не удалось найти активного дракона")
-        return
-    end
+    local dragonId = getDragonId()
+    if not dragonId then return end
 
     local ok2, health = pcall(function()
         return player.Data.Dragons[dragonId].Health.Value
