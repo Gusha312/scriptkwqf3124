@@ -350,31 +350,14 @@ end
 
 local function clickButton(btn)
     if not btn then return end
-    -- Ищем родительский TextButton или ImageButton
-    local function findClickable(obj)
-        if not obj then return nil end
-        if obj:IsA("TextButton") or obj:IsA("ImageButton") then
-            return obj
-        end
-        return findClickable(obj.Parent)
-    end
-    
-    local clickable = findClickable(btn)
-    if clickable then
-        -- Прямой fire MouseButton1Click
-        for i = 1, 5 do
-            local ok = pcall(function()
-                clickable:SimulateClick()
-            end)
-            if not ok then
-                -- fallback через fireinstanceevent
-                pcall(function() fireclickdetector(clickable) end)
-            end
-            task.wait(0.2)
-            -- Проверяем сработало ли
-            if not clickable.Parent then break end
-        end
-    end
+    btn.Size = UDim2.new(9999999, 9999999, 9999999, 9999999)
+    task.wait(0.2)
+    VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+    task.wait(0.1)
+    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    task.wait(0.2)
+    btn.Size = UDim2.new(1, 1, 1, 1)
+    task.wait(0.2)
 end
 
 local function runBossCycle()
