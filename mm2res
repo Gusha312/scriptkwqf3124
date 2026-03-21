@@ -63,6 +63,24 @@ local function getDragonId()
     return "1" -- fallback
 end
 
+local function checkAndReviveDragon()
+    local ok, dragonId = pcall(function()
+        return Workspace.Characters[player.Name].Dragons:GetChildren()[1].Name
+    end)
+    if not ok or not dragonId then return end
+
+    local ok2, health = pcall(function()
+        return player.Data.Dragons[dragonId].Health.Value
+    end)
+    if ok2 and health ~= nil and health <= 0 then
+        print("[BOT] Дракон " .. dragonId .. " мёртв — воскрешаем!")
+        pcall(function()
+            Remotes:WaitForChild("HealDragonRemote"):InvokeServer(dragonId, "RevivalHeart")
+        end)
+        task.wait(1)
+    end
+end
+
 local function getPlaySound()
     local dragonId = getDragonId()
     return character:WaitForChild("Dragons"):WaitForChild(dragonId):WaitForChild("Remotes"):WaitForChild("PlaySoundRemote")
@@ -101,6 +119,12 @@ local function placeEggs(eggName)
         local count = eggName == "StormboundEgg" and getStormboundCount() or getGrasslandCount()
         if count <= 0 then break end
         if not inc:FindFirstChild("Egg") then
+            -- Телепортируемся к инкубатору
+            local ok0, incPart = pcall(function() return inc.PrimaryPart or inc:FindFirstChildWhichIsA("BasePart") end)
+            if ok0 and incPart then
+                hrp.CFrame = incPart.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.3)
+            end
             local ok, remote = pcall(function() return inc:WaitForChild("IncubateRemote", 2) end)
             if ok and remote then
                 remote:InvokeServer(eggName)
@@ -118,6 +142,12 @@ local function claimIncubators()
     local incubators = getIncubators()
     for _, inc in ipairs(incubators) do
         if inc:FindFirstChild("Egg") then
+            -- Телепортируемся к инкубатору
+            local ok0, incPart = pcall(function() return inc.PrimaryPart or inc:FindFirstChildWhichIsA("BasePart") end)
+            if ok0 and incPart then
+                hrp.CFrame = incPart.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.3)
+            end
             local ok, remote = pcall(function() return inc:WaitForChild("ClaimRemote", 2) end)
             if ok and remote then
                 remote:InvokeServer()
@@ -402,6 +432,9 @@ end
 local function runBossCycle()
     local fightId = nil
 
+    -- Проверяем здоровье дракона перед циклом
+    checkAndReviveDragon()
+
     print("[BOT] Создаём очередь...")
     Remotes.CreateBossQueueRemote:InvokeServer("Everyone")
     Remotes.StartBossQueueRemote:InvokeServer()
@@ -608,6 +641,22 @@ end
 -- ======= STORMBOUND ПЛЕЙС =======
 local function runStormboundPlace()
     print("[STORMBOUND] Запуск в Stormbound плейсе...")
+
+    -- КД на загрузку плейса
+    print("[STORMBOUND] Ждём 10 сек загрузки...")
+    task.wait(10)
+
+    -- Телепортируемся к своему плоту
+    print("[STORMBOUND] Телепортируемся к плоту...")
+    local posBefore = hrp.Position
+    local tpAttempts = 0
+    repeat
+        tpAttempts = tpAttempts + 1
+        Remotes:WaitForChild("GetTeleportRemote"):InvokeServer("Plot", PLOT_NAME)
+        task.wait(3)
+    until (hrp.Position - posBefore).Magnitude > 10 or tpAttempts >= 5
+    print("[STORMBOUND] На плоту!")
+    task.wait(1)
 
     while true do
         -- Собираем из инкубаторов
