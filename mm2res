@@ -219,7 +219,8 @@ local function farmGrasslandEggs(needed)
     local lastUse = 0
     while getGrasslandCount() < needed do
         local now = tick()
-        if now - lastUse < 15 then task.wait(15 - (now - lastUse)) end
+        local cd = math.random(5, 6)
+if now - lastUse < cd then task.wait(cd - (now - lastUse)) end
         local nestId, nestCFrame = findActiveNest()
         if nestCFrame then
             hrp.CFrame = nestCFrame
@@ -676,7 +677,7 @@ local function runMainPlace()
         if not isQuestDone(2) then
             print("[QUEST2] Пожертвование яиц (" .. getAmount(2) .. "/5)...")
             if getGrasslandCount() < 5 then
-                farmGrasslandEggs(2)
+                farmGrasslandEggs(5)
             end
             Remotes:WaitForChild("OfferItemArchiesConservationProjectsMissionRemote"):InvokeServer("2", "Repeatable", "1", "2")
             task.wait(0.5)
