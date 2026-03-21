@@ -407,25 +407,28 @@ end
 
 local function clickButton(btn)
     if not btn then return end
-    -- Запоминаем оригинальные свойства
+    -- Запоминаем оригинальные свойства UpperLabel
     local origSize = btn.Size
     local origPos = btn.Position
     local origAnchor = btn.AnchorPoint
     local origZIndex = btn.ZIndex
-    -- Центрируем кнопку по середине экрана
+
+    -- Расширяем UpperLabel на весь экран и центрируем
     btn.Size = UDim2.new(100, 0, 100, 0)
     btn.Position = UDim2.new(0.5, 0, 0.5, 0)
     btn.AnchorPoint = Vector2.new(0.5, 0.5)
     btn.ZIndex = 99999
     task.wait(0.5)
+
     -- Кликаем по центру экрана
     local screen = Workspace.CurrentCamera.ViewportSize
     local cx = math.floor(screen.X / 2)
     local cy = math.floor(screen.Y / 2)
     VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-    task.wait(0.1)
+    task.wait(0.15)
     VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
     task.wait(0.3)
+
     -- Восстанавливаем
     btn.Size = origSize
     btn.Position = origPos
