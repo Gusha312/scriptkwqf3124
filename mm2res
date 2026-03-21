@@ -78,6 +78,11 @@ local function checkAndReviveDragon()
             Remotes:WaitForChild("HealDragonRemote"):InvokeServer(dragonId, "RevivalHeart")
         end)
         task.wait(1)
+        print("[BOT] Экипируем дракона " .. dragonId .. "...")
+        pcall(function()
+            Remotes:WaitForChild("EquipDragonRemote"):InvokeServer(dragonId)
+        end)
+        task.wait(1)
     end
 end
 
