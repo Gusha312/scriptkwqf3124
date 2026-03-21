@@ -164,7 +164,7 @@ local function claimIncubators()
 end
 
 -- ======= ДРАКОНЫ =======
-local KEEP_DRAGONS = {"Veidreki", "Seikarin", "Atarix"}
+local KEEP_DRAGONS = {"Veidreki", "Seikarin", "Atarix", "Saurium"}
 
 local function keepDragon(name)
     for _, k in ipairs(KEEP_DRAGONS) do
