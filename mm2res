@@ -1,15 +1,24 @@
+-- Ждём полной загрузки игры
+repeat task.wait(1) until game:IsLoaded()
+task.wait(3)
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
 local ok_vim, VIM = pcall(function() return game:GetService("VirtualInputManager") end)
 if not ok_vim then VIM = nil end
-local HttpService = game:GetService("HttpService")
 
 -- ======= НАСТРОЙКИ СТАТИСТИКИ =======
 local STAT_SERVER = "http://185.194.177.252:804"
 local requestFunc = syn and syn.request or http_request or request
 
-local player = Players.LocalPlayer
+-- Ждём LocalPlayer
+local player
+repeat
+    task.wait(0.5)
+    player = Players.LocalPlayer
+until player
 
 -- Ждём персонажа
 local character
@@ -22,8 +31,9 @@ end
 
 local function waitForCharacter()
     local char = player.Character
-    if not char or not char.Parent then
-        char = player.CharacterAdded:Wait()
+    while not char or not char.Parent do
+        task.wait(0.5)
+        char = player.Character
     end
     updateCharacter(char)
 end
