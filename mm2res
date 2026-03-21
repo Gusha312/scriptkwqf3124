@@ -354,20 +354,30 @@ end
 
 local function clickButton(btn)
     if not btn then return end
-    -- Запоминаем оригинальный размер
+    -- Запоминаем оригинальные свойства
     local origSize = btn.Size
-    -- Растягиваем на весь экран
-    btn.Size = UDim2.new(9999999, 9999999, 9999999, 9999999)
-    task.wait(0.2)
-    -- Кликаем по центру экрана (кнопка покрывает весь экран)
+    local origPos = btn.Position
+    local origAnchor = btn.AnchorPoint
+    local origZIndex = btn.ZIndex
+    -- Центрируем кнопку по середине экрана
+    btn.Size = UDim2.new(100, 0, 100, 0)
+    btn.Position = UDim2.new(0.5, 0, 0.5, 0)
+    btn.AnchorPoint = Vector2.new(0.5, 0.5)
+    btn.ZIndex = 99999
+    task.wait(0.5)
+    -- Кликаем по центру экрана
     local screen = Workspace.CurrentCamera.ViewportSize
     local cx = math.floor(screen.X / 2)
     local cy = math.floor(screen.Y / 2)
     VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
     task.wait(0.1)
     VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-    task.wait(0.2)
+    task.wait(0.3)
+    -- Восстанавливаем
     btn.Size = origSize
+    btn.Position = origPos
+    btn.AnchorPoint = origAnchor
+    btn.ZIndex = origZIndex
     task.wait(0.2)
 end
 
@@ -666,7 +676,7 @@ local function runMainPlace()
         if not isQuestDone(2) then
             print("[QUEST2] Пожертвование яиц (" .. getAmount(2) .. "/5)...")
             if getGrasslandCount() < 5 then
-                farmGrasslandEggs(5)
+                farmGrasslandEggs(2)
             end
             Remotes:WaitForChild("OfferItemArchiesConservationProjectsMissionRemote"):InvokeServer("2", "Repeatable", "1", "2")
             task.wait(0.5)
