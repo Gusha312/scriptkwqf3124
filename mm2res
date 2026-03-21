@@ -220,17 +220,34 @@ local function farmGrasslandEggs(needed)
     while getGrasslandCount() < needed do
         local now = tick()
         local cd = math.random(5, 6)
-if now - lastUse < cd then task.wait(cd - (now - lastUse)) end
+        if now - lastUse < cd then task.wait(cd - (now - lastUse)) end
+
         local nestId, nestCFrame = findActiveNest()
-        if nestCFrame then
-            hrp.CFrame = nestCFrame
-            task.wait(0.2)
-            hrp.CFrame = nestCFrame
+
+        if not nestCFrame then
+            print("[QUEST] ActiveNode не найден, ждём...")
+            task.wait(2)
+            continue
         end
+
+        -- Телепортируемся к ноду
+        hrp.CFrame = nestCFrame
+        task.wait(0.2)
+        hrp.CFrame = nestCFrame
+        task.wait(0.2)
+
+        -- Проверяем что тепнулись (позиция изменилась)
+        local dist = (hrp.Position - nestCFrame.Position).Magnitude
+        if dist > 20 then
+            print("[QUEST] Телепорт не удался, повтор...")
+            continue
+        end
+
         local startId = nestId or 1
         for i = startId, startId + 19 do
             Remotes:WaitForChild("CollectEggRemote"):InvokeServer(tostring(i))
         end
+
         lastUse = tick()
         print("[QUEST] Яиц: " .. getGrasslandCount() .. "/" .. needed)
     end
