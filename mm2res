@@ -504,22 +504,61 @@ local function attackBoss(id)
     local ok, root = pcall(function()
         return Workspace.ActiveBossModels[id].HumanoidRootPart
     end)
-    if ok and root then
-        local ps = getPlaySound()
-        if ps then
-            pcall(function() ps:FireServer("Breath", "Bosses", root) end)
-        else
-            cachedPlaySound = nil -- сбрасываем кэш для следующей попытки
-        end
+    if not ok or not root then return end
+
+    -- Пробуем напрямую без getPlaySound
+    local fired = false
+    -- Вариант 1: через кэш/getPlaySound
+    local ps = getPlaySound()
+    if ps then
+        local ok2 = pcall(function() ps:FireServer("Breath", "Bosses", root) end)
+        if ok2 then fired = true end
+    end
+    -- Вариант 2: перебираем character.Dragons напрямую
+    if not fired then
+        pcall(function()
+            local dragons = character:FindFirstChild("Dragons")
+            if not dragons then return end
+            for _, dragon in ipairs(dragons:GetChildren()) do
+                local r = dragon:FindFirstChild("Remotes")
+                if r then
+                    local psr = r:FindFirstChild("PlaySoundRemote")
+                    if psr then
+                        psr:FireServer("Breath", "Bosses", root)
+                        fired = true
+                        cachedPlaySound = psr
+                        break
+                    end
+                end
+            end
+        end)
     end
 end
 
 local function attackMob(mobRoot)
+    local fired = false
     local ps = getPlaySound()
     if ps then
-        pcall(function() ps:FireServer("Breath", "Mobs", mobRoot) end)
-    else
-        cachedPlaySound = nil
+        local ok = pcall(function() ps:FireServer("Breath", "Mobs", mobRoot) end)
+        if ok then fired = true end
+    end
+    if not fired then
+        pcall(function()
+            local dragons = character:FindFirstChild("Dragons")
+            if not dragons then return end
+            for _, dragon in ipairs(dragons:GetChildren()) do
+                local r = dragon:FindFirstChild("Remotes")
+                if r then
+                    local psr = r:FindFirstChild("PlaySoundRemote")
+                    if psr then
+                        psr:FireServer("Breath", "Mobs", mobRoot)
+                        fired = true
+                        cachedPlaySound = psr
+                        break
+                    end
+                end
+            end
+        end)
     end
 end
 
