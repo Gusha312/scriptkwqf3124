@@ -757,12 +757,13 @@ local function runBossCycle()
     end
     collectingLoot = false
 
-    -- Ждём пока FightId пропадёт
+    -- Ждём пока старый FightId пропадёт
     local oldId = fightId
     waitUntil(function()
         local cur = getFightId()
         return cur == nil or cur ~= oldId
-    end, 30, 0.5)
+    end, 20, 0.5)
+    print("[BOT] FightId пропал, готовы к новому циклу!")
     task.wait(2)
     return true
 end
