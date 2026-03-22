@@ -586,8 +586,20 @@ local function killMobsAtSpawn(spawnCFrame, radius)
     teleportTo(spawnCFrame)
     task.wait(0.3)
     local startTime = tick()
-    while tick() - startTime < 30 do -- таймаут 30 сек
+    while tick() - startTime < 30 do
+        -- Ищем мобов у спавна мобов
         local mobs = getMobsInRadius(spawnCFrame.Position, radius)
+        -- Добавляем мобов у SpawnPart босса
+        local ok, sp = pcall(function() return slot.SpawnPart end)
+        if ok and sp then
+            for _, m in ipairs(getMobsInRadius(sp.Position, radius)) do
+                local found = false
+                for _, existing in ipairs(mobs) do
+                    if existing == m then found = true; break end
+                end
+                if not found then table.insert(mobs, m) end
+            end
+        end
         if #mobs == 0 then
             print("[BOT] Мобы убиты!")
             break
@@ -668,23 +680,34 @@ local function runBossCycle()
     end
     print("[BOT] FightId: " .. fightId)
 
-    -- Телепортируемся и ждём появления слота (подтверждение тп)
+    -- Телепортируемся и ждём появления слота рядом с нами
     local slot = nil
     local tpAttempts = 0
     repeat
         tpAttempts = tpAttempts + 1
         print("[BOT] Телепорт к боссу (попытка " .. tpAttempts .. ")...")
         Remotes.GetTeleportRemote:InvokeServer("ToBossInstance", {FightId = fightId, Spawn = true})
-        -- Ждём появления слота как подтверждение телепорта
-        waitUntil(function()
-            slot = getInstanceSlot()
-            return slot ~= nil
-        end, 8, 0.5)
+        task.wait(4)
+        -- Ищем слот у которого SpawnPart рядом с нами
+        for i = 1, 6 do
+            local ok, s = pcall(function() return Workspace.Interactions.Boss.InstancePositions[tostring(i)] end)
+            if ok and s then
+                local ok2, sp = pcall(function() return s.SpawnPart end)
+                if ok2 and sp then
+                    local dist = (hrp.Position - sp.Position).Magnitude
+                    if dist < 150 then
+                        slot = s
+                        print("[BOT] Наш слот: " .. i .. " dist=" .. math.floor(dist))
+                        break
+                    end
+                end
+            end
+        end
     until slot ~= nil or tpAttempts >= 10
     task.wait(1)
 
     if not slot then
-        reportError("Слот не найден после 10 попыток телепорта")
+        reportError("Слот не найден рядом после 10 попыток телепорта")
         task.wait(2)
         return false
     end
@@ -729,7 +752,7 @@ local function runBossCycle()
             local ok, sp = pcall(function() return slot.SpawnPart end)
             if ok and sp then
                 local dist = (hrp.Position - sp.Position).Magnitude
-                if dist > 30 then
+                if dist > 100 then
                     hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
                 end
             end
@@ -753,7 +776,7 @@ local function runBossCycle()
         for _, spawnNum in ipairs(spawnOrder) do
             if getStage(fightId) == 3 then break end
             local sok, spawn = pcall(function() return slot.MobSpawns[tostring(spawnNum)] end)
-            if sok and spawn then killMobsAtSpawn(spawn.CFrame, 150) end
+            if sok and spawn then killMobsAtSpawn(spawn.CFrame, 100) end
         end
     end
     print("[BOT] Stage 3!")
@@ -774,7 +797,7 @@ local function runBossCycle()
             local ok, sp = pcall(function() return slot.SpawnPart end)
             if ok and sp then
                 local dist = (hrp.Position - sp.Position).Magnitude
-                if dist > 30 then
+                if dist > 100 then
                     hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
                 end
             end
