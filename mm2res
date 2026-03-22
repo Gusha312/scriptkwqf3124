@@ -186,12 +186,54 @@ local function checkAndReviveDragon()
             Remotes:WaitForChild("EquipDragonRemote"):InvokeServer(dragonId)
         end)
         task.wait(1)
+        cachedPlaySound = nil -- сбрасываем кэш после смены дракона
     end
 end
 
+local cachedPlaySound = nil
+
 local function getPlaySound()
+    -- Проверяем кэш
+    if cachedPlaySound and cachedPlaySound.Parent then
+        return cachedPlaySound
+    end
+    -- Пробуем найти через character.Dragons
     local dragonId = getDragonId()
-    return character:WaitForChild("Dragons"):WaitForChild(dragonId):WaitForChild("Remotes"):WaitForChild("PlaySoundRemote")
+    -- Вариант 1: через character
+    local ok1, ps1 = pcall(function()
+        local dragons = character:FindFirstChild("Dragons")
+        if not dragons then error("no Dragons") end
+        local dragon = dragons:FindFirstChild(dragonId) or dragons:GetChildren()[1]
+        if not dragon then error("no dragon") end
+        return dragon:WaitForChild("Remotes"):WaitForChild("PlaySoundRemote")
+    end)
+    if ok1 and ps1 then
+        cachedPlaySound = ps1
+        return ps1
+    end
+    -- Вариант 2: перебираем всех драконов в character
+    local ok2, ps2 = pcall(function()
+        local dragons = character:FindFirstChild("Dragons")
+        if not dragons then error("no Dragons") end
+        for _, dragon in ipairs(dragons:GetChildren()) do
+            local r = dragon:FindFirstChild("Remotes")
+            if r then
+                local ps = r:FindFirstChild("PlaySoundRemote")
+                if ps then return ps end
+            end
+        end
+        error("not found")
+    end)
+    if ok2 and ps2 then
+        cachedPlaySound = ps2
+        return ps2
+    end
+    return nil
+end
+
+-- Сброс кэша при смене дракона
+local function resetPlaySoundCache()
+    cachedPlaySound = nil
 end
 
 -- ======= ИНКУБАТОРЫ =======
@@ -463,12 +505,22 @@ local function attackBoss(id)
         return Workspace.ActiveBossModels[id].HumanoidRootPart
     end)
     if ok and root then
-        getPlaySound():FireServer("Breath", "Bosses", root)
+        local ps = getPlaySound()
+        if ps then
+            pcall(function() ps:FireServer("Breath", "Bosses", root) end)
+        else
+            cachedPlaySound = nil -- сбрасываем кэш для следующей попытки
+        end
     end
 end
 
 local function attackMob(mobRoot)
-    getPlaySound():FireServer("Breath", "Mobs", mobRoot)
+    local ps = getPlaySound()
+    if ps then
+        pcall(function() ps:FireServer("Breath", "Mobs", mobRoot) end)
+    else
+        cachedPlaySound = nil
+    end
 end
 
 local function getMobsInRadius(position, radius)
@@ -598,25 +650,24 @@ local function runBossCycle()
         return false
     end
 
-    local spawnOk, spawnPart = pcall(function() return slot.SpawnPart end)
-    if spawnOk and spawnPart then
-        local spawnPos = spawnPart.Position
-        local attempts = 0
-        repeat
-            teleportTo(spawnPart.CFrame)
-            task.wait(0.5)
-            attempts = attempts + 1
-            local dist = (hrp.Position - spawnPos).Magnitude
-            print("[BOT] ТП к SpawnPart, dist=" .. math.floor(dist) .. " попытка=" .. attempts)
-        until (hrp.Position - spawnPos).Magnitude < 20 or attempts >= 10
-
-        if (hrp.Position - spawnPos).Magnitude >= 20 then
-            print("[BOT] Не удалось тепнуться к SpawnPart, повтор...")
-            task.wait(2)
-            return false
+    local function teleportToSpawnPart()
+        local ok, sp = pcall(function() return slot.SpawnPart end)
+        if not ok or not sp then return false end
+        local spawnPos = sp.Position + Vector3.new(0, 5, 0)
+        for i = 1, 15 do
+            hrp.CFrame = CFrame.new(spawnPos)
+            task.wait(0.3)
+            local dist = (hrp.Position - sp.Position).Magnitude
+            print("[BOT] ТП к SpawnPart dist=" .. math.floor(dist) .. " попытка=" .. i)
+            if dist < 25 then
+                print("[BOT] Успешно на SpawnPart!")
+                return true
+            end
         end
-        print("[BOT] Успешно на SpawnPart!")
+        print("[BOT] SpawnPart недостижима, продолжаем всё равно")
+        return true -- продолжаем даже если не добрались
     end
+    teleportToSpawnPart()
 
     local bossFound = waitUntil(function() return bossExists(fightId) end, 30, 0.5)
     if not bossFound then
@@ -655,12 +706,9 @@ local function runBossCycle()
     end
     print("[BOT] Stage 3!")
 
-    -- Телепортируемся на платформу босса (как в Stage 1)
-    local spawnOk3, spawnPart3 = pcall(function() return slot.SpawnPart end)
-    if spawnOk3 and spawnPart3 then
-        teleportTo(spawnPart3.CFrame)
-        print("[BOT] Телепорт к SpawnPart для Stage 3")
-    end
+    -- Телепортируемся на платформу босса для Stage 3
+    print("[BOT] ТП к SpawnPart для Stage 3...")
+    teleportToSpawnPart()
 
     -- Stage 3 — 3 потока
     local stage3Active = true
