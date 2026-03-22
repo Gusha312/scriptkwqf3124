@@ -577,27 +577,23 @@ local function runBossCycle()
     end
     print("[BOT] FightId: " .. fightId)
 
-    local posBefore = hrp.Position
+    -- Телепортируемся и ждём появления слота (подтверждение тп)
+    local slot = nil
     local tpAttempts = 0
     repeat
         tpAttempts = tpAttempts + 1
+        print("[BOT] Телепорт к боссу (попытка " .. tpAttempts .. ")...")
         Remotes.GetTeleportRemote:InvokeServer("ToBossInstance", {FightId = fightId, Spawn = true})
-        task.wait(5)
-    until (hrp.Position - posBefore).Magnitude > 50 or tpAttempts >= 5
-    if (hrp.Position - posBefore).Magnitude <= 50 then
-        reportError("Телепорт к боссу не удался после 5 попыток")
-        return false
-    end
+        -- Ждём появления слота как подтверждение телепорта
+        waitUntil(function()
+            slot = getInstanceSlot()
+            return slot ~= nil
+        end, 8, 0.5)
+    until slot ~= nil or tpAttempts >= 10
     task.wait(1)
 
-    local slot = nil
-    waitUntil(function()
-        slot = getInstanceSlot()
-        return slot ~= nil
-    end, 20, 0.5)
-
     if not slot then
-        print("[BOT] Слот не найден, повтор...")
+        reportError("Слот не найден после 10 попыток телепорта")
         task.wait(2)
         return false
     end
