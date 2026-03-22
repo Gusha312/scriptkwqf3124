@@ -716,13 +716,26 @@ local function runBossCycle()
     end
     print("[BOT] Босс появился!")
 
-    -- Stage 1 — 3 потока
+    -- Stage 1 — 3 потока атаки + 1 поток удержания позиции
     local stage1Active = true
     for t = 1, 3 do
         task.spawn(function()
             while stage1Active do attackBoss(fightId) task.wait(0.05) end
         end)
     end
+    -- Поток удержания позиции на SpawnPart
+    task.spawn(function()
+        while stage1Active do
+            local ok, sp = pcall(function() return slot.SpawnPart end)
+            if ok and sp then
+                local dist = (hrp.Position - sp.Position).Magnitude
+                if dist > 30 then
+                    hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
+                end
+            end
+            task.wait(1)
+        end
+    end)
     local stage1Start = tick()
     while getStage(fightId) ~= 2 do
         task.wait(0.5)
@@ -749,13 +762,25 @@ local function runBossCycle()
     print("[BOT] ТП к SpawnPart для Stage 3...")
     teleportToSpawnPart()
 
-    -- Stage 3 — 3 потока
+    -- Stage 3 — 3 потока атаки + 1 поток удержания позиции
     local stage3Active = true
     for t = 1, 3 do
         task.spawn(function()
             while stage3Active do attackBoss(fightId) task.wait(0.05) end
         end)
     end
+    task.spawn(function()
+        while stage3Active do
+            local ok, sp = pcall(function() return slot.SpawnPart end)
+            if ok and sp then
+                local dist = (hrp.Position - sp.Position).Magnitude
+                if dist > 30 then
+                    hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
+                end
+            end
+            task.wait(1)
+        end
+    end)
     while not isDead(fightId) do task.wait(0.1) end
     stage3Active = false
     print("[BOT] Босс убит!")
