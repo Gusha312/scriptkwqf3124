@@ -1,483 +1,396 @@
 #!/bin/bash
 
-BOT_TOKEN=“8683670019:AAErGx540OHyWQpp2DN3Kez2ER5c-XCg1qQ”
-CHAT_ID=“899435753”
-HOME_DIR=”/data/data/com.termux/files/home”
-VIP_FILE=”${HOME_DIR}/vip_link.txt”
-VIP_DIR=”${HOME_DIR}/vip_links”
-INTERVAL_FILE=”${HOME_DIR}/interval.txt”
-OFFSET_FILE=”${HOME_DIR}/tg_offset.txt”
-COOLDOWN_FILE=”${HOME_DIR}/launch_cooldown.txt”
-AUTOEXEC_BASE=”/storage/emulated/0”
-COOLDOWN_SECS=120
-DEFAULT_VIP=“https://www.roblox.com/games/3475397644/Dragon-Adventures?privateServerLinkCode=07114316663722936313817004712715”
+BOT_TOKEN="8683670019:AAErGx540OHyWQpp2DN3Kez2ER5c-XCg1qQ"
+CHAT_ID="899435753"
+HOME_DIR="/data/data/com.termux/files/home"
+VIP_FILE="$HOME_DIR/vip_link.txt"
+INTERVAL_FILE="$HOME_DIR/interval.txt"
+OFFSET_FILE="$HOME_DIR/tg_offset.txt"
+AUTOEXEC_BASE="/storage/emulated/0"
+DEFAULT_VIP="https://www.roblox.com/games/3475397644/Dragon-Adventures?privateServerLinkCode=07114316663722936313817004712715"
 
-mkdir -p “${HOME_DIR}” “${VIP_DIR}”
-[ ! -f “${INTERVAL_FILE}” ] && echo “3600” > “${INTERVAL_FILE}”
-[ ! -f “${VIP_FILE}” ] && echo “${DEFAULT_VIP}” > “${VIP_FILE}”
-[ ! -f “${OFFSET_FILE}” ] && echo “0” > “${OFFSET_FILE}”
-[ ! -f “${COOLDOWN_FILE}” ] && touch “${COOLDOWN_FILE}”
+[ ! -f "$INTERVAL_FILE" ] && echo "3600" > "$INTERVAL_FILE"
+[ ! -f "$VIP_FILE" ] && echo "$DEFAULT_VIP" > "$VIP_FILE"
+[ ! -f "$OFFSET_FILE" ] && echo "0" > "$OFFSET_FILE"
+COOLDOWN_FILE="$HOME_DIR/launch_cooldown.txt"
+[ ! -f "$COOLDOWN_FILE" ] && touch "$COOLDOWN_FILE"
+COOLDOWN_SECS=120  # 2 минуты
 
 get_packages() {
-pm list packages | grep “com.roblox.clien” | sed ‘s/package://’ | grep -v “^com.roblox.client$” | sort
+  pm list packages | grep "com.roblox.clien" | sed 's/package://' | sort
 }
 
 get_clone_dirs() {
-ls “${AUTOEXEC_BASE}” 2>/dev/null | grep -E “^RobloxClone[0-9]+” | sort
+  ls "$AUTOEXEC_BASE" 2>/dev/null | grep -E "^RobloxClone[0-9]+" | sort
 }
 
 clone_count() {
-get_clone_dirs | wc -l | tr -d ’ ’
+  get_clone_dirs | wc -l | tr -d ' '
 }
 
-get_vip_for_pkg() {
-local f=”${VIP_DIR}/${1}.txt”
-[ -f “${f}” ] && cat “${f}” || cat “${VIP_FILE}”
+# ── Проверка процесса через su ──
+is_running_su() {
+  local pkg=$1
+  # RAM > 500MB = реально запущен, меньше = зомби/не загрузился
+  local rss=$(su -c "ps -A" 2>/dev/null | awk -v p="$pkg" '$NF==p {print $5}' | head -1)
+  [ -z "$rss" ] && return 1
+  local ram_mb=$(( ${rss:-0} / 1024 ))
+  [ "$ram_mb" -gt 1024 ] && return 0 || return 1
 }
 
-set_vip_for_pkg() {
-echo “$2” > “${VIP_DIR}/${1}.txt”
+get_pid_su() {
+  local pkg=$1
+  su -c "ps -A" 2>/dev/null | awk -v p="$pkg" '$NF==p {print $2}' | head -1
 }
 
-set_cooldown() {
-grep -v “^${1} “ “${COOLDOWN_FILE}” > “${COOLDOWN_FILE}.tmp” 2>/dev/null
-mv “${COOLDOWN_FILE}.tmp” “${COOLDOWN_FILE}” 2>/dev/null
-echo “${1} $(date +%s)” >> “${COOLDOWN_FILE}”
+is_pkg_running() {
+  local pkg=$1
+  su -c "ps -A" 2>/dev/null | grep -w "$pkg" | grep -v grep | grep -qv "^$"
 }
 
-in_cooldown() {
-local t=$(grep “^${1} “ “${COOLDOWN_FILE}” 2>/dev/null | awk ‘{print $2}’ | head -1)
-[ -z “${t}” ] && return 1
-[ $(( $(date +%s) - t )) -lt ${COOLDOWN_SECS} ] && return 0 || return 1
-}
-
+# ── Инфо по процессам ──
 get_procs_info() {
-local result=””
-local i=1
-local ps_out
-ps_out=$(su -c “ps -A” 2>/dev/null)
-for pkg in $(get_packages); do
-local short
-short=$(echo “${pkg}” | sed ‘s/com.roblox.//’)
-local line
-line=$(echo “${ps_out}” | awk -v p=”${pkg}” ‘$NF==p {print}’ | head -1)
-local vip_mark=””
-[ -f “${VIP_DIR}/${pkg}.txt” ] && vip_mark=”*”
-if [ -n “${line}” ]; then
-local pid
-pid=$(echo “${line}” | awk ‘{print $2}’)
-local rss
-rss=$(echo “${line}” | awk ‘{print $5}’)
-local ram_mb
-ram_mb=$(( ${rss:-0} / 1024 ))
-if [ “${ram_mb}” -gt 1024 ]; then
-result=”${result}[OK] Clone${i}(${short})${vip_mark} PID:${pid} RAM:${ram_mb}MB
-“
-else
-result=”${result}[~~] Clone${i}(${short})${vip_mark} PID:${pid} RAM:${ram_mb}MB
-“
-fi
-else
-result=”${result}[–] Clone${i}(${short})${vip_mark} offline
-“
-fi
-i=$((i+1))
-done
-echo “${result}”
+  local result="" i=1
+  local ps_out=$(su -c "ps -A" 2>/dev/null)
+  for pkg in $(get_packages); do
+    local short=$(echo "$pkg" | sed 's/com.roblox.//')
+    # Ищем строку где последняя колонка точно совпадает с pkg
+    local line=$(echo "$ps_out" | awk -v p="$pkg" '$NF==p {print}' | head -1)
+    if [ -n "$line" ]; then
+      local pid=$(echo "$line" | awk '{print $2}')
+      local rss=$(echo "$line" | awk '{print $5}')
+      local ram_mb=$(( ${rss:-0} / 1024 ))
+      if [ "$ram_mb" -gt 1024 ]; then
+        result="${result}🟢 Клон ${i} (${short}) PID:${pid} RAM:${ram_mb}MB
+"
+      else
+        result="${result}🟡 Клон ${i} (${short}) PID:${pid} RAM:${ram_mb}MB (не загружен)
+"
+      fi
+    else
+      result="${result}🔴 Клон ${i} (${short}) не запущен
+"
+    fi
+    i=$((i+1))
+  done
+  echo "$result"
 }
 
 get_all_procs() {
-su -c “ps -A | grep clien” 2>/dev/null || echo “no su access”
+  su -c "ps -A | grep clien" 2>/dev/null || echo "Нет прав su"
 }
 
+# ── Автоексекутер ──
 ensure_autoexec() {
-local path=”${AUTOEXEC_BASE}/${1}/Codex/Autoexec”
-mkdir -p “${path}” 2>/dev/null
-echo “${path}”
+  local path="$AUTOEXEC_BASE/$1/Codex/Autoexec"
+  mkdir -p "$path" 2>/dev/null
+  echo "$path"
 }
 
 list_scripts() {
-local first
-first=$(get_clone_dirs | head -1)
-[ -z “${first}” ] && return
-ls “${AUTOEXEC_BASE}/${first}/Codex/Autoexec/”*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
+  local first=$(get_clone_dirs | head -1)
+  [ -z "$first" ] && return
+  ls "$AUTOEXEC_BASE/$first/Codex/Autoexec/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
 }
 
 deploy_script() {
-local filename=$1 filepath=$2 count=0
-for dir in $(get_clone_dirs); do
-local path
-path=$(ensure_autoexec “${dir}”)
-cat “${filepath}” > “${path}/${filename}” 2>/dev/null && count=$((count+1))
-done
-echo “${count}”
+  local filename=$1 filepath=$2 count=0
+  for dir in $(get_clone_dirs); do
+    local path=$(ensure_autoexec "$dir")
+    cat "$filepath" > "$path/$filename" 2>/dev/null && count=$((count+1))
+  done
+  echo "$count"
 }
 
 delete_script() {
-local filename=$1 count=0
-for dir in $(get_clone_dirs); do
-local path=”${AUTOEXEC_BASE}/${dir}/Codex/Autoexec”
-if [ -f “${path}/${filename}” ]; then
-rm -f “${path}/${filename}”
-count=$((count+1))
-fi
-done
-echo “${count}”
+  local filename=$1 count=0
+  for dir in $(get_clone_dirs); do
+    local path="$AUTOEXEC_BASE/$dir/Codex/Autoexec"
+    if [ -f "$path/$filename" ]; then
+      rm -f "$path/$filename"
+      count=$((count+1))
+    fi
+  done
+  echo "$count"
 }
 
-sync_scripts() {
-local src=”${AUTOEXEC_BASE}/RobloxClone001/Codex/Autoexec”
-[ ! -d “${src}” ] && echo “0” && return
-local count=0
-for dir in $(get_clone_dirs); do
-[ “${dir}” = “RobloxClone001” ] && continue
-local dst
-dst=$(ensure_autoexec “${dir}”)
-for f in “${src}”/*.txt; do
-[ -f “${f}” ] || continue
-cat “${f}” > “${dst}/$(basename ${f})” 2>/dev/null
-done
-count=$((count+1))
-done
-echo “${count}”
-}
-
+# ── Запуск клонов ──
 launch_pkg() {
-local pkg=$1
-local vip
-vip=$(get_vip_for_pkg “${pkg}”)
-su -c “am force-stop ${pkg}” > /dev/null 2>&1
-sleep 2
-su -c “monkey -p ${pkg} 1” > /dev/null 2>&1
-sleep 2
-echo “am start -a android.intent.action.VIEW -p ${pkg} -d "${vip}"” > “${HOME_DIR}/launch_cmd.sh”
-su -c “sh ${HOME_DIR}/launch_cmd.sh” > /dev/null 2>&1
+  local pkg=$1
+  local vip=$(cat "$VIP_FILE")
+  su -c "am force-stop $pkg" > /dev/null 2>&1
+  sleep 2
+  # Запускаем через monkey — имитирует нажатие иконки, открывает в плавающем окне
+  su -c "monkey -p $pkg 1" > /dev/null 2>&1
+  sleep 2
+  # Дополнительно открываем випку
+  echo "am start -a android.intent.action.VIEW -p $pkg -d \"$vip\"" > "$HOME_DIR/launch_cmd.sh"
+  su -c "sh $HOME_DIR/launch_cmd.sh" > /dev/null 2>&1
+}
+
+# Развернуть свёрнутые окна без перезапуска
+unfold_pkg() {
+  local pkg=$1
+  su -c "monkey -p $pkg 1" > /dev/null 2>&1
 }
 
 launch_all() {
-local count=0
-for pkg in $(get_packages); do
-launch_pkg “${pkg}”
-set_cooldown “${pkg}”
-count=$((count+1))
-sleep 3
-done
-echo “${count}”
+  local count=0
+  for pkg in $(get_packages); do
+    launch_pkg "$pkg"
+    count=$((count+1))
+    sleep 3
+  done
+  echo "$count"
 }
 
-unfold_pkg() {
-su -c “monkey -p ${1} 1” > /dev/null 2>&1
+# ── Кулдаун после запуска ──
+set_cooldown() {
+  local pkg=$1
+  local now=$(date +%s)
+  # Удаляем старую запись и добавляем новую
+  grep -v "^$pkg " "$COOLDOWN_FILE" > "$COOLDOWN_FILE.tmp" && mv "$COOLDOWN_FILE.tmp" "$COOLDOWN_FILE"
+  echo "$pkg $now" >> "$COOLDOWN_FILE"
 }
 
+in_cooldown() {
+  local pkg=$1
+  local now=$(date +%s)
+  local launch_time=$(grep "^$pkg " "$COOLDOWN_FILE" 2>/dev/null | awk '{print $2}' | head -1)
+  [ -z "$launch_time" ] && return 1
+  local diff=$((now - launch_time))
+  [ "$diff" -lt "$COOLDOWN_SECS" ] && return 0 || return 1
+}
+
+# ── Watchdog ──
 watchdog() {
-local ps_out
-ps_out=$(su -c “ps -A” 2>/dev/null)
-for pkg in $(get_packages); do
-in_cooldown “${pkg}” && continue
-local short
-short=$(echo “${pkg}” | sed ‘s/com.roblox.//’)
-local rss
-rss=$(echo “${ps_out}” | awk -v p=”${pkg}” ‘$NF==p {print $5}’ | head -1)
-if [ -z “${rss}” ]; then
-send_msg “${short}: not found, restarting…”
-launch_pkg “${pkg}”
-set_cooldown “${pkg}”
-sleep 2
-else
-local ram_mb
-ram_mb=$(( ${rss:-0} / 1024 ))
-if [ “${ram_mb}” -lt 1024 ]; then
-send_msg “${short}: frozen RAM:${ram_mb}MB, restarting…”
-su -c “am force-stop ${pkg}” > /dev/null 2>&1
-sleep 2
-launch_pkg “${pkg}”
-set_cooldown “${pkg}”
-sleep 2
-else
-unfold_pkg “${pkg}”
-fi
-fi
-done
+  local ps_out=$(su -c "ps -A" 2>/dev/null)
+  for pkg in $(get_packages); do
+    local short=$(echo "$pkg" | sed 's/com.roblox.//')
+
+    # Пропускаем если на кулдауне
+    if in_cooldown "$pkg"; then
+      local launch_time=$(grep "^$pkg " "$COOLDOWN_FILE" | awk '{print $2}' | head -1)
+      local elapsed=$(( $(date +%s) - launch_time ))
+      local left=$(( COOLDOWN_SECS - elapsed ))
+      continue
+    fi
+
+    local rss=$(echo "$ps_out" | awk -v p="$pkg" '$NF==p {print $5}' | head -1)
+    if [ -z "$rss" ]; then
+      send_msg "⚠️ ${short} не найден — запускаю..."
+      launch_pkg "$pkg"
+      set_cooldown "$pkg"
+      sleep 2
+    else
+      local ram_mb=$(( ${rss:-0} / 1024 ))
+      if [ "$ram_mb" -lt 1024 ]; then
+        send_msg "🔄 ${short} завис (RAM: ${ram_mb}MB) — перезапускаю..."
+        su -c "am force-stop $pkg" > /dev/null 2>&1
+        sleep 2
+        launch_pkg "$pkg"
+        set_cooldown "$pkg"
+        sleep 2
+      else
+        # Живой но возможно свёрнут — разворачиваем тихо
+        unfold_pkg "$pkg"
+      fi
+    fi
+  done
 }
 
+# ── Telegram ──
 send_msg() {
-local text=”$1”
-curl -s -X POST “https://api.telegram.org/bot${BOT_TOKEN}/sendMessage”   
--H “Content-Type: application/json”   
-–data-binary “{"chat_id":"${CHAT_ID}","parse_mode":"HTML","text":$(python3 -c “import json,sys; print(json.dumps(sys.argv[1]))” “$text” 2>/dev/null)}”   
-> /dev/null 2>&1
+  local text="$1"
+  curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+    -H "Content-Type: application/json" \
+    --data-binary "{\"chat_id\":\"${CHAT_ID}\",\"parse_mode\":\"HTML\",\"text\":$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text" 2>/dev/null)}" \
+    > /dev/null 2>&1
 }
 
 download_file() {
-local file_id=$1 dest=$2
-local file_path
-file_path=$(curl -s “https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file_id}”   
-| python3 -c “import sys,json; d=json.load(sys.stdin); print(d.get(‘result’,{}).get(‘file_path’,’’))” 2>/dev/null)
-[ -z “${file_path}” ] && return 1
-curl -s -L “https://api.telegram.org/file/bot${BOT_TOKEN}/${file_path}” -o “${dest}” 2>/dev/null
-return 0
+  local file_id=$1 dest=$2
+  local file_path=$(curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file_id}" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('file_path',''))" 2>/dev/null)
+  [ -z "$file_path" ] && return 1
+  curl -s -L "https://api.telegram.org/file/bot${BOT_TOKEN}/${file_path}" -o "$dest" 2>/dev/null
+  return 0
 }
 
 get_updates() {
-local offset
-offset=$(cat “${OFFSET_FILE}”)
-curl -s “https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${offset}&timeout=5&limit=10”
+  local offset=$(cat "$OFFSET_FILE")
+  curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${offset}&timeout=5&limit=10"
 }
 
+# ── Обработка сообщений ──
 check_tg() {
-local raw
-raw=$(get_updates)
-local uids
-uids=$(echo “${raw}” | python3 -c “
+  local raw=$(get_updates)
+
+  local uids=$(echo "$raw" | python3 -c "
 import sys,json
 try:
-for u in json.load(sys.stdin).get(‘result’,[]): print(u[‘update_id’])
+  for u in json.load(sys.stdin).get('result',[]): print(u['update_id'])
 except: pass
-“ 2>/dev/null)
+" 2>/dev/null)
 
-for uid in ${uids}; do
-eval $(echo “${raw}” | python3 -c “
+  for uid in $uids; do
+    eval $(echo "$raw" | python3 -c "
 import sys,json,shlex
 try:
-for u in json.load(sys.stdin).get(‘result’,[]):
-if u[‘update_id’]==$uid:
-msg=u.get(‘message’,{})
-doc=msg.get(‘document’,{}) or {}
-print(‘msg_text=’+shlex.quote(msg.get(‘text’,’’) or ‘’))
-print(‘file_id=’+shlex.quote(doc.get(‘file_id’,’’) or ‘’))
-print(‘file_name=’+shlex.quote(doc.get(‘file_name’,’’) or ‘’))
-break
+  for u in json.load(sys.stdin).get('result',[]):
+    if u['update_id']==$uid:
+      msg=u.get('message',{})
+      doc=msg.get('document',{}) or {}
+      print('msg_text='+shlex.quote(msg.get('text','') or ''))
+      print('file_id='+shlex.quote(doc.get('file_id','') or ''))
+      print('file_name='+shlex.quote(doc.get('file_name','') or ''))
+      break
 except:
-print(‘msg_text=’); print(‘file_id=’); print(‘file_name=’)
-“ 2>/dev/null)
+  print('msg_text='); print('file_id='); print('file_name=')
+" 2>/dev/null)
 
-```
-if [ -n "${file_id}" ] && echo "${file_name}" | grep -q "\.txt$"; then
-  local tmp="${HOME_DIR}/tmp_${file_name}"
-  send_msg "Downloading ${file_name}..."
-  if download_file "${file_id}" "${tmp}"; then
-    local size
-    size=$(wc -c < "${tmp}" 2>/dev/null || echo 0)
-    if [ "${size}" -gt 0 ]; then
-      local n
-      n=$(deploy_script "${file_name}" "${tmp}")
-      rm -f "${tmp}"
-      send_msg "OK: ${file_name} deployed to ${n} clones"
-    else
-      rm -f "${tmp}"
-      send_msg "ERROR: file is empty"
-    fi
-  else
-    send_msg "ERROR: download failed"
-  fi
+    if [ -n "$file_id" ] && echo "$file_name" | grep -q "\.txt$"; then
+      local tmp="$HOME_DIR/tmp_$file_name"
+      send_msg "⏳ Получил ${file_name}, раскладываю по клонам..."
+      if download_file "$file_id" "$tmp"; then
+        local size=$(wc -c < "$tmp" 2>/dev/null || echo 0)
+        if [ "$size" -gt 0 ]; then
+          local n=$(deploy_script "$file_name" "$tmp")
+          rm -f "$tmp"
+          send_msg "✅ ${file_name} добавлен в ${n} клонов"
+        else
+          rm -f "$tmp"
+          send_msg "❌ Файл пустой, попробуй ещё раз"
+        fi
+      else
+        send_msg "❌ Не удалось скачать файл"
+      fi
 
-elif [ -n "${msg_text}" ]; then
+    elif [ -n "$msg_text" ]; then
 
-  if echo "${msg_text}" | grep -qE "^/link .+"; then
-    local lnk
-    lnk=$(echo "${msg_text}" | cut -d' ' -f2-)
-    if echo "${lnk}" | grep -q "roblox.com"; then
-      echo "${lnk}" > "${VIP_FILE}"
-      send_msg "OK: global vip updated"
-    else
-      send_msg "ERROR: not a roblox link"
-    fi
+      if echo "$msg_text" | grep -qE "^/link .+"; then
+        local lnk=$(echo "$msg_text" | cut -d' ' -f2-)
+        if echo "$lnk" | grep -q "roblox.com"; then
+          echo "$lnk" > "$VIP_FILE"
+          send_msg "✅ Ссылка обновлена!"
+        else
+          send_msg "❌ Не похоже на ссылку Roblox"
+        fi
 
-  elif echo "${msg_text}" | grep -qE "^/setvip .+"; then
-    local parts tpkg tlnk
-    parts=$(echo "${msg_text}" | cut -d' ' -f2-)
-    tpkg=$(echo "${parts}" | awk '{print $1}')
-    tlnk=$(echo "${parts}" | cut -d' ' -f2-)
-    echo "${tpkg}" | grep -q "com.roblox" || tpkg="com.roblox.${tpkg}"
-    if echo "${tlnk}" | grep -q "roblox.com"; then
-      set_vip_for_pkg "${tpkg}" "${tlnk}"
-      local short
-      short=$(echo "${tpkg}" | sed 's/com.roblox.//')
-      send_msg "OK: vip for ${short} updated"
-    else
-      send_msg "ERROR: not a roblox link"
-    fi
+      elif echo "$msg_text" | grep -qE "^/interval [0-9]+$"; then
+        local mins=$(echo "$msg_text" | awk '{print $2}')
+        echo $((mins*60)) > "$INTERVAL_FILE"
+        send_msg "✅ Интервал: ${mins} мин"
 
-  elif echo "${msg_text}" | grep -qE "^/clearvip .+"; then
-    local cpkg
-    cpkg=$(echo "${msg_text}" | cut -d' ' -f2-)
-    echo "${cpkg}" | grep -q "com.roblox" || cpkg="com.roblox.${cpkg}"
-    rm -f "${VIP_DIR}/${cpkg}.txt"
-    local short
-    short=$(echo "${cpkg}" | sed 's/com.roblox.//')
-    send_msg "OK: ${short} now uses global vip"
+      elif echo "$msg_text" | grep -qE "^/delscript .+"; then
+        local fname=$(echo "$msg_text" | cut -d' ' -f2-)
+        echo "$fname" | grep -q "\.txt$" || fname="${fname}.txt"
+        local n=$(delete_script "$fname")
+        send_msg "🗑 ${fname} удалён из ${n} клонов"
 
-  elif [ "${msg_text}" = "/vips" ]; then
-    local vip_list=""
-    local i=1
-    for pkg in $(get_packages); do
-      local short
-      short=$(echo "${pkg}" | sed 's/com.roblox.//')
-      if [ -f "${VIP_DIR}/${pkg}.txt" ]; then
-        vip_list="${vip_list}${i}. ${short} - custom vip
-```
+      else
+        case "$msg_text" in
+          /start|/menu)
+            local mins=$(( $(cat "$INTERVAL_FILE") / 60 ))
+            send_msg "🐉 Dragon Adventures Manager
+━━━━━━━━━━━━━━━━
+📦 Клонов: $(get_packages | wc -l | tr -d ' ')
+🗂 Клон-папок: $(clone_count)
+🔄 Перезапуск каждые: ${mins} мин
 
-“
-else
-vip_list=”${vip_list}${i}. ${short} - global
-“
-fi
-i=$((i+1))
-done
-send_msg “VIP list:
-${vip_list}
-/setvip clienq LINK
-/clearvip clienq
-/link LINK - set global”
+Управление:
+/restart — перезапустить сейчас
+/status — статус и процессы
+/ps — сырые процессы
+/interval 30 — интервал в минутах
+/link ссылка — сменить випку
 
-```
-  elif [ "${msg_text}" = "/sync" ]; then
-    send_msg "Syncing scripts from RobloxClone001..."
-    local n sc
-    n=$(sync_scripts)
-    sc=$(list_scripts | wc -l | tr -d ' ')
-    send_msg "OK: synced to ${n} clones (${sc} scripts)"
+Автоексекутер:
+Отправь .txt файл — добавит во все клоны
+/scripts — список скриптов
+/delscript название — удалить скрипт"
+            ;;
 
-  elif echo "${msg_text}" | grep -qE "^/interval [0-9]+$"; then
-    local mins
-    mins=$(echo "${msg_text}" | awk '{print $2}')
-    echo $((mins*60)) > "${INTERVAL_FILE}"
-    send_msg "OK: interval set to ${mins} min"
+          /restart)
+            send_msg "🔄 Перезапускаю все клоны..."
+            local n=$(launch_all)
+            send_msg "✅ Перезапущено: ${n} клонов"
+            ;;
 
-  elif echo "${msg_text}" | grep -qE "^/delscript .+"; then
-    local fname
-    fname=$(echo "${msg_text}" | cut -d' ' -f2-)
-    echo "${fname}" | grep -q "\.txt$" || fname="${fname}.txt"
-    local n
-    n=$(delete_script "${fname}")
-    send_msg "OK: ${fname} deleted from ${n} clones"
+          /status)
+            local interval=$(cat "$INTERVAL_FILE")
+            local mins=$((interval/60))
+            local elapsed=$(($(date +%s) - last_launch))
+            local rem_mins=$(( (interval - elapsed) / 60 ))
+            local procs=$(get_procs_info)
+            send_msg "📊 Статус
+━━━━━━━━━━━━━━━━
+📦 Клонов: $(get_packages | wc -l | tr -d ' ')
+🗂 Клон-папок: $(clone_count)
+📝 Скриптов: $(list_scripts | wc -l | tr -d ' ')
+⏱ До перезапуска: ${rem_mins} мин
+🔄 Интервал: ${mins} мин
+━━━━━━━━━━━━━━━━
+${procs}"
+            ;;
 
-  else
-    case "${msg_text}" in
-      /start|/menu)
-        local mins
-        mins=$(( $(cat "${INTERVAL_FILE}") / 60 ))
-        send_msg "=== Dragon Adventures Manager ===
-```
+          /ps)
+            send_msg "⏳ Сканирую процессы..."
+            local all=$(get_all_procs)
+            send_msg "🔍 Процессы clien:
+━━━━━━━━━━━━━━━━
+${all}"
+            ;;
 
-Clones: $(get_packages | wc -l | tr -d ’ ’)
-Folders: $(clone_count)
-Restart every: ${mins} min
-
-– Controls –
-/restart - restart all
-/status - status + procs
-/ps - raw processes
-/interval 30 - set interval
-
-– VIP –
-/link URL - global vip
-/setvip clienq URL - custom
-/clearvip clienq - reset to global
-/vips - list all
-
-– Scripts –
-Send .txt - deploy to all clones
-/sync - copy from Clone001 to all
-/scripts - list
-/delscript name - delete”
-;;
-
-```
-      /restart)
-        send_msg "Restarting all clones..."
-        local n
-        n=$(launch_all)
-        send_msg "OK: restarted ${n} clones"
-        ;;
-
-      /status)
-        local interval mins elapsed rem_mins procs
-        interval=$(cat "${INTERVAL_FILE}")
-        mins=$((interval/60))
-        elapsed=$(($(date +%s) - last_launch))
-        rem_mins=$(( (interval - elapsed) / 60 ))
-        procs=$(get_procs_info)
-        send_msg "=== Status ===
-```
-
-## Clones: $(get_packages | wc -l | tr -d ’ ’)
-Folders: $(clone_count)
-Scripts: $(list_scripts | wc -l | tr -d ’ ’)
-Next restart: ${rem_mins} min
-Interval: ${mins} min
-
-${procs}”
-;;
-
-```
-      /ps)
-        send_msg "Scanning processes..."
-        local all
-        all=$(get_all_procs)
-        send_msg "Processes:
-```
-
-${all}”
-;;
-
-```
-      /scripts)
-        local scripts clones
-        scripts=$(list_scripts)
-        clones=$(clone_count)
-        if [ -z "${scripts}" ]; then
-          send_msg "Autoexec
-```
-
-Clones: ${clones}
-No scripts - send .txt or /sync”
-else
-local list=””
-local i=1
-while IFS= read -r s; do
-list=”${list}${i}. ${s}.txt
-“
-i=$((i+1))
-done <<< “${scripts}”
-send_msg “Autoexec
-Clones: ${clones}
+          /scripts)
+            local scripts=$(list_scripts)
+            local clones=$(clone_count)
+            if [ -z "$scripts" ]; then
+              send_msg "📂 Автоексекутер
+Клонов: ${clones}
+Скриптов нет — отправь .txt файл"
+            else
+              local list="" i=1
+              while IFS= read -r s; do
+                list="${list}${i}. ${s}.txt
+"
+                i=$((i+1))
+              done <<< "$scripts"
+              send_msg "📂 Автоексекутер
+Клонов: ${clones}
 ${list}
-/sync - from Clone001
-/delscript name - delete”
-fi
-;;
-esac
-fi
-fi
+/delscript название — удалить"
+            fi
+            ;;
+        esac
+      fi
+    fi
 
-```
-echo $((uid+1)) > "${OFFSET_FILE}"
-```
-
-done
+    echo $((uid+1)) > "$OFFSET_FILE"
+  done
 }
 
-send_msg “Bot started! Type /start”
+# ── Главный цикл ──
+send_msg "🚀 Менеджер запущен! Напиши /start"
 last_launch=0
 watchdog_timer=0
 
 while true; do
-check_tg
-now=$(date +%s)
-interval=$(cat “${INTERVAL_FILE}”)
+  check_tg
+  now=$(date +%s)
+  interval=$(cat "$INTERVAL_FILE")
 
-if [ $((now - last_launch)) -ge ${interval} ]; then
-send_msg “Scheduled restart…”
-n=$(launch_all)
-send_msg “OK: restarted ${n} clones”
-last_launch=${now}
-fi
+  if [ $((now - last_launch)) -ge $interval ]; then
+    send_msg "🔄 Плановый перезапуск клонов..."
+    n=$(launch_all)
+    send_msg "✅ Перезапущено: ${n} клонов"
+    last_launch=$now
+  fi
 
-if [ $((now - watchdog_timer)) -ge 10 ]; then
-watchdog
-watchdog_timer=${now}
-fi
+  if [ $((now - watchdog_timer)) -ge 10 ]; then
+    watchdog
+    watchdog_timer=$now
+  fi
 
-sleep 5
+  sleep 5
 done
