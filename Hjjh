@@ -17,7 +17,7 @@ COOLDOWN_FILE="$HOME_DIR/launch_cooldown.txt"
 COOLDOWN_SECS=120  # 2 минуты
 
 get_packages() {
-  pm list packages | grep "com.roblox.clien" | sed 's/package://' | sort
+  pm list packages | grep "com.roblox.clienu" | sed 's/package://' | sort
 }
 
 get_clone_dirs() {
