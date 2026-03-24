@@ -680,37 +680,29 @@ local function runBossCycle()
     end
     print("[BOT] FightId: " .. fightId)
 
-    -- Телепортируемся и ждём появления слота рядом с нами
+    -- Телепортируемся к боссу и ждём появления слота
     local slot = nil
     local tpAttempts = 0
     repeat
         tpAttempts = tpAttempts + 1
         print("[BOT] Телепорт к боссу (попытка " .. tpAttempts .. ")...")
         Remotes.GetTeleportRemote:InvokeServer("ToBossInstance", {FightId = fightId, Spawn = true})
-        task.wait(4)
-        -- Ищем слот у которого SpawnPart рядом с нами
-        for i = 1, 6 do
-            local ok, s = pcall(function() return Workspace.Interactions.Boss.InstancePositions[tostring(i)] end)
-            if ok and s then
-                local ok2, sp = pcall(function() return s.SpawnPart end)
-                if ok2 and sp then
-                    local dist = (hrp.Position - sp.Position).Magnitude
-                    if dist < 150 then
-                        slot = s
-                        print("[BOT] Наш слот: " .. i .. " dist=" .. math.floor(dist))
-                        break
-                    end
-                end
-            end
+        local waited = 0
+        while waited < 8 do
+            slot = getInstanceSlot()
+            if slot then break end
+            task.wait(0.5)
+            waited = waited + 0.5
         end
     until slot ~= nil or tpAttempts >= 10
     task.wait(1)
 
     if not slot then
-        reportError("Слот не найден рядом после 10 попыток телепорта")
+        reportError("Слот не найден после 10 попыток телепорта")
         task.wait(2)
         return false
     end
+    print("[BOT] Слот найден: " .. slot.Name)
 
     local function teleportToSpawnPart()
         local ok, sp = pcall(function() return slot.SpawnPart end)
