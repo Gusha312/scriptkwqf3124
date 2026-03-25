@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BOT_TOKEN="8749328755:AAHahkjoINc0I1pCQPJGtTl9slGWZR9vzp8"
+BOT_TOKEN="8406385623:AAHNkql4gq_cxhYhsWIIlrcj87Meg_l7Kwk"
 CHAT_ID="899435753"
 HOME_DIR="/data/data/com.termux/files/home"
 VIP_FILE="$HOME_DIR/vip_link.txt"
