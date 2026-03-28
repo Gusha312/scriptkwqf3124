@@ -812,8 +812,9 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         return
     end
 
-    local maxRetries = 3
-    local tradeNum   = 1
+    local tradeNum      = 1
+    local failStreak    = 0  -- сколько трейдов подряд провалилось
+    local MAX_FAILS     = 5  -- если 5 раз подряд не получилось — что-то сломалось
 
     -- Основной цикл: перестраиваем чанки перед каждым трейдом из актуального снапшота
     while true do
@@ -825,7 +826,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         end
 
         -- Строим чанки из ТЕКУЩЕГО состояния
-        local freshChunks, freshSlots = buildChunks(currentSnap)
+        local freshChunks, _ = buildChunks(currentSnap)
         if #freshChunks == 0 then
             print("[Twink14] Нечего класть в трейд")
             break
@@ -833,38 +834,31 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         -- Берём только первый чанк
         local chunk = freshChunks[1]
-        print(string.format("[Twink14] === Трейд %d | Слотов: %d ===", tradeNum, #chunk))
+        print(string.format("[Twink14] === Трейд %d | Слотов: %d | Осталось предметов: %d ===",
+            tradeNum, #chunk, currentTotal))
         local parts = {}
         for _, slot in ipairs(chunk) do
             table.insert(parts, slot.name .. " x" .. slot.amount)
         end
         print("  Содержимое: " .. table.concat(parts, " | "))
 
-        local success  = false
-        local attempts = 0
+        local verified, _ = doOneTrade(chunk, tradeNum, #freshChunks, currentSnap)
 
-        while not success and attempts < maxRetries do
-            attempts += 1
-            print("[Twink14] Попытка " .. attempts .. "/" .. maxRetries)
-
-            local verified, snapAfter = doOneTrade(chunk, tradeNum, #freshChunks, currentSnap)
-
-            if verified then
-                success = true
-                print("[Twink14] ✅ Трейд " .. tradeNum .. " успешно передан!")
-            else
-                warn("[Twink14] ❌ Трейд " .. tradeNum .. " не прошёл верификацию, попытка " .. attempts)
-                task.wait(5)
+        if verified then
+            print("[Twink14] ✅ Трейд " .. tradeNum .. " успешно передан!")
+            failStreak = 0
+            tradeNum += 1
+        else
+            failStreak += 1
+            warn("[Twink14] ❌ Трейд " .. tradeNum .. " не прошёл. Провалов подряд: " .. failStreak)
+            if failStreak >= MAX_FAILS then
+                failAndKick("5 трейдов подряд не прошли верификацию")
+                return
             end
+            -- Не кикаем — просто пробуем снова со свежим снапшотом
+            print("[Twink14] Пробуем снова через 3 сек...")
+            task.wait(3)
         end
-
-        if not success then
-            warn("[Twink14] Трейд " .. tradeNum .. " провалился после " .. maxRetries .. " попыток!")
-            failAndKick("Трейд " .. tradeNum .. " не передан после " .. maxRetries .. " попыток")
-            return
-        end
-
-        tradeNum += 1
 
         -- Ждём следующего трейда: проверяем каждую секунду до 90 сек
         -- Основной должен снова открыть трейд
