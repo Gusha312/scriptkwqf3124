@@ -65,6 +65,24 @@ if IS_MAIN and PlaceId == 14119723130 then
         end
     end)
 
+    -- Отправляем статус трейда (открыт/закрыт) каждые 3 сек
+    task.spawn(function()
+        local tradeGuiWatch = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 30)
+        if not tradeGuiWatch then return end
+        local lastState = nil
+        while true do
+            local isOpen = tradeGuiWatch.Enabled
+            if isOpen ~= lastState then
+                lastState = isOpen
+                print("[Main] TradeGui статус:", isOpen and "ОТКРЫТ" or "ЗАКРЫТ")
+                pcall(function()
+                    httpPost(SERVER_URL .. "/api/tradeopen", { open = isOpen })
+                end)
+            end
+            task.wait(3)
+        end
+    end)
+
     task.spawn(function()
         while true do
             local ok, err = pcall(function()
@@ -183,16 +201,22 @@ if IS_MAIN and PlaceId == 14119723130 then
                         return false
                     end
 
-                    print("[Main] Принимаем трейд...")
+                    -- Вечный цикл AcceptTrade пока TradeGui открыт
+                    print("[Main] Принимаем трейд — жмём AcceptTrade пока TradeGui не закроется...")
                     task.spawn(function()
-                        pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
-                        print("[Main] InvokeServer AcceptTrade завершён")
+                        local acceptLoop = 0
+                        while tradeGuiMain.Enabled and acceptLoop < 200 do
+                            pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
+                            task.wait(2)
+                            acceptLoop += 2
+                        end
+                        print("[Main] AcceptTrade цикл завершён, TradeGui.Enabled =", tradeGuiMain.Enabled)
                     end)
 
                     -- Ждём закрытия TradeGui (до 200 сек)
                     local acceptWait = 0
                     while tradeGuiMain.Enabled and acceptWait < 200 do
-                        task.wait(2); acceptWait += 2
+                        task.wait(1); acceptWait += 1
                     end
                     print("[Main] TradeGui закрылся — трейд завершён")
                     return true
@@ -415,6 +439,22 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         warn("[Twink14] Не удалось загрузить существ!")
     end
 
+    local plushieNames = {}
+    local plushiesRes = httpGet(SERVER_URL .. "/api/plushies")
+    if plushiesRes and type(plushiesRes) == "table" then
+        plushieNames = plushiesRes
+        print("[Twink14] Плюши загружены:", #plushieNames)
+        for _, n in ipairs(plushieNames) do print("  -", n) end
+    end
+
+    local paletteNames = {}
+    local palettesRes = httpGet(SERVER_URL .. "/api/palettes")
+    if palettesRes and type(palettesRes) == "table" then
+        paletteNames = palettesRes
+        print("[Twink14] Палитры загружены:", #paletteNames)
+        for _, n in ipairs(paletteNames) do print("  -", n) end
+    end
+
     local function getDataFolder()
         local d = player:FindFirstChild("Data")
         if d then return d, "player.Data" end
@@ -457,6 +497,38 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             print("[Twink14][snapshot] Unlocks НЕ НАЙДЕНО в", path)
         end
 
+        -- Plushies: player.Data.Plushies
+        local plushiesFolder = dataFolder:FindFirstChild("Plushies")
+        if plushiesFolder then
+            for _, name in ipairs(plushieNames) do
+                local c   = plushiesFolder:FindFirstChild(name)
+                local val = c and c.Value or 0
+                if type(val) == "boolean" then val = val and 1 or 0 end
+                val = math.floor(tonumber(val) or 0)
+                result["PLUSHIE_" .. name] = val
+                total += val
+                if val > 0 then print("[Twink14][snapshot] Plushie", name, "=", val) end
+            end
+        else
+            print("[Twink14][snapshot] Plushies папка не найдена")
+        end
+
+        -- Palettes: player.Data.SpecialPalettes
+        local palettesFolder = dataFolder:FindFirstChild("SpecialPalettes")
+        if palettesFolder then
+            for _, name in ipairs(paletteNames) do
+                local c   = palettesFolder:FindFirstChild(name)
+                local val = c and c.Value or 0
+                if type(val) == "boolean" then val = val and 1 or 0 end
+                val = math.floor(tonumber(val) or 0)
+                result["PALETTE_" .. name] = val
+                total += val
+                if val > 0 then print("[Twink14][snapshot] Palette", name, "=", val) end
+            end
+        else
+            print("[Twink14][snapshot] SpecialPalettes папка не найдена")
+        end
+
         print("[Twink14][snapshot] Итого:", total)
         return result, total
     end
@@ -476,6 +548,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         for _, name in ipairs(tokenNames)    do addSlots("Tokens",    name, snap[name] or 0) end
         for _, name in ipairs(creatureNames) do addSlots("Creatures", name, snap[name] or 0) end
+        for _, name in ipairs(plushieNames)  do addSlots("Plushies",  name, snap["PLUSHIE_" .. name] or 0) end
+        for _, name in ipairs(paletteNames)  do addSlots("Palettes",  name, snap["PALETTE_" .. name] or 0) end
 
         local chunks, current = {}, {}
         for _, slot in ipairs(allSlots) do
@@ -569,22 +643,51 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
 
+        -- Ждём пока трейд станет доступен: Requirement.Text == ""
+        -- Путь: PlayerGui.RealmsGui.ContainerFrame.ScrollingFrame.Trade.Requirement
         local accWait = 0
-        while tradeGui and not tradeGui.Enabled and accWait < 60 do
+        local tradeReady = false
+        while not tradeReady and accWait < 60 do
             pcall(function()
-                Players:WaitForChild(mainName, 10)
-                    :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
+                local pg = player:FindFirstChild("PlayerGui")
+                if pg then
+                    local realmsGui = pg:FindFirstChild("RealmsGui")
+                    if realmsGui then
+                        local req = realmsGui
+                            :FindFirstChild("ContainerFrame")
+                            and realmsGui.ContainerFrame
+                            :FindFirstChild("ScrollingFrame")
+                            and realmsGui.ContainerFrame.ScrollingFrame
+                            :FindFirstChild("Trade")
+                            and realmsGui.ContainerFrame.ScrollingFrame.Trade
+                            :FindFirstChild("Requirement")
+                        if req and req.Text == "" then
+                            tradeReady = true
+                            print("[Twink14] Requirement пустой — трейд доступен!")
+                        else
+                            local txt = req and req.Text or "N/A"
+                            print("[Twink14] Ждём трейд... Requirement.Text =", txt)
+                        end
+                    end
+                end
             end)
-            task.wait(2)
-            accWait += 2
+            if not tradeReady then
+                -- Шлём AcceptRequest параллельно пока ждём
+                pcall(function()
+                    Players:WaitForChild(mainName, 10)
+                        :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
+                end)
+                task.wait(2)
+                accWait += 2
+            end
         end
 
         if not tradeGui or not tradeGui.Enabled then
             warn("[Twink14] Трейд " .. chunkIndex .. " не открылся (TradeGui)")
             return false, snapBefore
         end
-        print("[Twink14] TradeGui открылся")
-        task.wait(2)
+        print("[Twink14] TradeGui открылся, Requirement пустой — начинаем")
+        task.wait(1)
 
         local tradeRem, remWait = nil, 0
         repeat
