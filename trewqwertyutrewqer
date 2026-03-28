@@ -689,17 +689,45 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
 
-        -- Ждём пока трейд станет доступен: Requirement.Text == ""
-        -- Принимаем AcceptRequest пока TradeGui не откроется
+        -- Принимаем запрос сразу как только он приходит
+        -- Используем RemoteEvent чтобы не пропустить момент
+        local tradeRequestRemote = nil
+        pcall(function()
+            local mainPlayer = Players:FindFirstChild(mainName)
+            if mainPlayer then
+                tradeRequestRemote = mainPlayer
+                    :WaitForChild("Remotes", 5)
+                    :WaitForChild("TradeRequestRemote", 5)
+            end
+        end)
+
+        -- Параллельный поток — давим AcceptRequest как только GUI не открыт
+        local stopAccepting = false
+        task.spawn(function()
+            while not stopAccepting and tradeGui and not tradeGui.Enabled do
+                pcall(function()
+                    if tradeRequestRemote then
+                        tradeRequestRemote:FireServer("AcceptRequest")
+                    else
+                        local mainPlayer = Players:FindFirstChild(mainName)
+                        if mainPlayer then
+                            mainPlayer:WaitForChild("Remotes", 2)
+                                :WaitForChild("TradeRequestRemote", 2)
+                                :FireServer("AcceptRequest")
+                        end
+                    end
+                end)
+                task.wait(0.3)
+            end
+        end)
+
+        -- Ждём открытия TradeGui до 60 сек
         local accWait = 0
         while tradeGui and not tradeGui.Enabled and accWait < 60 do
-            pcall(function()
-                Players:WaitForChild(mainName, 10)
-                    :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
-            end)
-            task.wait(1)
-            accWait += 1
+            task.wait(0.5)
+            accWait += 0.5
         end
+        stopAccepting = true
 
         if not tradeGui or not tradeGui.Enabled then
             warn("[Twink14] Трейд " .. chunkIndex .. " не открылся (TradeGui)")
