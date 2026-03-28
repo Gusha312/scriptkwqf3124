@@ -66,31 +66,28 @@ if IS_MAIN and PlaceId == 14119723130 then
     end)
 
     -- Отправляем статус трейда через LockedLabel.Visible
-    -- LockedLabel.Visible == false → трейд открыт
-    -- LockedLabel.Visible == true  → трейд закрыт
     task.spawn(function()
-        local lastState = nil
-
-        local function getLockedLabelMain()
-            local pg = player:FindFirstChild("PlayerGui")
-            if not pg then return nil end
-            local rg = pg:FindFirstChild("RealmsGui")
-            if not rg then return nil end
-            local cf = rg:FindFirstChild("ContainerFrame")
-            if not cf then return nil end
-            local sf = cf:FindFirstChild("ScrollingFrame")
-            if not sf then return nil end
-            local tr = sf:FindFirstChild("Trade")
-            if not tr then return nil end
-            local tb = tr:FindFirstChild("TeleportButton")
-            if not tb then return nil end
-            return tb:FindFirstChild("LockedLabel")
+        -- Ждём пока весь путь загрузится
+        local ok = pcall(function()
+            player.PlayerGui
+                :WaitForChild("RealmsGui", 60)
+                :WaitForChild("ContainerFrame", 30)
+                :WaitForChild("ScrollingFrame", 30)
+                :WaitForChild("Trade", 30)
+                :WaitForChild("TeleportButton", 30)
+                :WaitForChild("LockedLabel", 30)
+        end)
+        if not ok then
+            warn("[Main] Путь к LockedLabel не найден — статус трейда недоступен")
+            return
         end
+        print("[Main] LockedLabel найден, отслеживаем статус трейда")
 
+        local lastState = nil
         while true do
             pcall(function()
-                local lbl = getLockedLabelMain()
-                local isOpen = lbl ~= nil and lbl.Visible == false
+                local isOpen = player.PlayerGui.RealmsGui.ContainerFrame
+                    .ScrollingFrame.Trade.TeleportButton.LockedLabel.Visible == false
                 if isOpen ~= lastState then
                     lastState = isOpen
                     print("[Main] Статус трейда:", isOpen and "ОТКРЫТ" or "ЗАКРЫТ")
@@ -688,33 +685,19 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         local accWait = 0
         local tradeReady = false
 
-        local function getLockedLabel()
-            local pg = player:FindFirstChild("PlayerGui")
-            if not pg then return nil end
-            local rg = pg:FindFirstChild("RealmsGui")
-            if not rg then return nil end
-            local cf = rg:FindFirstChild("ContainerFrame")
-            if not cf then return nil end
-            local sf = cf:FindFirstChild("ScrollingFrame")
-            if not sf then return nil end
-            local tr = sf:FindFirstChild("Trade")
-            if not tr then return nil end
-            local tb = tr:FindFirstChild("TeleportButton")
-            if not tb then return nil end
-            return tb:FindFirstChild("LockedLabel")
-        end
-
         while not tradeReady and accWait < 60 do
             pcall(function()
-                local lbl = getLockedLabel()
-                if lbl then
-                    print("[Twink14] LockedLabel.Visible =", tostring(lbl.Visible))
-                    if lbl.Visible == false then
-                        tradeReady = true
-                        print("[Twink14] ✅ LockedLabel невидим — трейд доступен!")
-                    end
-                else
-                    print("[Twink14] LockedLabel не найден")
+                local lbl = player.PlayerGui
+                    :WaitForChild("RealmsGui", 2)
+                    :WaitForChild("ContainerFrame", 2)
+                    :WaitForChild("ScrollingFrame", 2)
+                    :WaitForChild("Trade", 2)
+                    :WaitForChild("TeleportButton", 2)
+                    :WaitForChild("LockedLabel", 2)
+                print("[Twink14] LockedLabel.Visible =", tostring(lbl.Visible))
+                if lbl.Visible == false then
+                    tradeReady = true
+                    print("[Twink14] ✅ Трейд открыт!")
                 end
             end)
             if not tradeReady then
