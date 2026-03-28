@@ -131,8 +131,8 @@ if IS_MAIN and PlaceId == 14119723130 then
                                 "SendRequest", twinkStillHere
                             )
                         end)
-                        task.wait(2)
-                        sendWait += 2
+                        task.wait(1)
+                        sendWait += 1
                     end
 
                     if not tradeGuiMain.Enabled then
@@ -192,8 +192,8 @@ if IS_MAIN and PlaceId == 14119723130 then
                         local acceptLoop = 0
                         while tradeGuiMain.Enabled and acceptLoop < 200 do
                             pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
-                            task.wait(2)
-                            acceptLoop += 2
+                            task.wait(0.5)
+                            acceptLoop += 0.5
                         end
                         print("[Main] AcceptTrade цикл завершён, TradeGui.Enabled =", tradeGuiMain.Enabled)
                     end)
@@ -201,7 +201,7 @@ if IS_MAIN and PlaceId == 14119723130 then
                     -- Ждём закрытия TradeGui (до 200 сек)
                     local acceptWait = 0
                     while tradeGuiMain.Enabled and acceptWait < 200 do
-                        task.wait(1); acceptWait += 1
+                        task.wait(0.5); acceptWait += 0.5
                     end
                     print("[Main] TradeGui закрылся — трейд завершён")
                     return true
@@ -601,7 +601,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             end)
             print("[Twink14] Add", slot.itemType, slot.name,
                 "x" .. slot.amount, ok and "OK" or ("ERR:" .. tostring(err)))
-            task.wait(1)
+            task.wait(0.3)
         end
         print("[Twink14] Чанк положен, слотов:", #chunk)
     end
@@ -676,8 +676,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
                 Players:WaitForChild(mainName, 10)
                     :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
             end)
-            task.wait(2)
-            accWait += 2
+            task.wait(1)
+            accWait += 1
         end
 
         if not tradeGui or not tradeGui.Enabled then
@@ -685,7 +685,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             return false, snapBefore
         end
         print("[Twink14] TradeGui открылся — начинаем")
-        task.wait(1)
 
         local tradeRem, remWait = nil, 0
         repeat
@@ -849,14 +848,22 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         tradeNum += 1
 
-        -- Кулдаун если ещё есть что передавать
+        -- Ждём следующего трейда: проверяем каждую секунду до 90 сек
+        -- Основной должен снова открыть трейд
         local nextSnap, nextTotal = snapshot()
         if nextTotal > 0 then
-            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов. Кулдаун " .. TRADE_COOLDOWN .. " сек...")
-            for sec = TRADE_COOLDOWN, 1, -1 do
-                task.wait(1)
-                if sec % 10 == 0 or sec <= 5 then
-                    print("[Twink14] До следующего трейда: " .. sec .. " сек")
+            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов. Ждём следующего трейда (до 90 сек)...")
+            local waitNext = 0
+            local tradeGuiNext = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 10)
+            -- Ждём пока TradeGui снова станет активным ИЛИ истечёт 90 сек
+            while waitNext < 90 do
+                task.wait(1); waitNext += 1
+                if tradeGuiNext and tradeGuiNext.Enabled then
+                    print("[Twink14] TradeGui снова открылся через " .. waitNext .. " сек — идём!")
+                    break
+                end
+                if waitNext % 10 == 0 then
+                    print("[Twink14] Ждём трейд... " .. waitNext .. "/90 сек")
                 end
             end
         end
