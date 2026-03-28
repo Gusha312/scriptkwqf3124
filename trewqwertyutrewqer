@@ -725,6 +725,17 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         return verifyTradeSuccess(snapBefore, chunk)
     end
 
+    -- Пинг каждые 2 минуты чтобы сервер не удалил аккаунт как неактивный
+    task.spawn(function()
+        while true do
+            task.wait(120)
+            pcall(function()
+                httpPost(SERVER_URL, { name = myName, _ping = true })
+            end)
+            print("[Twink14] Пинг сервера")
+        end
+    end)
+
     -- ════ Основной поток ════
 
     print("[Twink14] Ждём появления папки Data (player.Data)...")
