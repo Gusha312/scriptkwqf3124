@@ -306,6 +306,28 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                             dataToSend[cName] = (c and (c:IsA("NumberValue") or c:IsA("IntValue"))) and c.Value or 0
                         end
                     end
+                    -- Plushies: PlayerGui.Data.Plushies
+                    local plushiesFolder = data:FindFirstChild("Plushies")
+                    if plushiesFolder then
+                        local plushiesRes = httpGet(SERVER_URL .. "/api/plushies")
+                        for _, pName in ipairs(plushiesRes or {}) do
+                            local c = plushiesFolder:FindFirstChild(pName)
+                            local val = c and c.Value or 0
+                            if type(val) == "boolean" then val = val and 1 or 0 end
+                            dataToSend["PLUSHIE_" .. pName] = math.floor(tonumber(val) or 0)
+                        end
+                    end
+                    -- Palettes: PlayerGui.Data.SpecialPalettes
+                    local palettesFolder = data:FindFirstChild("SpecialPalettes")
+                    if palettesFolder then
+                        local palettesRes = httpGet(SERVER_URL .. "/api/palettes")
+                        for _, pName in ipairs(palettesRes or {}) do
+                            local c = palettesFolder:FindFirstChild(pName)
+                            local val = c and c.Value or 0
+                            if type(val) == "boolean" then val = val and 1 or 0 end
+                            dataToSend["PALETTE_" .. pName] = math.floor(tonumber(val) or 0)
+                        end
+                    end
                 end
             end
             if not STOPPED then
