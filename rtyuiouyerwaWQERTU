@@ -131,8 +131,8 @@ if IS_MAIN and PlaceId == 14119723130 then
                                 "SendRequest", twinkStillHere
                             )
                         end)
-                        task.wait(2)
-                        sendWait += 2
+                        task.wait(1)
+                        sendWait += 1
                     end
 
                     if not tradeGuiMain.Enabled then
@@ -192,8 +192,8 @@ if IS_MAIN and PlaceId == 14119723130 then
                         local acceptLoop = 0
                         while tradeGuiMain.Enabled and acceptLoop < 200 do
                             pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
-                            task.wait(2)
-                            acceptLoop += 2
+                            task.wait(0.5)
+                            acceptLoop += 0.5
                         end
                         print("[Main] AcceptTrade цикл завершён, TradeGui.Enabled =", tradeGuiMain.Enabled)
                     end)
@@ -201,7 +201,7 @@ if IS_MAIN and PlaceId == 14119723130 then
                     -- Ждём закрытия TradeGui (до 200 сек)
                     local acceptWait = 0
                     while tradeGuiMain.Enabled and acceptWait < 200 do
-                        task.wait(1); acceptWait += 1
+                        task.wait(0.5); acceptWait += 0.5
                     end
                     print("[Main] TradeGui закрылся — трейд завершён")
                     return true
@@ -591,17 +591,35 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
     local function putChunkInTrade(tradeRem, chunk)
         for _, slot in ipairs(chunk) do
-            local ok, err = pcall(function()
-                tradeRem:InvokeServer(unpack({"AddTradeItem", {
-                    Overwrite = true,
-                    ItemType  = slot.itemType,
-                    Name      = slot.name,
-                    Amount    = slot.amount
-                }}))
-            end)
-            print("[Twink14] Add", slot.itemType, slot.name,
-                "x" .. slot.amount, ok and "OK" or ("ERR:" .. tostring(err)))
-            task.wait(1)
+            local attempts = 0
+            local placed = false
+            while not placed and attempts < 10 do
+                attempts += 1
+                local ok, result = pcall(function()
+                    return tradeRem:InvokeServer(unpack({"AddTradeItem", {
+                        Overwrite = true,
+                        ItemType  = slot.itemType,
+                        Name      = slot.name,
+                        Amount    = slot.amount
+                    }}))
+                end)
+                if ok and result == true then
+                    -- Предмет успешно положен
+                    placed = true
+                    print("[Twink14] ✅", slot.itemType, slot.name, "x"..slot.amount, "(попытка "..attempts..")")
+                elseif ok and result == false then
+                    -- Слот занят или предмет уже есть — пробуем ещё раз через паузу
+                    print("[Twink14] ⚠️ false для", slot.name, "— слот занят? попытка "..attempts.."/10, повтор...")
+                    task.wait(0.5)
+                else
+                    -- pcall упал — ошибка RemoteFunction
+                    print("[Twink14] ❌ pcall ошибка для", slot.name, ":", tostring(result), "попытка "..attempts)
+                    task.wait(0.5)
+                end
+            end
+            if not placed then
+                warn("[Twink14] Не удалось положить", slot.name, "после 10 попыток — пропускаем")
+            end
         end
         print("[Twink14] Чанк положен, слотов:", #chunk)
     end
@@ -676,8 +694,8 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
                 Players:WaitForChild(mainName, 10)
                     :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
             end)
-            task.wait(2)
-            accWait += 2
+            task.wait(1)
+            accWait += 1
         end
 
         if not tradeGui or not tradeGui.Enabled then
@@ -685,7 +703,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             return false, snapBefore
         end
         print("[Twink14] TradeGui открылся — начинаем")
-        task.wait(1)
 
         local tradeRem, remWait = nil, 0
         repeat
@@ -795,8 +812,9 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         return
     end
 
-    local maxRetries = 3
-    local tradeNum   = 1
+    local tradeNum      = 1
+    local failStreak    = 0  -- сколько трейдов подряд провалилось
+    local MAX_FAILS     = 5  -- если 5 раз подряд не получилось — что-то сломалось
 
     -- Основной цикл: перестраиваем чанки перед каждым трейдом из актуального снапшота
     while true do
@@ -808,7 +826,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         end
 
         -- Строим чанки из ТЕКУЩЕГО состояния
-        local freshChunks, freshSlots = buildChunks(currentSnap)
+        local freshChunks, _ = buildChunks(currentSnap)
         if #freshChunks == 0 then
             print("[Twink14] Нечего класть в трейд")
             break
@@ -816,47 +834,48 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         -- Берём только первый чанк
         local chunk = freshChunks[1]
-        print(string.format("[Twink14] === Трейд %d | Слотов: %d ===", tradeNum, #chunk))
+        print(string.format("[Twink14] === Трейд %d | Слотов: %d | Осталось предметов: %d ===",
+            tradeNum, #chunk, currentTotal))
         local parts = {}
         for _, slot in ipairs(chunk) do
             table.insert(parts, slot.name .. " x" .. slot.amount)
         end
         print("  Содержимое: " .. table.concat(parts, " | "))
 
-        local success  = false
-        local attempts = 0
+        local verified, _ = doOneTrade(chunk, tradeNum, #freshChunks, currentSnap)
 
-        while not success and attempts < maxRetries do
-            attempts += 1
-            print("[Twink14] Попытка " .. attempts .. "/" .. maxRetries)
-
-            local verified, snapAfter = doOneTrade(chunk, tradeNum, #freshChunks, currentSnap)
-
-            if verified then
-                success = true
-                print("[Twink14] ✅ Трейд " .. tradeNum .. " успешно передан!")
-            else
-                warn("[Twink14] ❌ Трейд " .. tradeNum .. " не прошёл верификацию, попытка " .. attempts)
-                task.wait(5)
+        if verified then
+            print("[Twink14] ✅ Трейд " .. tradeNum .. " успешно передан!")
+            failStreak = 0
+            tradeNum += 1
+        else
+            failStreak += 1
+            warn("[Twink14] ❌ Трейд " .. tradeNum .. " не прошёл. Провалов подряд: " .. failStreak)
+            if failStreak >= MAX_FAILS then
+                failAndKick("5 трейдов подряд не прошли верификацию")
+                return
             end
+            -- Не кикаем — просто пробуем снова со свежим снапшотом
+            print("[Twink14] Пробуем снова через 3 сек...")
+            task.wait(3)
         end
 
-        if not success then
-            warn("[Twink14] Трейд " .. tradeNum .. " провалился после " .. maxRetries .. " попыток!")
-            failAndKick("Трейд " .. tradeNum .. " не передан после " .. maxRetries .. " попыток")
-            return
-        end
-
-        tradeNum += 1
-
-        -- Кулдаун если ещё есть что передавать
+        -- Ждём следующего трейда: проверяем каждую секунду до 90 сек
+        -- Основной должен снова открыть трейд
         local nextSnap, nextTotal = snapshot()
         if nextTotal > 0 then
-            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов. Кулдаун " .. TRADE_COOLDOWN .. " сек...")
-            for sec = TRADE_COOLDOWN, 1, -1 do
-                task.wait(1)
-                if sec % 10 == 0 or sec <= 5 then
-                    print("[Twink14] До следующего трейда: " .. sec .. " сек")
+            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов. Ждём следующего трейда (до 90 сек)...")
+            local waitNext = 0
+            local tradeGuiNext = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 10)
+            -- Ждём пока TradeGui снова станет активным ИЛИ истечёт 90 сек
+            while waitNext < 90 do
+                task.wait(1); waitNext += 1
+                if tradeGuiNext and tradeGuiNext.Enabled then
+                    print("[Twink14] TradeGui снова открылся через " .. waitNext .. " сек — идём!")
+                    break
+                end
+                if waitNext % 10 == 0 then
+                    print("[Twink14] Ждём трейд... " .. waitNext .. "/90 сек")
                 end
             end
         end
