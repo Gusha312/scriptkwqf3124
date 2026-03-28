@@ -591,17 +591,35 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
     local function putChunkInTrade(tradeRem, chunk)
         for _, slot in ipairs(chunk) do
-            local ok, err = pcall(function()
-                tradeRem:InvokeServer(unpack({"AddTradeItem", {
-                    Overwrite = true,
-                    ItemType  = slot.itemType,
-                    Name      = slot.name,
-                    Amount    = slot.amount
-                }}))
-            end)
-            print("[Twink14] Add", slot.itemType, slot.name,
-                "x" .. slot.amount, ok and "OK" or ("ERR:" .. tostring(err)))
-            task.wait(0.3)
+            local attempts = 0
+            local placed = false
+            while not placed and attempts < 10 do
+                attempts += 1
+                local ok, result = pcall(function()
+                    return tradeRem:InvokeServer(unpack({"AddTradeItem", {
+                        Overwrite = true,
+                        ItemType  = slot.itemType,
+                        Name      = slot.name,
+                        Amount    = slot.amount
+                    }}))
+                end)
+                if ok and result == true then
+                    -- Предмет успешно положен
+                    placed = true
+                    print("[Twink14] ✅", slot.itemType, slot.name, "x"..slot.amount, "(попытка "..attempts..")")
+                elseif ok and result == false then
+                    -- Слот занят или предмет уже есть — пробуем ещё раз через паузу
+                    print("[Twink14] ⚠️ false для", slot.name, "— слот занят? попытка "..attempts.."/10, повтор...")
+                    task.wait(0.5)
+                else
+                    -- pcall упал — ошибка RemoteFunction
+                    print("[Twink14] ❌ pcall ошибка для", slot.name, ":", tostring(result), "попытка "..attempts)
+                    task.wait(0.5)
+                end
+            end
+            if not placed then
+                warn("[Twink14] Не удалось положить", slot.name, "после 10 попыток — пропускаем")
+            end
         end
         print("[Twink14] Чанк положен, слотов:", #chunk)
     end
