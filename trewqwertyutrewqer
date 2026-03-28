@@ -669,40 +669,22 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
 
         -- Ждём пока трейд станет доступен: Requirement.Text == ""
-        -- Путь: PlayerGui.RealmsGui.ContainerFrame.ScrollingFrame.Trade.Requirement
+        -- Принимаем AcceptRequest пока TradeGui не откроется
         local accWait = 0
-        local tradeReady = false
-
-        while not tradeReady and accWait < 60 do
+        while tradeGui and not tradeGui.Enabled and accWait < 60 do
             pcall(function()
-                local lbl = player.PlayerGui
-                    :WaitForChild("RealmsGui", 2)
-                    :WaitForChild("ContainerFrame", 2)
-                    :WaitForChild("ScrollingFrame", 2)
-                    :WaitForChild("Trade", 2)
-                    :WaitForChild("TeleportButton", 2)
-                    :WaitForChild("LockedLabel", 2)
-                print("[Twink14] LockedLabel.Visible =", tostring(lbl.Visible))
-                if lbl.Visible == false then
-                    tradeReady = true
-                    print("[Twink14] ✅ Трейд открыт!")
-                end
+                Players:WaitForChild(mainName, 10)
+                    :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
             end)
-            if not tradeReady then
-                pcall(function()
-                    Players:WaitForChild(mainName, 10)
-                        :WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("AcceptRequest")
-                end)
-                task.wait(2)
-                accWait += 2
-            end
+            task.wait(2)
+            accWait += 2
         end
 
         if not tradeGui or not tradeGui.Enabled then
             warn("[Twink14] Трейд " .. chunkIndex .. " не открылся (TradeGui)")
             return false, snapBefore
         end
-        print("[Twink14] TradeGui открылся, Requirement пустой — начинаем")
+        print("[Twink14] TradeGui открылся — начинаем")
         task.wait(1)
 
         local tradeRem, remWait = nil, 0
