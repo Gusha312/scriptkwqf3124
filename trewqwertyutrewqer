@@ -561,20 +561,21 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     local function buildChunks(snap)
         local allSlots = {}
 
-        local function addSlots(itemType, name, totalAmount)
+        -- snapKey — ключ в снапшоте (для плюшей/палитр отличается от name)
+        local function addSlots(itemType, name, snapKey, totalAmount)
             if totalAmount <= 0 then return end
             local remaining = totalAmount
             while remaining > 0 do
                 local portion = math.min(remaining, AMOUNT_PER_SLOT)
-                table.insert(allSlots, { itemType = itemType, name = name, amount = portion })
+                table.insert(allSlots, { itemType = itemType, name = name, snapKey = snapKey, amount = portion })
                 remaining -= portion
             end
         end
 
-        for _, name in ipairs(tokenNames)    do addSlots("Tokens",    name, snap[name] or 0) end
-        for _, name in ipairs(creatureNames) do addSlots("Creatures", name, snap[name] or 0) end
-        for _, name in ipairs(plushieNames)  do addSlots("Plushies",  name, snap["PLUSHIE_" .. name] or 0) end
-        for _, name in ipairs(paletteNames)  do addSlots("Palettes",  name, snap["PALETTE_" .. name] or 0) end
+        for _, name in ipairs(tokenNames)    do addSlots("Tokens",    name, name,                   snap[name] or 0) end
+        for _, name in ipairs(creatureNames) do addSlots("Creatures", name, name,                   snap[name] or 0) end
+        for _, name in ipairs(plushieNames)  do addSlots("Plushies",  name, "PLUSHIE_" .. name,     snap["PLUSHIE_" .. name] or 0) end
+        for _, name in ipairs(paletteNames)  do addSlots("Palettes",  name, "PALETTE_" .. name,     snap["PALETTE_" .. name] or 0) end
 
         local chunks, current = {}, {}
         for _, slot in ipairs(allSlots) do
@@ -625,38 +626,40 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     local function verifyTradeSuccess(snapBefore, chunk)
-        local maxChecks = 15
         local expectedDelta = 0
         for _, slot in ipairs(chunk) do expectedDelta += slot.amount end
         print("[Twink14][verify] Ожидаем уменьшение на:", expectedDelta)
 
-        for attempt = 1, maxChecks do
+        -- Ждём пока данные обновятся после трейда (до 30 сек)
+        for attempt = 1, 15 do
             task.wait(2)
-            local snapAfter, _ = snapshot()
-            local actualDelta  = 0
-            local allDecreased = true
+            local snapAfter, totalAfter = snapshot()
 
+            -- Считаем реальное уменьшение
+            local actualDelta = 0
             for _, slot in ipairs(chunk) do
-                local before = snapBefore[slot.name] or 0
-                local after  = snapAfter[slot.name]  or 0
+                local key    = slot.snapKey or slot.name
+                local before = snapBefore[key] or 0
+                local after  = snapAfter[key]  or 0
                 local diff   = before - after
                 actualDelta += diff
-                if diff < slot.amount then allDecreased = false end
-                print(string.format("[Twink14][verify] %s: до=%d после=%d разница=%d (ожидали=%d)",
-                    slot.name, before, after, diff, slot.amount))
+                print(string.format("[Twink14][verify] %s: до=%d после=%d diff=%d",
+                    slot.name, before, after, diff))
             end
 
-            print(string.format("[Twink14][verify] Попытка %d/%d | actualDelta=%d expectedDelta=%d",
-                attempt, maxChecks, actualDelta, expectedDelta))
+            print(string.format("[Twink14][verify] попытка %d/15 | delta=%d/%d",
+                attempt, actualDelta, expectedDelta))
 
-            if allDecreased and actualDelta >= expectedDelta then
-                print("[Twink14][verify] ✅ Трейд подтверждён!")
+            if actualDelta > 0 then
+                -- Хоть что-то передалось — считаем успехом
+                -- Остаток будет подхвачен в следующем цикле из свежего снапшота
+                print(string.format("[Twink14][verify] ✅ Передано %d/%d — продолжаем!",
+                    actualDelta, expectedDelta))
                 return true, snapAfter
             end
         end
 
-        warn("[Twink14][verify] ❌ Трейд НЕ подтверждён после " .. maxChecks .. " проверок!")
-        -- Возвращаем snapBefore — данные не теряются при провале
+        warn("[Twink14][verify] ❌ Ничего не передалось за 30 сек!")
         return false, snapBefore
     end
 
