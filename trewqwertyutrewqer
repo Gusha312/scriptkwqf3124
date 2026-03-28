@@ -65,38 +65,8 @@ if IS_MAIN and PlaceId == 14119723130 then
         end
     end)
 
-    -- Отправляем статус трейда через LockedLabel.Visible
-    task.spawn(function()
-        -- Ждём пока весь путь загрузится
-        local ok = pcall(function()
-            player.PlayerGui
-                :WaitForChild("RealmsGui", 60)
-                :WaitForChild("ContainerFrame", 30)
-                :WaitForChild("ScrollingFrame", 30)
-                :WaitForChild("Trade", 30)
-                :WaitForChild("TeleportButton", 30)
-                :WaitForChild("LockedLabel", 30)
-        end)
-        if not ok then
-            warn("[Main] Путь к LockedLabel не найден — статус трейда недоступен")
-            return
-        end
-        print("[Main] LockedLabel найден, отслеживаем статус трейда")
-
-        local lastState = nil
-        while true do
-            pcall(function()
-                local isOpen = player.PlayerGui.RealmsGui.ContainerFrame
-                    .ScrollingFrame.Trade.TeleportButton.LockedLabel.Visible == false
-                if isOpen ~= lastState then
-                    lastState = isOpen
-                    print("[Main] Статус трейда:", isOpen and "ОТКРЫТ" or "ЗАКРЫТ")
-                    httpPost(SERVER_URL .. "/api/tradeopen", { open = isOpen })
-                end
-            end)
-            task.wait(3)
-        end
-    end)
+    -- Основной всегда в трейд мире — трейд открыт по умолчанию
+    httpPost(SERVER_URL .. "/api/tradeopen", { name = myName, open = true })
 
     task.spawn(function()
         while true do
@@ -293,6 +263,24 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
         if state == Enum.TeleportState.InProgress or state == Enum.TeleportState.Started then
             print("[Twink] Телепорт начался — останавливаем циклы")
             STOPPED = true
+        end
+    end)
+
+    -- Мониторинг статуса трейда — шлём на сервер открыт/закрыт
+    task.spawn(function()
+        local lastTradeState = nil
+        while not STOPPED do
+            local ok, isOpen = pcall(function()
+                return game:GetService("Players").LocalPlayer.PlayerGui
+                    .RealmsGui.ContainerFrame.ScrollingFrame
+                    .Trade.TeleportButton.LockedLabel.Visible == false
+            end)
+            if ok and isOpen ~= lastTradeState then
+                lastTradeState = isOpen
+                print("[Twink] Статус трейда:", isOpen and "ОТКРЫТ" or "ЗАКРЫТ")
+                httpPost(SERVER_URL .. "/api/tradeopen", { name = myName, open = isOpen })
+            end
+            task.wait(3)
         end
     end)
 
