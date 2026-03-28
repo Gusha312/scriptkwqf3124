@@ -118,6 +118,11 @@ if IS_MAIN and PlaceId == 14119723130 then
                 local tradeRemoteName = myName .. "-" .. twinkName .. "TradeRemote"
 
                 local function doOneTrade()
+                    -- Сбрасываем tradestatus от предыдущего трейда
+                    pcall(function()
+                        httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = false, name = twinkName })
+                    end)
+
                     -- Шлём SendRequest пока TradeGui не откроется (до 200 сек)
                     local sendWait = 0
                     while not tradeGuiMain.Enabled and sendWait < 200 do
@@ -157,37 +162,8 @@ if IS_MAIN and PlaceId == 14119723130 then
                         return false
                     end
 
-                    -- Ждём tradestatus от твинка (до 200 сек)
-                    local ready, timeout = false, 0
-                    repeat
-                        task.wait(2); timeout += 2
-                        if not Players:FindFirstChild(twinkName) then
-                            print("[Main] Твинк вылетел пока ждали tradestatus")
-                            return false
-                        end
-                        -- Если твинк сам вышел из очереди (finishAndKick/failAndKick) — выходим
-                        local qs2 = httpGet(SERVER_URL .. "/api/queue")
-                        if qs2 then
-                            local stillInQ = (qs2.current == twinkName)
-                            if not stillInQ and qs2.queue then
-                                for _, n in ipairs(qs2.queue) do if n == twinkName then stillInQ = true end end
-                            end
-                            if not stillInQ then
-                                print("[Main] Твинк " .. twinkName .. " вышел из очереди во время ожидания tradestatus")
-                                return false
-                            end
-                        end
-                        local status = httpGet(SERVER_URL .. "/api/tradestatus")
-                        if status and status.twinkReady then ready = true end
-                    until ready or timeout >= 200
-
-                    if not ready then
-                        print("[Main] Твинк не ответил за 200 сек")
-                        return false
-                    end
-
-                    -- Вечный цикл AcceptTrade пока TradeGui открыт
-                    print("[Main] Принимаем трейд — жмём AcceptTrade пока TradeGui не закроется...")
+                    -- Сразу жмём AcceptTrade как только TradeGui открылся — не ждём tradestatus
+                    print("[Main] TradeGui открыт — начинаем AcceptTrade цикл...")
                     task.spawn(function()
                         local acceptLoop = 0
                         while tradeGuiMain.Enabled and acceptLoop < 200 do
@@ -198,12 +174,39 @@ if IS_MAIN and PlaceId == 14119723130 then
                         print("[Main] AcceptTrade цикл завершён, TradeGui.Enabled =", tradeGuiMain.Enabled)
                     end)
 
+                    -- Параллельно ждём tradestatus чтобы знать что твинк положил предметы
+                    -- (просто для логирования — AcceptTrade уже идёт)
+                    task.spawn(function()
+                        local timeout = 0
+                        while timeout < 200 do
+                            task.wait(2); timeout += 2
+                            local status = httpGet(SERVER_URL .. "/api/tradestatus")
+                            if status and status.twinkReady then
+                                print("[Main] Твинк подтвердил готовность")
+                                break
+                            end
+                        end
+                    end)
+
                     -- Ждём закрытия TradeGui (до 200 сек)
                     local acceptWait = 0
                     while tradeGuiMain.Enabled and acceptWait < 200 do
                         task.wait(0.5); acceptWait += 0.5
                     end
                     print("[Main] TradeGui закрылся — трейд завершён")
+
+                    -- Ждём пока GUI точно закроется и игра готова к новому трейду
+                    -- Проверяем что GUI остался закрытым минимум 2 сек
+                    local closeConfirm = 0
+                    while closeConfirm < 2 do
+                        task.wait(0.5)
+                        if tradeGuiMain.Enabled then
+                            closeConfirm = 0  -- GUI снова открылся — сбрасываем
+                        else
+                            closeConfirm += 0.5
+                        end
+                    end
+                    print("[Main] TradeGui стабильно закрыт — готовы к следующему трейду")
                     return true
                 end
 
