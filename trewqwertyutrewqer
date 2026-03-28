@@ -580,6 +580,11 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         for _, name in ipairs(plushieNames)  do addSlots("Plushies",  name, "PLUSHIE_" .. name,     snap["PLUSHIE_" .. name] or 0) end
         for _, name in ipairs(paletteNames)  do addSlots("Palettes",  name, "PALETTE_" .. name,     snap["PALETTE_" .. name] or 0) end
 
+        -- Сортируем: сначала полные слоты (amount == AMOUNT_PER_SLOT), потом остатки по убыванию
+        table.sort(allSlots, function(a, b)
+            return a.amount > b.amount
+        end)
+
         local chunks, current = {}, {}
         for _, slot in ipairs(allSlots) do
             if #current >= TRADE_SLOTS then
