@@ -784,39 +784,64 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         return
     end
 
-    local currentSnap = snapInit
-    local maxRetries  = 3
+    local maxRetries = 3
+    local tradeNum   = 1
 
-    for i, chunk in ipairs(chunks) do
+    -- Основной цикл: перестраиваем чанки перед каждым трейдом из актуального снапшота
+    while true do
+        -- Свежий снапшот перед каждым трейдом
+        local currentSnap, currentTotal = snapshot()
+        if currentTotal == 0 then
+            print("[Twink14] Предметов не осталось — все переданы!")
+            break
+        end
+
+        -- Строим чанки из ТЕКУЩЕГО состояния
+        local freshChunks, freshSlots = buildChunks(currentSnap)
+        if #freshChunks == 0 then
+            print("[Twink14] Нечего класть в трейд")
+            break
+        end
+
+        -- Берём только первый чанк
+        local chunk = freshChunks[1]
+        print(string.format("[Twink14] === Трейд %d | Слотов: %d ===", tradeNum, #chunk))
+        local parts = {}
+        for _, slot in ipairs(chunk) do
+            table.insert(parts, slot.name .. " x" .. slot.amount)
+        end
+        print("  Содержимое: " .. table.concat(parts, " | "))
+
         local success  = false
         local attempts = 0
 
         while not success and attempts < maxRetries do
             attempts += 1
-            print("[Twink14] Чанк " .. i .. "/" .. totalChunks .. " | Попытка " .. attempts)
+            print("[Twink14] Попытка " .. attempts .. "/" .. maxRetries)
 
-            local verified, snapAfter = doOneTrade(chunk, i, totalChunks, currentSnap)
+            local verified, snapAfter = doOneTrade(chunk, tradeNum, #freshChunks, currentSnap)
 
             if verified then
-                success     = true
-                currentSnap = snapAfter
-                print("[Twink14] ✅ Чанк " .. i .. " успешно передан!")
+                success = true
+                print("[Twink14] ✅ Трейд " .. tradeNum .. " успешно передан!")
             else
-                warn("[Twink14] ❌ Чанк " .. i .. " не прошёл верификацию, попытка " .. attempts)
-                -- snapAfter == snapBefore при провале — данные не теряются
-                currentSnap = snapAfter
+                warn("[Twink14] ❌ Трейд " .. tradeNum .. " не прошёл верификацию, попытка " .. attempts)
                 task.wait(5)
             end
         end
 
         if not success then
-            warn("[Twink14] Чанк " .. i .. " провалился после " .. maxRetries .. " попыток!")
-            failAndKick("Чанк " .. i .. " не передан после " .. maxRetries .. " попыток")
+            warn("[Twink14] Трейд " .. tradeNum .. " провалился после " .. maxRetries .. " попыток!")
+            failAndKick("Трейд " .. tradeNum .. " не передан после " .. maxRetries .. " попыток")
             return
         end
 
-        if i < totalChunks then
-            print("[Twink14] Кулдаун " .. TRADE_COOLDOWN .. " сек перед трейдом " .. (i+1) .. "...")
+        tradeNum += 1
+
+        -- Кулдаун если ещё есть что передавать
+        local nextSnap, nextTotal = snapshot()
+        if nextTotal > 0 then
+            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов. Кулдаун " .. TRADE_COOLDOWN .. " сек...")
             for sec = TRADE_COOLDOWN, 1, -1 do
                 task.wait(1)
                 if sec % 10 == 0 or sec <= 5 then
