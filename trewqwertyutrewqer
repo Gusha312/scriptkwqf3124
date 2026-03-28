@@ -894,23 +894,30 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             task.wait(3)
         end
 
-        -- Ждём следующего трейда: проверяем каждую секунду до 90 сек
-        -- Основной должен снова открыть трейд
+        -- Если ещё есть предметы — сразу принимаем запрос пока TradeGui не откроется
         local nextSnap, nextTotal = snapshot()
         if nextTotal > 0 then
-            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов. Ждём следующего трейда (до 90 сек)...")
+            print("[Twink14] Ещё осталось " .. nextTotal .. " предметов — принимаем следующий трейд...")
+            local tradeGuiNext = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 5)
             local waitNext = 0
-            local tradeGuiNext = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 10)
-            -- Ждём пока TradeGui снова станет активным ИЛИ истечёт 90 сек
+
             while waitNext < 90 do
-                task.wait(1); waitNext += 1
+                -- Если TradeGui уже открылся — выходим, doOneTrade сам разберётся
                 if tradeGuiNext and tradeGuiNext.Enabled then
-                    print("[Twink14] TradeGui снова открылся через " .. waitNext .. " сек — идём!")
+                    print("[Twink14] TradeGui открылся через " .. waitNext .. " сек — идём!")
                     break
                 end
-                if waitNext % 10 == 0 then
-                    print("[Twink14] Ждём трейд... " .. waitNext .. "/90 сек")
-                end
+                -- Давим AcceptRequest чтобы принять запрос от основного
+                pcall(function()
+                    local mainPlayer = Players:FindFirstChild(mainName)
+                    if mainPlayer then
+                        mainPlayer:WaitForChild("Remotes", 2)
+                            :WaitForChild("TradeRequestRemote", 2)
+                            :FireServer("AcceptRequest")
+                    end
+                end)
+                task.wait(0.5)
+                waitNext += 0.5
             end
         end
     end
