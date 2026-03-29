@@ -604,26 +604,43 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             local placed = false
             while not placed and attempts < 10 do
                 attempts += 1
-                local ok, result = pcall(function()
-                    return tradeRem:InvokeServer(unpack({"AddTradeItem", {
-                        Overwrite = true,
-                        ItemType  = slot.itemType,
-                        Name      = slot.name,
-                        Amount    = slot.amount
-                    }}))
+
+                -- Запускаем InvokeServer в отдельном потоке с таймаутом 3 сек
+                local result = nil
+                local done   = false
+                task.spawn(function()
+                    local ok, res = pcall(function()
+                        return tradeRem:InvokeServer(unpack({"AddTradeItem", {
+                            Overwrite = true,
+                            ItemType  = slot.itemType,
+                            Name      = slot.name,
+                            Amount    = slot.amount
+                        }}))
+                    end)
+                    if not done then
+                        result = ok and res or nil
+                        done   = true
+                    end
                 end)
-                if ok and result == true then
-                    -- Предмет успешно положен
+
+                -- Ждём ответа максимум 3 сек
+                local waited = 0
+                while not done and waited < 3 do
+                    task.wait(0.1)
+                    waited += 0.1
+                end
+                done = true  -- прерываем спавн если завис
+
+                if result == true then
                     placed = true
                     print("[Twink14] ✅", slot.itemType, slot.name, "x"..slot.amount, "(попытка "..attempts..")")
-                elseif ok and result == false then
-                    -- Слот занят или предмет уже есть — пробуем ещё раз через паузу
-                    print("[Twink14] ⚠️ false для", slot.name, "— слот занят? попытка "..attempts.."/10, повтор...")
-                    task.wait(0.5)
+                elseif result == false then
+                    print("[Twink14] ⚠️ false для", slot.name, "попытка "..attempts.."/10")
+                    task.wait(0.3)
                 else
-                    -- pcall упал — ошибка RemoteFunction
-                    print("[Twink14] ❌ pcall ошибка для", slot.name, ":", tostring(result), "попытка "..attempts)
-                    task.wait(0.5)
+                    -- nil = таймаут или ошибка
+                    print("[Twink14] ⏱ таймаут/ошибка для", slot.name, "попытка "..attempts)
+                    task.wait(0.3)
                 end
             end
             if not placed then
