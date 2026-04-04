@@ -71,14 +71,14 @@ get_procs_info() {
       local ram_mb
       ram_mb=$(( ${rss:-0} / 1024 ))
       if [ "${ram_mb}" -gt 1024 ]; then
-        result="${result}ON  Clone${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
+        result="${result}ВКЛ Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
 "
       else
-        result="${result}LOW Clone${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
+        result="${result}МАЛ Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
 "
       fi
     else
-      result="${result}OFF Clone${i} ${short}${vip_mark} offline
+      result="${result}ВЫКЛ Клон${i} ${short}${vip_mark} офлайн
 "
     fi
     i=$((i+1))
@@ -173,7 +173,7 @@ get_all_procs() {
 }
 
 ensure_autoexec() {
-  local path="${AUTOEXEC_BASE}/${1}/Codex/Autoexec"
+  local path="${AUTOEXEC_BASE}/${1}/Codex/Автоексекутер"
   mkdir -p "${path}" 2>/dev/null
   echo "${path}"
 }
@@ -182,7 +182,7 @@ list_scripts() {
   local first
   first=$(get_clone_dirs | head -1)
   [ -z "${first}" ] && return
-  ls "${AUTOEXEC_BASE}/${first}/Codex/Autoexec/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
+  ls "${AUTOEXEC_BASE}/${first}/Codex/Автоексекутер/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
 }
 
 deploy_script() {
@@ -198,7 +198,7 @@ deploy_script() {
 delete_script() {
   local filename=$1 count=0
   for dir in $(get_clone_dirs); do
-    local path="${AUTOEXEC_BASE}/${dir}/Codex/Autoexec"
+    local path="${AUTOEXEC_BASE}/${dir}/Codex/Автоексекутер"
     if [ -f "${path}/${filename}" ]; then
       rm -f "${path}/${filename}"
       count=$((count+1))
@@ -208,7 +208,7 @@ delete_script() {
 }
 
 sync_scripts() {
-  local src="${AUTOEXEC_BASE}/RobloxClone001/Codex/Autoexec"
+  local src="${AUTOEXEC_BASE}/RobloxClone001/Codex/Автоексекутер"
   [ ! -d "${src}" ] && echo "0" && return
   local count=0
   for dir in $(get_clone_dirs); do
@@ -261,7 +261,7 @@ watchdog() {
     local rss
     rss=$(echo "${ps_out}" | awk -v p="${pkg}" '$NF==p {print $5}' | head -1)
     if [ -z "${rss}" ]; then
-      send_msg "${short}: not found, restarting..."
+      send_msg "${short}: не найден — запускаю..."
       launch_pkg "${pkg}"
       set_cooldown "${pkg}"
       sleep 2
@@ -269,7 +269,7 @@ watchdog() {
       local ram_mb
       ram_mb=$(( ${rss:-0} / 1024 ))
       if [ "${ram_mb}" -lt 1024 ]; then
-        send_msg "${short}: frozen RAM:${ram_mb}MB, restarting..."
+        send_msg "${short}: завис RAM:${ram_mb}MB, перезапускаю..."
         su -c "am force-stop ${pkg}" > /dev/null 2>&1
         sleep 2
         launch_pkg "${pkg}"
@@ -335,7 +335,7 @@ except:
 
     if [ -n "${file_id}" ] && echo "${file_name}" | grep -q "\.txt$"; then
       local tmp="${HOME_DIR}/tmp_${file_name}"
-      send_msg "Downloading ${file_name}..."
+      send_msg "Скачиваю ${file_name}..."
       if download_file "${file_id}" "${tmp}"; then
         local size
         size=$(wc -c < "${tmp}" 2>/dev/null || echo 0)
@@ -346,19 +346,19 @@ except:
             local n
             n=$(load_cookies_from_file "${tmp}")
             rm -f "${tmp}"
-            send_msg "OK: loaded ${n} cookies into clones"
+            send_msg "OK: загружено ${n} cookies into клонов"
           else
             local n
             n=$(deploy_script "${file_name}" "${tmp}")
             rm -f "${tmp}"
-            send_msg "OK: ${file_name} deployed to ${n} clones"
+            send_msg "OK: ${file_name} добавлен в ${n} клонов"
           fi
         else
           rm -f "${tmp}"
-          send_msg "ERROR: file is empty"
+          send_msg "Ошибка: file is empty"
         fi
       else
-        send_msg "ERROR: download failed"
+        send_msg "Ошибка: download failed"
       fi
 
     elif [ -n "${msg_text}" ]; then
@@ -368,9 +368,9 @@ except:
         lnk=$(echo "${msg_text}" | cut -d' ' -f2-)
         if echo "${lnk}" | grep -q "roblox.com"; then
           echo "${lnk}" > "${VIP_FILE}"
-          send_msg "OK: global vip updated"
+          send_msg "OK: общая випка обновлена"
         else
-          send_msg "ERROR: not a roblox link"
+          send_msg "Ошибка: не похоже на ссылку Roblox"
         fi
 
       elif echo "${msg_text}" | grep -qE "^/setcookie .+"; then
@@ -380,11 +380,11 @@ except:
         sc_cookie=$(echo "${sc_parts}" | cut -d' ' -f2-)
         echo "${sc_pkg}" | grep -q "com.roblox" || sc_pkg="com.roblox.${sc_pkg}"
         if [ -n "${sc_cookie}" ]; then
-          send_msg "Setting cookie for $(echo ${sc_pkg} | sed 's/com.roblox.//')..."
+          send_msg "Устанавливаю куку для $(echo ${sc_pkg} | sed 's/com.roblox.//')..."
           set_cookie_for_pkg "${sc_pkg}" "${sc_cookie}"
-          send_msg "OK: cookie set for $(echo ${sc_pkg} | sed 's/com.roblox.//')"
+          send_msg "OK: кука установлена для $(echo ${sc_pkg} | sed 's/com.roblox.//')"
         else
-          send_msg "ERROR: no cookie provided"
+          send_msg "Ошибка: no cookie provided"
         fi
 
       elif echo "${msg_text}" | grep -qE "^/setvip .+"; then
@@ -397,9 +397,9 @@ except:
           set_vip_for_pkg "${tpkg}" "${tlnk}"
           local short
           short=$(echo "${tpkg}" | sed 's/com.roblox.//')
-          send_msg "OK: vip for ${short} updated"
+          send_msg "OK: випка для ${short} обновлена"
         else
-          send_msg "ERROR: not a roblox link"
+          send_msg "Ошибка: не похоже на ссылку Roblox"
         fi
 
       elif echo "${msg_text}" | grep -qE "^/clearvip .+"; then
@@ -409,7 +409,7 @@ except:
         rm -f "${VIP_DIR}/${cpkg}.txt"
         local short
         short=$(echo "${cpkg}" | sed 's/com.roblox.//')
-        send_msg "OK: ${short} now uses global vip"
+        send_msg "OK: ${short} теперь использует общую випку"
 
       elif [ "${msg_text}" = "/vips" ]; then
         local vip_list=""
@@ -418,32 +418,32 @@ except:
           local short
           short=$(echo "${pkg}" | sed 's/com.roblox.//')
           if [ -f "${VIP_DIR}/${pkg}.txt" ]; then
-            vip_list="${vip_list}${i}. ${short} - custom vip
+            vip_list="${vip_list}${i}. ${short} - своя випка
 "
           else
-            vip_list="${vip_list}${i}. ${short} - global
+            vip_list="${vip_list}${i}. ${short} - общая
 "
           fi
           i=$((i+1))
         done
-        send_msg "VIP list:
+        send_msg "Список випок:
 ${vip_list}
-/setvip clienq LINK
+/setvip clienq ССЫЛКА
 /clearvip clienq
-/link LINK - set global"
+/link ССЫЛКА - общая випка"
 
       elif [ "${msg_text}" = "/sync" ]; then
-        send_msg "Syncing scripts from RobloxClone001..."
+        send_msg "Синхронизирую скрипты из RobloxClone001..."
         local n sc
-        n=$(sync_scripts)
+        n=$(sync_скриптов)
         sc=$(list_scripts | wc -l | tr -d ' ')
-        send_msg "OK: synced to ${n} clones (${sc} scripts)"
+        send_msg "OK: синхронизировано в ${n} клонов (${sc} скриптов)"
 
       elif echo "${msg_text}" | grep -qE "^/interval [0-9]+$"; then
-        local mins
-        mins=$(echo "${msg_text}" | awk '{print $2}')
-        echo $((mins*60)) > "${INTERVAL_FILE}"
-        send_msg "OK: interval set to ${mins} min"
+        local минs
+        минs=$(echo "${msg_text}" | awk '{print $2}')
+        echo $((минs*60)) > "${INTERVAL_FILE}"
+        send_msg "OK: интервал ${минs} мин"
 
       elif echo "${msg_text}" | grep -qE "^/delscript .+"; then
         local fname
@@ -451,93 +451,111 @@ ${vip_list}
         echo "${fname}" | grep -q "\.txt$" || fname="${fname}.txt"
         local n
         n=$(delete_script "${fname}")
-        send_msg "OK: ${fname} deleted from ${n} clones"
+        send_msg "OK: ${fname} deleted from ${n} клонов"
 
       else
         case "${msg_text}" in
           /start|/menu)
-            local mins
-            mins=$(( $(cat "${INTERVAL_FILE}") / 60 ))
+            local минs
+            минs=$(( $(cat "${INTERVAL_FILE}") / 60 ))
             send_msg "=== Dragon Adventures Manager ===
-Clones: $(get_packages | wc -l | tr -d ' ')
-Folders: $(clone_count)
-Restart every: ${mins} min
+Клонов: $(get_packages | wc -l | tr -d ' ')
+Папок: $(clone_count)
+Перезапуск каждые: ${минs} мин
 
--- Controls --
-/restart - restart all
-/status - status + procs
-/ps - raw processes
-/interval 30 - set interval
+-- Управление --
+/restart - перезапустить все
+/status - статус и процессы
+/ps - процессы системы
+/interval 30 - интервал в минутах
 
--- VIP --
-/link URL - global vip
-/setvip clienq URL - custom
-/clearvip clienq - reset to global
-/vips - list all
+-- Випки --
+/link ССЫЛКА - общая випка
+/setvip clienq ССЫЛКА - своя випка
+/clearvip clienq - вернуть общую
+/vips - список випок
 
--- Scripts --
-Send cookies.txt - load cookies into clones
-Send .txt - deploy scripts to all clones
+-- Скрипты --
+Отправь cookies.txt - загрузить куки
+Отправь .txt - скрипт во все клоны
 /sync - copy from Clone001 to all
-/cookies - get all cookies
-/setcookie clienq COOKIE - set cookie for one clone
-/setcookies - how to set cookies
-/scripts - list
-/delscript name - delete"
+/cookies - куки всех клонов файлом
+/setcookie clienq КУКА - куки для клона
+/setcookies - как загрузить куки
+/scripts - список скриптов
+/delscript название - удалить"
             ;;
 
           /restart)
-            send_msg "Restarting all clones..."
+            send_msg "Перезапускаю все клоны..."
             local n
             n=$(launch_all)
-            send_msg "OK: restarted ${n} clones"
+            send_msg "OK: перезапущено ${n} клонов"
             ;;
 
           /status)
-            local interval mins elapsed rem_mins procs
+            local interval минs elapsed rem_минs procs
             interval=$(cat "${INTERVAL_FILE}")
-            mins=$((interval/60))
+            минs=$((interval/60))
             elapsed=$(($(date +%s) - last_launch))
-            rem_mins=$(( (interval - elapsed) / 60 ))
+            rem_минs=$(( (interval - elapsed) / 60 ))
             procs=$(get_procs_info)
-            send_msg "=== Status ===
-Clones: $(get_packages | wc -l | tr -d ' ')
-Folders: $(clone_count)
-Scripts: $(list_scripts | wc -l | tr -d ' ')
-Next restart: ${rem_mins} min
-Interval: ${mins} min
+            send_msg "=== Статус ===
+Клонов: $(get_packages | wc -l | tr -d ' ')
+Папок: $(clone_count)
+Скриптов: $(list_scripts | wc -l | tr -d ' ')
+До перезапуска: ${rem_минs} мин
+Интервал: ${минs} мин
 ---
 ${procs}"
             ;;
 
           /ps)
-            send_msg "Scanning processes..."
+            send_msg "Сканирую процессы..."
             local all
             all=$(get_all_procs)
-            send_msg "Processes:
+            send_msg "Процессы:
 ${all}"
             ;;
 
           /cookies)
-            send_msg "Getting cookies from all clones..."
-            local all_cookies
-            all_cookies=$(get_all_cookies)
-            send_msg "=== COOKIES ===
-${all_cookies}"
+            send_msg "Собираю куки всех клонов..."
+            local cookies_out="/sdcard/cookies_export.txt"
+            rm -f "${cookies_out}"
+            local i=1
+            local found=0
+            for pkg in $(get_packages); do
+              local short=$(echo "${pkg}" | sed 's/com.roblox.//')
+              local token=$(get_cookie_for_pkg "${pkg}")
+              if [ -n "${token}" ]; then
+                echo "${token}" >> "${cookies_out}"
+                found=$((found+1))
+              else
+                send_msg "Клон ${i} (${short}): куки нет, пропускаю"
+              fi
+              i=$((i+1))
+            done
+            if [ "${found}" -gt 0 ]; then
+              # Отправить файл
+              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"                 -F "chat_id=${CHAT_ID}"                 -F "document=@${cookies_out}"                 -F "caption=Куки ${found} аккаунтов"                 > /dev/null 2>&1
+              rm -f "${cookies_out}"
+            else
+              send_msg "Куки не найдены ни в одном клоне"
+            fi
             ;;
 
           /setcookies)
-            send_msg "Send .txt file with cookies (one per line) named 'cookies.txt' or 'accounts.txt'"
+            send_msg "Отправь файл cookies.txt — каждая кука на новой строке 'cookies.txt' or 'accounts.txt'"
             ;;
 
-          /scripts)
-            local scripts clones
-            scripts=$(list_scripts)
-            clones=$(clone_count)
+          /скриптов)
+            local scripts клонов
+            scripts=$(list_скриптов)
+            клонов=$(clone_count)
             if [ -z "${scripts}" ]; then
-              send_msg "Autoexec
-Clones: ${clones}
-No scripts - send .txt or /sync"
+              send_msg "Автоексекутер
+Клонов: ${клонов}
+Скриптов нет — отправь .txt или /sync"
             else
               local list=""
               local i=1
@@ -546,11 +564,11 @@ No scripts - send .txt or /sync"
 "
                 i=$((i+1))
               done <<< "${scripts}"
-              send_msg "Autoexec
-Clones: ${clones}
+              send_msg "Автоексекутер
+Клонов: ${клонов}
 ${list}
-/sync - from Clone001
-/delscript name - delete"
+/sync - из Clone001
+/delscript название - удалить"
             fi
             ;;
         esac
@@ -561,7 +579,7 @@ ${list}
   done
 }
 
-send_msg "Bot started! Type /start"
+send_msg "Менеджер запущен! Напиши /start"
 last_launch=0
 watchdog_timer=0
 
@@ -571,9 +589,9 @@ while true; do
   interval=$(cat "${INTERVAL_FILE}")
 
   if [ $((now - last_launch)) -ge ${interval} ]; then
-    send_msg "Scheduled restart..."
+    send_msg "Плановый перезапуск клонов..."
     n=$(launch_all)
-    send_msg "OK: restarted ${n} clones"
+    send_msg "OK: перезапущено ${n} клонов"
     last_launch=${now}
   fi
 
