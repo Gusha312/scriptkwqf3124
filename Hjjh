@@ -1,1 +1,597 @@
-1
+#!/bin/bash
+
+BOT_TOKEN="8683670019:AAErGx540OHyWQpp2DN3Kez2ER5c-XCg1qQ"
+CHAT_ID="899435753"
+HOME_DIR="/data/data/com.termux/files/home"
+VIP_FILE="${HOME_DIR}/vip_link.txt"
+VIP_DIR="${HOME_DIR}/vip_links"
+INTERVAL_FILE="${HOME_DIR}/interval.txt"
+OFFSET_FILE="${HOME_DIR}/tg_offset.txt"
+COOLDOWN_FILE="${HOME_DIR}/launch_cooldown.txt"
+AUTOEXEC_BASE="/storage/emulated/0"
+COOLDOWN_SECS=120
+DEFAULT_VIP="https://www.roblox.com/games/3475397644/Dragon-Adventures?privateServerLinkCode=07114316663722936313817004712715"
+
+mkdir -p "${HOME_DIR}" "${VIP_DIR}"
+[ ! -f "${INTERVAL_FILE}" ] && echo "3600" > "${INTERVAL_FILE}"
+[ ! -f "${VIP_FILE}" ] && echo "${DEFAULT_VIP}" > "${VIP_FILE}"
+[ ! -f "${OFFSET_FILE}" ] && echo "0" > "${OFFSET_FILE}"
+[ ! -f "${COOLDOWN_FILE}" ] && touch "${COOLDOWN_FILE}"
+
+get_packages() {
+  pm list packages | grep "com.roblox.clien" | sed 's/package://' | grep -v "^com\.roblox\.client$" | sort
+}
+
+get_clone_dirs() {
+  ls "${AUTOEXEC_BASE}" 2>/dev/null | grep -E "^RobloxClone[0-9]+" | sort
+}
+
+clone_count() {
+  get_clone_dirs | wc -l | tr -d ' '
+}
+
+get_vip_for_pkg() {
+  local f="${VIP_DIR}/${1}.txt"
+  [ -f "${f}" ] && cat "${f}" || cat "${VIP_FILE}"
+}
+
+set_vip_for_pkg() {
+  echo "$2" > "${VIP_DIR}/${1}.txt"
+}
+
+set_cooldown() {
+  grep -v "^${1} " "${COOLDOWN_FILE}" > "${COOLDOWN_FILE}.tmp" 2>/dev/null
+  mv "${COOLDOWN_FILE}.tmp" "${COOLDOWN_FILE}" 2>/dev/null
+  echo "${1} $(date +%s)" >> "${COOLDOWN_FILE}"
+}
+
+in_cooldown() {
+  local t
+  t=$(grep "^${1} " "${COOLDOWN_FILE}" 2>/dev/null | awk '{print $2}' | head -1)
+  [ -z "${t}" ] && return 1
+  [ $(( $(date +%s) - t )) -lt ${COOLDOWN_SECS} ] && return 0 || return 1
+}
+
+get_procs_info() {
+  local result=""
+  local i=1
+  local ps_out
+  ps_out=$(su -c "ps -A" 2>/dev/null)
+  for pkg in $(get_packages); do
+    local short
+    short=$(echo "${pkg}" | sed 's/com.roblox.//')
+    local line
+    line=$(echo "${ps_out}" | awk -v p="${pkg}" '$NF==p {print}' | head -1)
+    local vip_mark=""
+    [ -f "${VIP_DIR}/${pkg}.txt" ] && vip_mark="*"
+    if [ -n "${line}" ]; then
+      local pid rss ram_mb
+      pid=$(echo "${line}" | awk '{print $2}')
+      rss=$(echo "${line}" | awk '{print $5}')
+      ram_mb=$(( ${rss:-0} / 1024 ))
+      if [ "${ram_mb}" -gt 1024 ]; then
+        result="${result}ВКЛ Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
+"
+      else
+        result="${result}МАЛ Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
+"
+      fi
+    else
+      result="${result}ВЫКЛ Клон${i} ${short}${vip_mark} офлайн
+"
+    fi
+    i=$((i+1))
+  done
+  echo "${result}"
+}
+
+get_all_procs() {
+  su -c "ps -A | grep clien" 2>/dev/null || echo "нет доступа su"
+}
+
+# ── Куки ──
+get_cookie_for_pkg() {
+  local pkg=$1
+  su -c "cp /data/data/${pkg}/app_webview/Default/Cookies /sdcard/cookie_tmp.db" 2>/dev/null
+  local token
+  token=$(sqlite3 /sdcard/cookie_tmp.db "SELECT value FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
+  rm -f /sdcard/cookie_tmp.db
+  echo "${token}"
+}
+
+set_cookie_for_pkg() {
+  local pkg=$1 cookie=$2
+  local db="/data/data/${pkg}/app_webview/Default/Cookies"
+  local tmp="/sdcard/cookie_set_tmp.db"
+  local sql_file="/sdcard/cookie_cmd.sql"
+  su -c "am force-stop ${pkg}" > /dev/null 2>&1
+  sleep 1
+  su -c "cp ${db} ${tmp}" 2>/dev/null
+  printf "UPDATE cookies SET value='%s' WHERE name='.ROBLOSECURITY';\n" "${cookie}" > "${sql_file}"
+  sqlite3 "${tmp}" < "${sql_file}" 2>/dev/null
+  local count
+  count=$(sqlite3 "${tmp}" "SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
+  if [ "${count}" = "0" ]; then
+    printf "INSERT INTO cookies (creation_utc,host_key,top_frame_site_key,name,value,encrypted_value,path,expires_utc,is_secure,is_httponly,last_access_utc,has_expires,is_persistent,priority,samesite,source_scheme,source_port,is_same_party) VALUES (13000000000000000,'.roblox.com','','.ROBLOSECURITY','%s','','/',17000000000000000,1,1,13000000000000000,1,1,1,-1,2,443,0);\n" "${cookie}" > "${sql_file}"
+    sqlite3 "${tmp}" < "${sql_file}" 2>/dev/null
+  fi
+  su -c "cp ${tmp} ${db}" 2>/dev/null
+  su -c "chmod 600 ${db}" 2>/dev/null
+  rm -f "${tmp}" "${sql_file}"
+}
+
+load_cookies_from_file() {
+  local filepath=$1
+  local loaded=0
+  local line_num=0
+  local pkgs=()
+  while IFS= read -r pkg; do
+    pkgs+=("${pkg}")
+  done <<< "$(get_packages)"
+  local total_pkgs=${#pkgs[@]}
+  while IFS= read -r line; do
+    line=$(echo "${line}" | tr -d "\r")
+    [ -z "${line}" ] && continue
+    [ "${line_num}" -ge "${total_pkgs}" ] && break
+    local pkg="${pkgs[$line_num]}"
+    set_cookie_for_pkg "${pkg}" "${line}"
+    local short
+    short=$(echo "${pkg}" | sed 's/com.roblox.//')
+    send_msg "OK: кука $((line_num+1)) -> ${short}"
+    loaded=$((loaded+1))
+    line_num=$((line_num+1))
+  done < "${filepath}"
+  echo "${loaded}"
+}
+
+# ── Автоексекутер ──
+ensure_autoexec() {
+  local path="${AUTOEXEC_BASE}/${1}/Codex/Autoexec"
+  mkdir -p "${path}" 2>/dev/null
+  echo "${path}"
+}
+
+list_scripts() {
+  local first
+  first=$(get_clone_dirs | head -1)
+  [ -z "${first}" ] && return
+  ls "${AUTOEXEC_BASE}/${first}/Codex/Autoexec/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
+}
+
+deploy_script() {
+  local filename=$1 filepath=$2 count=0
+  for dir in $(get_clone_dirs); do
+    local path
+    path=$(ensure_autoexec "${dir}")
+    cat "${filepath}" > "${path}/${filename}" 2>/dev/null && count=$((count+1))
+  done
+  echo "${count}"
+}
+
+delete_script() {
+  local filename=$1 count=0
+  for dir in $(get_clone_dirs); do
+    local path="${AUTOEXEC_BASE}/${dir}/Codex/Autoexec"
+    if [ -f "${path}/${filename}" ]; then
+      rm -f "${path}/${filename}"
+      count=$((count+1))
+    fi
+  done
+  echo "${count}"
+}
+
+sync_scripts() {
+  local src="${AUTOEXEC_BASE}/RobloxClone001/Codex/Autoexec"
+  [ ! -d "${src}" ] && echo "0" && return
+  local count=0
+  for dir in $(get_clone_dirs); do
+    [ "${dir}" = "RobloxClone001" ] && continue
+    local dst
+    dst=$(ensure_autoexec "${dir}")
+    for f in "${src}"/*.txt; do
+      [ -f "${f}" ] || continue
+      cat "${f}" > "${dst}/$(basename ${f})" 2>/dev/null
+    done
+    count=$((count+1))
+  done
+  echo "${count}"
+}
+
+# ── Запуск ──
+launch_pkg() {
+  local pkg=$1
+  local vip
+  vip=$(get_vip_for_pkg "${pkg}")
+  su -c "am force-stop ${pkg}" > /dev/null 2>&1
+  sleep 2
+  su -c "monkey -p ${pkg} 1" > /dev/null 2>&1
+  sleep 2
+  echo "am start -a android.intent.action.VIEW -p ${pkg} -d \"${vip}\"" > "${HOME_DIR}/launch_cmd.sh"
+  su -c "sh ${HOME_DIR}/launch_cmd.sh" > /dev/null 2>&1
+}
+
+launch_all() {
+  local count=0
+  for pkg in $(get_packages); do
+    launch_pkg "${pkg}"
+    set_cooldown "${pkg}"
+    count=$((count+1))
+    sleep 3
+  done
+  echo "${count}"
+}
+
+unfold_pkg() {
+  su -c "monkey -p ${1} 1" > /dev/null 2>&1
+}
+
+watchdog() {
+  local ps_out
+  ps_out=$(su -c "ps -A" 2>/dev/null)
+  for pkg in $(get_packages); do
+    in_cooldown "${pkg}" && continue
+    local short
+    short=$(echo "${pkg}" | sed 's/com.roblox.//')
+    local rss
+    rss=$(echo "${ps_out}" | awk -v p="${pkg}" '$NF==p {print $5}' | head -1)
+    if [ -z "${rss}" ]; then
+      send_msg "${short}: не найден — запускаю..."
+      launch_pkg "${pkg}"
+      set_cooldown "${pkg}"
+      sleep 2
+    else
+      local ram_mb
+      ram_mb=$(( ${rss:-0} / 1024 ))
+      if [ "${ram_mb}" -lt 1024 ]; then
+        send_msg "${short}: завис RAM:${ram_mb}MB — перезапускаю..."
+        su -c "am force-stop ${pkg}" > /dev/null 2>&1
+        sleep 2
+        launch_pkg "${pkg}"
+        set_cooldown "${pkg}"
+        sleep 2
+      else
+        unfold_pkg "${pkg}"
+      fi
+    fi
+  done
+}
+
+# ── Telegram ──
+send_msg() {
+  local text="$1"
+  curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+    -H "Content-Type: application/json" \
+    --data-binary "{\"chat_id\":\"${CHAT_ID}\",\"parse_mode\":\"HTML\",\"text\":$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text" 2>/dev/null)}" \
+    > /dev/null 2>&1
+}
+
+send_file() {
+  local filepath=$1 caption=$2
+  curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+    -F "chat_id=${CHAT_ID}" \
+    -F "document=@${filepath}" \
+    -F "caption=${caption}" \
+    > /dev/null 2>&1
+}
+
+download_file() {
+  local file_id=$1 dest=$2
+  local file_path
+  file_path=$(curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file_id}" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('file_path',''))" 2>/dev/null)
+  [ -z "${file_path}" ] && return 1
+  curl -s -L "https://api.telegram.org/file/bot${BOT_TOKEN}/${file_path}" -o "${dest}" 2>/dev/null
+  return 0
+}
+
+get_updates() {
+  local offset
+  offset=$(cat "${OFFSET_FILE}")
+  curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${offset}&timeout=5&limit=10"
+}
+
+check_tg() {
+  local raw
+  raw=$(get_updates)
+  local uids
+  uids=$(echo "${raw}" | python3 -c "
+import sys,json
+try:
+  for u in json.load(sys.stdin).get('result',[]): print(u['update_id'])
+except: pass
+" 2>/dev/null)
+
+  for uid in ${uids}; do
+    eval $(echo "${raw}" | python3 -c "
+import sys,json,shlex
+try:
+  for u in json.load(sys.stdin).get('result',[]):
+    if u['update_id']==$uid:
+      msg=u.get('message',{})
+      doc=msg.get('document',{}) or {}
+      print('msg_text='+shlex.quote(msg.get('text','') or ''))
+      print('file_id='+shlex.quote(doc.get('file_id','') or ''))
+      print('file_name='+shlex.quote(doc.get('file_name','') or ''))
+      break
+except:
+  print('msg_text='); print('file_id='); print('file_name=')
+" 2>/dev/null)
+
+    # Файл получен
+    if [ -n "${file_id}" ] && echo "${file_name}" | grep -q "\.txt$"; then
+      local tmp="${HOME_DIR}/tmp_${file_name}"
+      send_msg "Скачиваю ${file_name}..."
+      if download_file "${file_id}" "${tmp}"; then
+        local size
+        size=$(wc -c < "${tmp}" 2>/dev/null || echo 0)
+        if [ "${size}" -gt 0 ]; then
+          if echo "${file_name}" | grep -qiE "cook|account|token"; then
+            local n
+            n=$(load_cookies_from_file "${tmp}")
+            rm -f "${tmp}"
+            send_msg "OK: загружено ${n} кук"
+          else
+            local n
+            n=$(deploy_script "${file_name}" "${tmp}")
+            rm -f "${tmp}"
+            send_msg "OK: ${file_name} добавлен в ${n} клонов"
+          fi
+        else
+          rm -f "${tmp}"
+          send_msg "Ошибка: файл пустой"
+        fi
+      else
+        send_msg "Ошибка: не удалось скачать"
+      fi
+
+    elif [ -n "${msg_text}" ]; then
+
+      if echo "${msg_text}" | grep -qE "^/link .+"; then
+        local lnk
+        lnk=$(echo "${msg_text}" | cut -d' ' -f2-)
+        if echo "${lnk}" | grep -q "roblox.com"; then
+          echo "${lnk}" > "${VIP_FILE}"
+          send_msg "OK: общая випка обновлена"
+        else
+          send_msg "Ошибка: не похоже на ссылку Roblox"
+        fi
+
+      elif echo "${msg_text}" | grep -qE "^/setvip .+"; then
+        local parts tpkg tlnk
+        parts=$(echo "${msg_text}" | cut -d' ' -f2-)
+        tpkg=$(echo "${parts}" | awk '{print $1}')
+        tlnk=$(echo "${parts}" | cut -d' ' -f2-)
+        echo "${tpkg}" | grep -q "com.roblox" || tpkg="com.roblox.${tpkg}"
+        if echo "${tlnk}" | grep -q "roblox.com"; then
+          set_vip_for_pkg "${tpkg}" "${tlnk}"
+          local short
+          short=$(echo "${tpkg}" | sed 's/com.roblox.//')
+          send_msg "OK: випка для ${short} обновлена"
+        else
+          send_msg "Ошибка: не похоже на ссылку Roblox"
+        fi
+
+      elif echo "${msg_text}" | grep -qE "^/clearvip .+"; then
+        local cpkg
+        cpkg=$(echo "${msg_text}" | cut -d' ' -f2-)
+        echo "${cpkg}" | grep -q "com.roblox" || cpkg="com.roblox.${cpkg}"
+        rm -f "${VIP_DIR}/${cpkg}.txt"
+        local short
+        short=$(echo "${cpkg}" | sed 's/com.roblox.//')
+        send_msg "OK: ${short} теперь использует общую випку"
+
+      elif echo "${msg_text}" | grep -qE "^/setcookie .+"; then
+        local sc_parts sc_pkg sc_cookie
+        sc_parts=$(echo "${msg_text}" | cut -d' ' -f2-)
+        sc_pkg=$(echo "${sc_parts}" | awk '{print $1}')
+        sc_cookie=$(echo "${sc_parts}" | cut -d' ' -f2-)
+        echo "${sc_pkg}" | grep -q "com.roblox" || sc_pkg="com.roblox.${sc_pkg}"
+        if [ -n "${sc_cookie}" ]; then
+          local short
+          short=$(echo "${sc_pkg}" | sed 's/com.roblox.//')
+          send_msg "Устанавливаю куку для ${short}..."
+          set_cookie_for_pkg "${sc_pkg}" "${sc_cookie}"
+          send_msg "OK: кука установлена для ${short}"
+        else
+          send_msg "Ошибка: кука не указана"
+        fi
+
+      elif echo "${msg_text}" | grep -qE "^/interval [0-9]+$"; then
+        local mins
+        mins=$(echo "${msg_text}" | awk '{print $2}')
+        echo $((mins*60)) > "${INTERVAL_FILE}"
+        send_msg "OK: интервал ${mins} мин"
+
+      elif echo "${msg_text}" | grep -qE "^/delscript .+"; then
+        local fname
+        fname=$(echo "${msg_text}" | cut -d' ' -f2-)
+        echo "${fname}" | grep -q "\.txt$" || fname="${fname}.txt"
+        local n
+        n=$(delete_script "${fname}")
+        send_msg "OK: ${fname} удалён из ${n} клонов"
+
+      else
+        case "${msg_text}" in
+          /start|/menu)
+            local mins
+            mins=$(( $(cat "${INTERVAL_FILE}") / 60 ))
+            send_msg "=== Dragon Adventures Manager ===
+Клонов: $(get_packages | wc -l | tr -d ' ')
+Папок: $(clone_count)
+Перезапуск каждые: ${mins} мин
+
+-- Управление --
+/restart - перезапустить все
+/status - статус и процессы
+/ps - процессы системы
+/interval 30 - интервал в минутах
+
+-- Випки --
+/link ССЫЛКА - общая випка
+/setvip clienq ССЫЛКА - своя випка
+/clearvip clienq - вернуть общую
+/vips - список випок
+
+-- Куки --
+Отправь cookies.txt - загрузить куки
+/cookies - куки всех клонов файлом
+/setcookie clienq КУКА - куки для клона
+
+-- Скрипты --
+Отправь .txt - скрипт во все клоны
+/sync - из Clone001 во все
+/scripts - список скриптов
+/delscript название - удалить"
+            ;;
+
+          /restart)
+            send_msg "Перезапускаю все клоны..."
+            local n
+            n=$(launch_all)
+            send_msg "OK: перезапущено ${n} клонов"
+            ;;
+
+          /status)
+            local interval mins elapsed rem_mins procs
+            interval=$(cat "${INTERVAL_FILE}")
+            mins=$((interval/60))
+            elapsed=$(($(date +%s) - last_launch))
+            rem_mins=$(( (interval - elapsed) / 60 ))
+            procs=$(get_procs_info)
+            send_msg "=== Статус ===
+Клонов: $(get_packages | wc -l | tr -d ' ')
+Папок: $(clone_count)
+Скриптов: $(list_scripts | wc -l | tr -d ' ')
+До перезапуска: ${rem_mins} мин
+Интервал: ${mins} мин
+---
+${procs}"
+            ;;
+
+          /ps)
+            send_msg "Сканирую процессы..."
+            local all
+            all=$(get_all_procs)
+            send_msg "Процессы:
+${all}"
+            ;;
+
+          /vips)
+            local vip_list=""
+            local i=1
+            for pkg in $(get_packages); do
+              local short
+              short=$(echo "${pkg}" | sed 's/com.roblox.//')
+              if [ -f "${VIP_DIR}/${pkg}.txt" ]; then
+                vip_list="${vip_list}${i}. ${short} - своя випка
+"
+              else
+                vip_list="${vip_list}${i}. ${short} - общая
+"
+              fi
+              i=$((i+1))
+            done
+            send_msg "Список випок:
+${vip_list}
+/setvip clienq ССЫЛКА
+/clearvip clienq
+/link ССЫЛКА - общая"
+            ;;
+
+          /cookies)
+            send_msg "Собираю куки всех клонов..."
+            local cookies_out="/sdcard/cookies_export.txt"
+            rm -f "${cookies_out}"
+            local found=0
+            local i=1
+            for pkg in $(get_packages); do
+              local short
+              short=$(echo "${pkg}" | sed 's/com.roblox.//')
+              local token
+              token=$(get_cookie_for_pkg "${pkg}")
+              if [ -n "${token}" ]; then
+                echo "${token}" >> "${cookies_out}"
+                found=$((found+1))
+              else
+                send_msg "Клон ${i} (${short}): куки нет, пропускаю"
+              fi
+              i=$((i+1))
+            done
+            if [ "${found}" -gt 0 ]; then
+              send_file "${cookies_out}" "Куки ${found} аккаунтов"
+              rm -f "${cookies_out}"
+            else
+              send_msg "Куки не найдены ни в одном клоне"
+            fi
+            ;;
+
+          /setcookies)
+            send_msg "Отправь файл cookies.txt
+Формат: каждая кука на новой строке
+Строка 1 -> Клон 1
+Строка 2 -> Клон 2
+и так далее"
+            ;;
+
+          /sync)
+            send_msg "Синхронизирую скрипты из RobloxClone001..."
+            local n sc
+            n=$(sync_scripts)
+            sc=$(list_scripts | wc -l | tr -d ' ')
+            send_msg "OK: синхронизировано в ${n} клонов (${sc} скриптов)"
+            ;;
+
+          /scripts)
+            local scripts clones
+            scripts=$(list_scripts)
+            clones=$(clone_count)
+            if [ -z "${scripts}" ]; then
+              send_msg "Автоексекутер
+Клонов: ${clones}
+Скриптов нет — отправь .txt или /sync"
+            else
+              local list=""
+              local i=1
+              while IFS= read -r s; do
+                list="${list}${i}. ${s}.txt
+"
+                i=$((i+1))
+              done <<< "${scripts}"
+              send_msg "Автоексекутер
+Клонов: ${clones}
+${list}
+/sync - из Clone001
+/delscript название - удалить"
+            fi
+            ;;
+        esac
+      fi
+    fi
+
+    echo $((uid+1)) > "${OFFSET_FILE}"
+  done
+}
+
+send_msg "Менеджер запущен! Напиши /start"
+last_launch=0
+watchdog_timer=0
+
+while true; do
+  check_tg
+  now=$(date +%s)
+  interval=$(cat "${INTERVAL_FILE}")
+
+  if [ $((now - last_launch)) -ge ${interval} ]; then
+    send_msg "Плановый перезапуск клонов..."
+    n=$(launch_all)
+    send_msg "OK: перезапущено ${n} клонов"
+    last_launch=${now}
+  fi
+
+  if [ $((now - watchdog_timer)) -ge 10 ]; then
+    watchdog
+    watchdog_timer=${now}
+  fi
+
+  sleep 5
+done
