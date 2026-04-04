@@ -440,10 +440,10 @@ ${vip_list}
         send_msg "OK: синхронизировано в ${n} клонов (${sc} скриптов)"
 
       elif echo "${msg_text}" | grep -qE "^/interval [0-9]+$"; then
-        local минs
-        минs=$(echo "${msg_text}" | awk '{print $2}')
-        echo $((минs*60)) > "${INTERVAL_FILE}"
-        send_msg "OK: интервал ${минs} мин"
+        local mins
+        mins=$(echo "${msg_text}" | awk '{print $2}')
+        echo $((mins*60)) > "${INTERVAL_FILE}"
+        send_msg "OK: интервал ${mins} мин"
 
       elif echo "${msg_text}" | grep -qE "^/delscript .+"; then
         local fname
@@ -456,12 +456,12 @@ ${vip_list}
       else
         case "${msg_text}" in
           /start|/menu)
-            local минs
-            минs=$(( $(cat "${INTERVAL_FILE}") / 60 ))
+            local mins
+            mins=$(( $(cat "${INTERVAL_FILE}") / 60 ))
             send_msg "=== Dragon Adventures Manager ===
 Клонов: $(get_packages | wc -l | tr -d ' ')
 Папок: $(clone_count)
-Перезапуск каждые: ${минs} мин
+Перезапуск каждые: ${mins} мин
 
 -- Управление --
 /restart - перезапустить все
@@ -478,7 +478,7 @@ ${vip_list}
 -- Скрипты --
 Отправь cookies.txt - загрузить куки
 Отправь .txt - скрипт во все клоны
-/sync - copy from Clone001 to all
+/sync - из Clone001 во все
 /cookies - куки всех клонов файлом
 /setcookie clienq КУКА - куки для клона
 /setcookies - как загрузить куки
@@ -494,18 +494,18 @@ ${vip_list}
             ;;
 
           /status)
-            local interval минs elapsed rem_минs procs
+            local interval mins elapsed rem_mins procs
             interval=$(cat "${INTERVAL_FILE}")
-            минs=$((interval/60))
+            mins=$((interval/60))
             elapsed=$(($(date +%s) - last_launch))
-            rem_минs=$(( (interval - elapsed) / 60 ))
+            rem_mins=$(( (interval - elapsed) / 60 ))
             procs=$(get_procs_info)
             send_msg "=== Статус ===
 Клонов: $(get_packages | wc -l | tr -d ' ')
 Папок: $(clone_count)
 Скриптов: $(list_scripts | wc -l | tr -d ' ')
-До перезапуска: ${rem_минs} мин
-Интервал: ${минs} мин
+До перезапуска: ${rem_mins} мин
+Интервал: ${mins} мин
 ---
 ${procs}"
             ;;
