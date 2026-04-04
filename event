@@ -1,3 +1,4 @@
+wait(10)
 -- ============================================
 -- AGUSHA Roblox MAX Optimizer + Foraging
 -- Fix: Sky removal через pcall (игра управляет Sky сама)
