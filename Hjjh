@@ -17,6 +17,7 @@ mkdir -p "${HOME_DIR}" "${VIP_DIR}"
 [ ! -f "${VIP_FILE}" ] && echo "${DEFAULT_VIP}" > "${VIP_FILE}"
 [ ! -f "${OFFSET_FILE}" ] && echo "0" > "${OFFSET_FILE}"
 [ ! -f "${COOLDOWN_FILE}" ] && touch "${COOLDOWN_FILE}"
+[ ! -f "${CRASH_COUNT_FILE}" ] && touch "${CRASH_COUNT_FILE}"
 
 get_packages() {
   pm list packages | grep "com.roblox.clien" | sed 's/package://' | grep -v "^com\.roblox\.client$" | sort
@@ -422,6 +423,9 @@ except:
 
 -- Управление --
 /restart - перезапустить все
+/crashes - статистика вылетов
+/enable клон - включить клон
+/disable клон - отключить клон
 /status - статус и процессы
 /ps - процессы системы
 /interval 30 - интервал в минутах
@@ -541,6 +545,43 @@ ${vip_list}
             send_msg "OK: синхронизировано в ${n} клонов (${sc} скриптов)"
             ;;
 
+          /enable)
+            local epkg=$(echo "${msg_text}" | cut -d' ' -f2-)
+            echo "${epkg}" | grep -q "com.roblox" || epkg="com.roblox.${epkg}"
+            reset_crash_count "${epkg}"
+            local short=$(echo "${epkg}" | sed 's/com.roblox.//')
+            send_msg "OK: ${short} включён"
+            ;;
+
+          /disable)
+            local dpkg=$(echo "${msg_text}" | cut -d' ' -f2-)
+            echo "${dpkg}" | grep -q "com.roblox" || dpkg="com.roblox.${dpkg}"
+            disable_clone "${dpkg}"
+            su -c "am force-stop ${dpkg}" > /dev/null 2>&1
+            local short=$(echo "${dpkg}" | sed 's/com.roblox.//')
+            send_msg "OK: ${short} отключён"
+            ;;
+
+          /crashes)
+            local crash_list="" i=1
+            for pkg in $(get_packages); do
+              local short=$(echo "${pkg}" | sed 's/com.roblox.//')
+              if is_disabled "${pkg}"; then
+                crash_list="${crash_list}${i}. ${short}: ОТКЛЮЧЁН
+"
+              else
+                local c=$(get_crash_count "${pkg}")
+                crash_list="${crash_list}${i}. ${short}: ${c:-0} вылетов
+"
+              fi
+              i=$((i+1))
+            done
+            send_msg "$(printf "Статистика вылетов:
+${crash_list}
+/enable клон - включить
+/disable клон - отключить")"
+            ;;
+
           /scripts)
             local scripts clones
             scripts=$(list_scripts)
@@ -588,7 +629,7 @@ while true; do
     last_launch=${now}
   fi
 
-  if [ $((now - watchdog_timer)) -ge 10 ]; then
+  if [ $((now - watchdog_timer)) -ge 40 ]; then
     watchdog
     watchdog_timer=${now}
   fi
