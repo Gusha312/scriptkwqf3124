@@ -1,5 +1,6 @@
 -- ============================================
 -- AGUSHA Roblox MAX Optimizer + Foraging
+-- Fix: Sky removal через pcall (игра управляет Sky сама)
 -- ============================================
 
 local Lighting    = game:GetService("Lighting")
@@ -12,7 +13,7 @@ local Camera      = workspace.CurrentCamera
 -- ============================================
 -- 1. ГРАФИКА — минимум
 -- ============================================
-settings().Rendering.QualityLevel     = 1
+settings().Rendering.QualityLevel       = 1
 settings().Rendering.EagerBulkExecution = true
 
 Camera.FieldOfView = 70
@@ -20,23 +21,40 @@ Camera.FieldOfView = 70
 -- ============================================
 -- 2. ОСВЕЩЕНИЕ
 -- ============================================
-Lighting.GlobalShadows   = false
-Lighting.FogEnd          = 100000
-Lighting.FogStart        = 100000
-Lighting.Brightness      = 1
-Lighting.OutdoorAmbient  = Color3.fromRGB(140, 140, 140)
+Lighting.GlobalShadows  = false
+Lighting.FogEnd         = 100000
+Lighting.FogStart       = 100000
+Lighting.Brightness     = 1
+Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 140)
 
--- Убрать все визуальные эффекты Lighting
+-- Убрать визуальные эффекты (БЕЗ Sky — игра им управляет)
+local safeRemove = {
+    "BlurEffect",
+    "ColorCorrectionEffect",
+    "SunRaysEffect",
+    "DepthOfFieldEffect",
+    "BloomEffect",
+}
+
 for _, v in ipairs(Lighting:GetChildren()) do
-    if v:IsA("BlurEffect")
-    or v:IsA("ColorCorrectionEffect")
-    or v:IsA("SunRaysEffect")
-    or v:IsA("DepthOfFieldEffect")
-    or v:IsA("BloomEffect")
-    or v:IsA("Sky") then
-        v:Destroy()
+    for _, className in ipairs(safeRemove) do
+        if v:IsA(className) then
+            pcall(function() v:Destroy() end)
+            break
+        end
     end
 end
+
+-- Следим за новыми эффектами
+Lighting.ChildAdded:Connect(function(v)
+    task.wait()
+    for _, className in ipairs(safeRemove) do
+        if v:IsA(className) then
+            pcall(function() v:Destroy() end)
+            break
+        end
+    end
+end)
 
 -- ============================================
 -- 3. ЧАСТИЦЫ И ЭФФЕКТЫ
@@ -47,10 +65,8 @@ local function disableEffects(parent)
         or obj:IsA("Trail")
         or obj:IsA("Smoke")
         or obj:IsA("Fire")
-        or obj:IsA("Sparkles")
-        or obj:IsA("SelectionBox")
-        or obj:IsA("SelectionSphere") then
-            obj.Enabled = false
+        or obj:IsA("Sparkles") then
+            pcall(function() obj.Enabled = false end)
         end
     end
 end
@@ -64,45 +80,39 @@ workspace.DescendantAdded:Connect(function(obj)
     or obj:IsA("Smoke")
     or obj:IsA("Fire")
     or obj:IsA("Sparkles") then
-        obj.Enabled = false
+        pcall(function() obj.Enabled = false end)
     end
 end)
 
 -- ============================================
--- 4. ТЕКСТУРЫ → SmoothPlastic
+-- 4. ТЕКСТУРЫ + ТЕНИ
 -- ============================================
 for _, part in ipairs(workspace:GetDescendants()) do
     if part:IsA("BasePart") then
-        part.Material = Enum.Material.SmoothPlastic
-        part.CastShadow = false
+        pcall(function()
+            part.Material   = Enum.Material.SmoothPlastic
+            part.CastShadow = false
+        end)
     end
 end
 
 workspace.DescendantAdded:Connect(function(obj)
     task.wait()
     if obj:IsA("BasePart") then
-        obj.Material   = Enum.Material.SmoothPlastic
-        obj.CastShadow = false
+        pcall(function()
+            obj.Material   = Enum.Material.SmoothPlastic
+            obj.CastShadow = false
+        end)
     end
 end)
 
 -- ============================================
--- 5. ПЕРСОНАЖ — убрать аксессуары / декор
+-- 5. ПЕРСОНАЖ
 -- ============================================
 local function cleanCharacter(char)
     for _, obj in ipairs(char:GetDescendants()) do
-        if obj:IsA("Accessory") then
-            local handle = obj:FindFirstChild("Handle")
-            if handle then
-                for _, eff in ipairs(handle:GetDescendants()) do
-                    if eff:IsA("SpecialMesh") then
-                        eff.Scale = Vector3.zero
-                    end
-                end
-            end
-        end
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
-            obj.Enabled = false
+            pcall(function() obj.Enabled = false end)
         end
     end
 end
@@ -126,7 +136,7 @@ if game.PlaceId == 5233782396 then
     local Remote = RS
         :WaitForChild("Remotes")
         :WaitForChild("CompleteForageableRemote")
-    local Nodes  = workspace
+    local Nodes = workspace
         :WaitForChild("Event")
         :WaitForChild("ForageableNodes")
         :WaitForChild("Common")
@@ -136,7 +146,9 @@ if game.PlaceId == 5233782396 then
             task.wait(15)
             for i = 1, 40 do
                 task.wait(0.5)
-                Remote:InvokeServer(i, Nodes, true)
+                pcall(function()
+                    Remote:InvokeServer(i, Nodes, true)
+                end)
             end
         end
     end)
@@ -144,4 +156,4 @@ if game.PlaceId == 5233782396 then
     print("[AgushaOptimizer] Foraging loop запущен")
 end
 
-print("[AgushaOptimizer] Максимальная оптимизация применена!")
+print("[AgushaOptimizer] Готово!")
