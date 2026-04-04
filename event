@@ -1,15 +1,147 @@
+-- ============================================
+-- AGUSHA Roblox MAX Optimizer + Foraging
+-- ============================================
 
+local Lighting    = game:GetService("Lighting")
+local RunService  = game:GetService("RunService")
+local Players     = game:GetService("Players")
+local RS          = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera      = workspace.CurrentCamera
+
+-- ============================================
+-- 1. ГРАФИКА — минимум
+-- ============================================
+settings().Rendering.QualityLevel     = 1
+settings().Rendering.EagerBulkExecution = true
+
+Camera.FieldOfView = 70
+
+-- ============================================
+-- 2. ОСВЕЩЕНИЕ
+-- ============================================
+Lighting.GlobalShadows   = false
+Lighting.FogEnd          = 100000
+Lighting.FogStart        = 100000
+Lighting.Brightness      = 1
+Lighting.OutdoorAmbient  = Color3.fromRGB(140, 140, 140)
+
+-- Убрать все визуальные эффекты Lighting
+for _, v in ipairs(Lighting:GetChildren()) do
+    if v:IsA("BlurEffect")
+    or v:IsA("ColorCorrectionEffect")
+    or v:IsA("SunRaysEffect")
+    or v:IsA("DepthOfFieldEffect")
+    or v:IsA("BloomEffect")
+    or v:IsA("Sky") then
+        v:Destroy()
+    end
+end
+
+-- ============================================
+-- 3. ЧАСТИЦЫ И ЭФФЕКТЫ
+-- ============================================
+local function disableEffects(parent)
+    for _, obj in ipairs(parent:GetDescendants()) do
+        if obj:IsA("ParticleEmitter")
+        or obj:IsA("Trail")
+        or obj:IsA("Smoke")
+        or obj:IsA("Fire")
+        or obj:IsA("Sparkles")
+        or obj:IsA("SelectionBox")
+        or obj:IsA("SelectionSphere") then
+            obj.Enabled = false
+        end
+    end
+end
+
+disableEffects(workspace)
+
+workspace.DescendantAdded:Connect(function(obj)
+    task.wait()
+    if obj:IsA("ParticleEmitter")
+    or obj:IsA("Trail")
+    or obj:IsA("Smoke")
+    or obj:IsA("Fire")
+    or obj:IsA("Sparkles") then
+        obj.Enabled = false
+    end
+end)
+
+-- ============================================
+-- 4. ТЕКСТУРЫ → SmoothPlastic
+-- ============================================
+for _, part in ipairs(workspace:GetDescendants()) do
+    if part:IsA("BasePart") then
+        part.Material = Enum.Material.SmoothPlastic
+        part.CastShadow = false
+    end
+end
+
+workspace.DescendantAdded:Connect(function(obj)
+    task.wait()
+    if obj:IsA("BasePart") then
+        obj.Material   = Enum.Material.SmoothPlastic
+        obj.CastShadow = false
+    end
+end)
+
+-- ============================================
+-- 5. ПЕРСОНАЖ — убрать аксессуары / декор
+-- ============================================
+local function cleanCharacter(char)
+    for _, obj in ipairs(char:GetDescendants()) do
+        if obj:IsA("Accessory") then
+            local handle = obj:FindFirstChild("Handle")
+            if handle then
+                for _, eff in ipairs(handle:GetDescendants()) do
+                    if eff:IsA("SpecialMesh") then
+                        eff.Scale = Vector3.zero
+                    end
+                end
+            end
+        end
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+            obj.Enabled = false
+        end
+    end
+end
+
+if LocalPlayer.Character then cleanCharacter(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(cleanCharacter)
+
+-- ============================================
+-- 6. ANTI-AFK
+-- ============================================
+local VirtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- ============================================
+-- 7. FORAGING LOOP (PlaceId: 5233782396)
+-- ============================================
 if game.PlaceId == 5233782396 then
-while true do
-wait(15)
-for i = 1,40 do
-wait(0.5)
-local args = {
-i,
-workspace:WaitForChild("Event"):WaitForChild("ForageableNodes"):WaitForChild("Common"),
-true
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(args))
+    local Remote = RS
+        :WaitForChild("Remotes")
+        :WaitForChild("CompleteForageableRemote")
+    local Nodes  = workspace
+        :WaitForChild("Event")
+        :WaitForChild("ForageableNodes")
+        :WaitForChild("Common")
+
+    task.spawn(function()
+        while true do
+            task.wait(15)
+            for i = 1, 40 do
+                task.wait(0.5)
+                Remote:InvokeServer(i, Nodes, true)
+            end
+        end
+    end)
+
+    print("[AgushaOptimizer] Foraging loop запущен")
 end
-end
-end
+
+print("[AgushaOptimizer] Максимальная оптимизация применена!")
