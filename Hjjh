@@ -102,23 +102,28 @@ get_cookie_for_pkg() {
 set_cookie_for_pkg() {
   local pkg=$1 cookie=$2
   local db="/data/data/${pkg}/app_webview/Default/Cookies"
-  # Останавливаем клон
+  local tmp="/sdcard/cookie_set_tmp.db"
+  local sql_file="/sdcard/cookie_cmd.sql"
+
   su -c "am force-stop ${pkg}" > /dev/null 2>&1
   sleep 1
-  # Копируем базу
-  su -c "cp ${db} /sdcard/cookie_set_tmp.db" 2>/dev/null
-  # Обновляем куку
-  sqlite3 /sdcard/cookie_set_tmp.db "UPDATE cookies SET value='"'"'${cookie}'"'"' WHERE name='.ROBLOSECURITY';" 2>/dev/null
-  # Если записи нет — вставляем
+  su -c "cp ${db} ${tmp}" 2>/dev/null
+
+  # Пишем SQL в файл чтобы избежать проблем с кавычками
+  printf "UPDATE cookies SET value='%s' WHERE name='.ROBLOSECURITY';\n" "${cookie}" > "${sql_file}"
+  sqlite3 "${tmp}" < "${sql_file}" 2>/dev/null
+
+  # Проверяем что обновилось
   local count
-  count=$(sqlite3 /sdcard/cookie_set_tmp.db "SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
+  count=$(sqlite3 "${tmp}" "SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
   if [ "${count}" = "0" ]; then
-    sqlite3 /sdcard/cookie_set_tmp.db "INSERT INTO cookies (creation_utc,host_key,top_frame_site_key,name,value,encrypted_value,path,expires_utc,is_secure,is_httponly,last_access_utc,has_expires,is_persistent,priority,samesite,source_scheme,source_port,is_same_party) VALUES (13000000000000000,'.roblox.com','','.ROBLOSECURITY','"'"'${cookie}'"'"','','/',17000000000000000,1,1,13000000000000000,1,1,1,-1,2,443,0);" 2>/dev/null
+    printf "INSERT INTO cookies (creation_utc,host_key,top_frame_site_key,name,value,encrypted_value,path,expires_utc,is_secure,is_httponly,last_access_utc,has_expires,is_persistent,priority,samesite,source_scheme,source_port,is_same_party) VALUES (13000000000000000,'.roblox.com','','.ROBLOSECURITY','%s','','/',17000000000000000,1,1,13000000000000000,1,1,1,-1,2,443,0);\n" "${cookie}" > "${sql_file}"
+    sqlite3 "${tmp}" < "${sql_file}" 2>/dev/null
   fi
-  # Копируем обратно
-  su -c "cp /sdcard/cookie_set_tmp.db ${db}" 2>/dev/null
+
+  su -c "cp ${tmp} ${db}" 2>/dev/null
   su -c "chmod 600 ${db}" 2>/dev/null
-  rm -f /sdcard/cookie_set_tmp.db
+  rm -f "${tmp}" "${sql_file}"
 }
 
 # Загрузить куки из файла по очереди в клоны
