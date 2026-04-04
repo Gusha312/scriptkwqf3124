@@ -6,6 +6,7 @@ HOME_DIR="/data/data/com.termux/files/home"
 VIP_FILE="${HOME_DIR}/vip_link.txt"
 VIP_DIR="${HOME_DIR}/vip_links"
 INTERVAL_FILE="${HOME_DIR}/interval.txt"
+LAST_LAUNCH_FILE="${HOME_DIR}/last_launch.txt"
 OFFSET_FILE="${HOME_DIR}/tg_offset.txt"
 COOLDOWN_FILE="${HOME_DIR}/launch_cooldown.txt"
 AUTOEXEC_BASE="/storage/emulated/0"
@@ -14,6 +15,7 @@ DEFAULT_VIP="https://www.roblox.com/games/3475397644/Dragon-Adventures?privateSe
 
 mkdir -p "${HOME_DIR}" "${VIP_DIR}"
 [ ! -f "${INTERVAL_FILE}" ] && echo "3600" > "${INTERVAL_FILE}"
+[ ! -f "${LAST_LAUNCH_FILE}" ] && echo "0" > "${LAST_LAUNCH_FILE}"
 [ ! -f "${VIP_FILE}" ] && echo "${DEFAULT_VIP}" > "${VIP_FILE}"
 [ ! -f "${OFFSET_FILE}" ] && echo "0" > "${OFFSET_FILE}"
 [ ! -f "${COOLDOWN_FILE}" ] && touch "${COOLDOWN_FILE}"
@@ -428,7 +430,7 @@ except:
 /disable клон - отключить клон
 /status - статус и процессы
 /ps - процессы системы
-/interval 30 - интервал в минутах
+/interval 60 - интервал перезапуска в минутах
 
 -- Випки --
 /link ССЫЛКА - общая випка
@@ -614,19 +616,19 @@ ${list}
 }
 
 send_msg "Менеджер запущен! Напиши /start"
-last_launch=0
 watchdog_timer=0
 
 while true; do
   check_tg
   now=$(date +%s)
   interval=$(cat "${INTERVAL_FILE}")
+  last_launch=$(cat "${LAST_LAUNCH_FILE}")
 
   if [ $((now - last_launch)) -ge ${interval} ]; then
     send_msg "Плановый перезапуск клонов..."
     n=$(launch_all)
     send_msg "OK: перезапущено ${n} клонов"
-    last_launch=${now}
+    echo "${now}" > "${LAST_LAUNCH_FILE}"
   fi
 
   if [ $((now - watchdog_timer)) -ge 40 ]; then
