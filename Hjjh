@@ -46,7 +46,8 @@ set_cooldown() {
 }
 
 in_cooldown() {
-  local t=$(grep "^${1} " "${COOLDOWN_FILE}" 2>/dev/null | awk '{print $2}' | head -1)
+  local t
+  t=$(grep "^${1} " "${COOLDOWN_FILE}" 2>/dev/null | awk '{print $2}' | head -1)
   [ -z "${t}" ] && return 1
   [ $(( $(date +%s) - t )) -lt ${COOLDOWN_SECS} ] && return 0 || return 1
 }
@@ -64,11 +65,9 @@ get_procs_info() {
     local vip_mark=""
     [ -f "${VIP_DIR}/${pkg}.txt" ] && vip_mark="*"
     if [ -n "${line}" ]; then
-      local pid
+      local pid rss ram_mb
       pid=$(echo "${line}" | awk '{print $2}')
-      local rss
       rss=$(echo "${line}" | awk '{print $5}')
-      local ram_mb
       ram_mb=$(( ${rss:-0} / 1024 ))
       if [ "${ram_mb}" -gt 1024 ]; then
         result="${result}ВКЛ Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
@@ -86,94 +85,68 @@ get_procs_info() {
   echo "${result}"
 }
 
+get_all_procs() {
+  su -c "ps -A | grep clien" 2>/dev/null || echo "нет доступа su"
+}
 
-COOKIES_FILE="${HOME_DIR}/accounts.txt"
-
-# Получить куку конкретного клона
+# ── Куки ──
 get_cookie_for_pkg() {
   local pkg=$1
   su -c "cp /data/data/${pkg}/app_webview/Default/Cookies /sdcard/cookie_tmp.db" 2>/dev/null
-  local token=$(sqlite3 /sdcard/cookie_tmp.db "SELECT value FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
+  local token
+  token=$(sqlite3 /sdcard/cookie_tmp.db "SELECT value FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
   rm -f /sdcard/cookie_tmp.db
   echo "${token}"
 }
 
-# Записать куку в клон
 set_cookie_for_pkg() {
   local pkg=$1 cookie=$2
   local db="/data/data/${pkg}/app_webview/Default/Cookies"
   local tmp="/sdcard/cookie_set_tmp.db"
   local sql_file="/sdcard/cookie_cmd.sql"
-
   su -c "am force-stop ${pkg}" > /dev/null 2>&1
   sleep 1
   su -c "cp ${db} ${tmp}" 2>/dev/null
-
-  # Пишем SQL в файл чтобы избежать проблем с кавычками
   printf "UPDATE cookies SET value='%s' WHERE name='.ROBLOSECURITY';\n" "${cookie}" > "${sql_file}"
   sqlite3 "${tmp}" < "${sql_file}" 2>/dev/null
-
-  # Проверяем что обновилось
   local count
   count=$(sqlite3 "${tmp}" "SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY';" 2>/dev/null)
   if [ "${count}" = "0" ]; then
     printf "INSERT INTO cookies (creation_utc,host_key,top_frame_site_key,name,value,encrypted_value,path,expires_utc,is_secure,is_httponly,last_access_utc,has_expires,is_persistent,priority,samesite,source_scheme,source_port,is_same_party) VALUES (13000000000000000,'.roblox.com','','.ROBLOSECURITY','%s','','/',17000000000000000,1,1,13000000000000000,1,1,1,-1,2,443,0);\n" "${cookie}" > "${sql_file}"
     sqlite3 "${tmp}" < "${sql_file}" 2>/dev/null
   fi
-
   su -c "cp ${tmp} ${db}" 2>/dev/null
   su -c "chmod 600 ${db}" 2>/dev/null
   rm -f "${tmp}" "${sql_file}"
 }
 
-# Загрузить куки из файла по очереди в клоны
 load_cookies_from_file() {
   local filepath=$1
-  local cookies=()
-  while IFS= read -r line; do
-    line=$(echo "${line}" | tr -d '
- ')
-    [ -n "${line}" ] && cookies+=("${line}")
-  done < "${filepath}"
-
-  local total=${#cookies[@]}
-  [ "${total}" -eq 0 ] && echo "0" && return
-
-  local i=0
   local loaded=0
-  for pkg in $(get_packages); do
-    [ "${i}" -ge "${total}" ] && break
-    set_cookie_for_pkg "${pkg}" "${cookies[$i]}"
+  local line_num=0
+  local pkgs=()
+  while IFS= read -r pkg; do
+    pkgs+=("${pkg}")
+  done <<< "$(get_packages)"
+  local total_pkgs=${#pkgs[@]}
+  while IFS= read -r line; do
+    line=$(echo "${line}" | tr -d "\r")
+    [ -z "${line}" ] && continue
+    [ "${line_num}" -ge "${total_pkgs}" ] && break
+    local pkg="${pkgs[$line_num]}"
+    set_cookie_for_pkg "${pkg}" "${line}"
+    local short
+    short=$(echo "${pkg}" | sed 's/com.roblox.//')
+    send_msg "OK: кука $((line_num+1)) -> ${short}"
     loaded=$((loaded+1))
-    i=$((i+1))
-  done
+    line_num=$((line_num+1))
+  done < "${filepath}"
   echo "${loaded}"
 }
 
-# Получить все куки всех клонов
-get_all_cookies() {
-  local result="" i=1
-  for pkg in $(get_packages); do
-    local short=$(echo "${pkg}" | sed 's/com.roblox.//')
-    local token=$(get_cookie_for_pkg "${pkg}")
-    if [ -n "${token}" ]; then
-      result="${result}${i}. ${short}: ${token:0:30}...
-"
-    else
-      result="${result}${i}. ${short}: NOT FOUND
-"
-    fi
-    i=$((i+1))
-  done
-  echo "${result}"
-}
-
-get_all_procs() {
-  su -c "ps -A | grep clien" 2>/dev/null || echo "no su access"
-}
-
+# ── Автоексекутер ──
 ensure_autoexec() {
-  local path="${AUTOEXEC_BASE}/${1}/Codex/Автоексекутер"
+  local path="${AUTOEXEC_BASE}/${1}/Codex/Autoexec"
   mkdir -p "${path}" 2>/dev/null
   echo "${path}"
 }
@@ -182,7 +155,7 @@ list_scripts() {
   local first
   first=$(get_clone_dirs | head -1)
   [ -z "${first}" ] && return
-  ls "${AUTOEXEC_BASE}/${first}/Codex/Автоексекутер/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
+  ls "${AUTOEXEC_BASE}/${first}/Codex/Autoexec/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
 }
 
 deploy_script() {
@@ -198,7 +171,7 @@ deploy_script() {
 delete_script() {
   local filename=$1 count=0
   for dir in $(get_clone_dirs); do
-    local path="${AUTOEXEC_BASE}/${dir}/Codex/Автоексекутер"
+    local path="${AUTOEXEC_BASE}/${dir}/Codex/Autoexec"
     if [ -f "${path}/${filename}" ]; then
       rm -f "${path}/${filename}"
       count=$((count+1))
@@ -208,7 +181,7 @@ delete_script() {
 }
 
 sync_scripts() {
-  local src="${AUTOEXEC_BASE}/RobloxClone001/Codex/Автоексекутер"
+  local src="${AUTOEXEC_BASE}/RobloxClone001/Codex/Autoexec"
   [ ! -d "${src}" ] && echo "0" && return
   local count=0
   for dir in $(get_clone_dirs); do
@@ -224,6 +197,7 @@ sync_scripts() {
   echo "${count}"
 }
 
+# ── Запуск ──
 launch_pkg() {
   local pkg=$1
   local vip
@@ -269,7 +243,7 @@ watchdog() {
       local ram_mb
       ram_mb=$(( ${rss:-0} / 1024 ))
       if [ "${ram_mb}" -lt 1024 ]; then
-        send_msg "${short}: завис RAM:${ram_mb}MB, перезапускаю..."
+        send_msg "${short}: завис RAM:${ram_mb}MB — перезапускаю..."
         su -c "am force-stop ${pkg}" > /dev/null 2>&1
         sleep 2
         launch_pkg "${pkg}"
@@ -282,11 +256,21 @@ watchdog() {
   done
 }
 
+# ── Telegram ──
 send_msg() {
   local text="$1"
   curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
     -H "Content-Type: application/json" \
     --data-binary "{\"chat_id\":\"${CHAT_ID}\",\"parse_mode\":\"HTML\",\"text\":$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text" 2>/dev/null)}" \
+    > /dev/null 2>&1
+}
+
+send_file() {
+  local filepath=$1 caption=$2
+  curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+    -F "chat_id=${CHAT_ID}" \
+    -F "document=@${filepath}" \
+    -F "caption=${caption}" \
     > /dev/null 2>&1
 }
 
@@ -333,6 +317,7 @@ except:
   print('msg_text='); print('file_id='); print('file_name=')
 " 2>/dev/null)
 
+    # Файл получен
     if [ -n "${file_id}" ] && echo "${file_name}" | grep -q "\.txt$"; then
       local tmp="${HOME_DIR}/tmp_${file_name}"
       send_msg "Скачиваю ${file_name}..."
@@ -340,13 +325,11 @@ except:
         local size
         size=$(wc -c < "${tmp}" 2>/dev/null || echo 0)
         if [ "${size}" -gt 0 ]; then
-          # Проверяем — файл с куками или скрипт
           if echo "${file_name}" | grep -qiE "cook|account|token"; then
-            cp "${tmp}" "${COOKIES_FILE}"
             local n
             n=$(load_cookies_from_file "${tmp}")
             rm -f "${tmp}"
-            send_msg "OK: загружено ${n} cookies into клонов"
+            send_msg "OK: загружено ${n} кук"
           else
             local n
             n=$(deploy_script "${file_name}" "${tmp}")
@@ -355,10 +338,10 @@ except:
           fi
         else
           rm -f "${tmp}"
-          send_msg "Ошибка: file is empty"
+          send_msg "Ошибка: файл пустой"
         fi
       else
-        send_msg "Ошибка: download failed"
+        send_msg "Ошибка: не удалось скачать"
       fi
 
     elif [ -n "${msg_text}" ]; then
@@ -371,20 +354,6 @@ except:
           send_msg "OK: общая випка обновлена"
         else
           send_msg "Ошибка: не похоже на ссылку Roblox"
-        fi
-
-      elif echo "${msg_text}" | grep -qE "^/setcookie .+"; then
-        local sc_parts sc_pkg sc_cookie
-        sc_parts=$(echo "${msg_text}" | cut -d' ' -f2-)
-        sc_pkg=$(echo "${sc_parts}" | awk '{print $1}')
-        sc_cookie=$(echo "${sc_parts}" | cut -d' ' -f2-)
-        echo "${sc_pkg}" | grep -q "com.roblox" || sc_pkg="com.roblox.${sc_pkg}"
-        if [ -n "${sc_cookie}" ]; then
-          send_msg "Устанавливаю куку для $(echo ${sc_pkg} | sed 's/com.roblox.//')..."
-          set_cookie_for_pkg "${sc_pkg}" "${sc_cookie}"
-          send_msg "OK: кука установлена для $(echo ${sc_pkg} | sed 's/com.roblox.//')"
-        else
-          send_msg "Ошибка: no cookie provided"
         fi
 
       elif echo "${msg_text}" | grep -qE "^/setvip .+"; then
@@ -411,33 +380,21 @@ except:
         short=$(echo "${cpkg}" | sed 's/com.roblox.//')
         send_msg "OK: ${short} теперь использует общую випку"
 
-      elif [ "${msg_text}" = "/vips" ]; then
-        local vip_list=""
-        local i=1
-        for pkg in $(get_packages); do
+      elif echo "${msg_text}" | grep -qE "^/setcookie .+"; then
+        local sc_parts sc_pkg sc_cookie
+        sc_parts=$(echo "${msg_text}" | cut -d' ' -f2-)
+        sc_pkg=$(echo "${sc_parts}" | awk '{print $1}')
+        sc_cookie=$(echo "${sc_parts}" | cut -d' ' -f2-)
+        echo "${sc_pkg}" | grep -q "com.roblox" || sc_pkg="com.roblox.${sc_pkg}"
+        if [ -n "${sc_cookie}" ]; then
           local short
-          short=$(echo "${pkg}" | sed 's/com.roblox.//')
-          if [ -f "${VIP_DIR}/${pkg}.txt" ]; then
-            vip_list="${vip_list}${i}. ${short} - своя випка
-"
-          else
-            vip_list="${vip_list}${i}. ${short} - общая
-"
-          fi
-          i=$((i+1))
-        done
-        send_msg "Список випок:
-${vip_list}
-/setvip clienq ССЫЛКА
-/clearvip clienq
-/link ССЫЛКА - общая випка"
-
-      elif [ "${msg_text}" = "/sync" ]; then
-        send_msg "Синхронизирую скрипты из RobloxClone001..."
-        local n sc
-        n=$(sync_скриптов)
-        sc=$(list_scripts | wc -l | tr -d ' ')
-        send_msg "OK: синхронизировано в ${n} клонов (${sc} скриптов)"
+          short=$(echo "${sc_pkg}" | sed 's/com.roblox.//')
+          send_msg "Устанавливаю куку для ${short}..."
+          set_cookie_for_pkg "${sc_pkg}" "${sc_cookie}"
+          send_msg "OK: кука установлена для ${short}"
+        else
+          send_msg "Ошибка: кука не указана"
+        fi
 
       elif echo "${msg_text}" | grep -qE "^/interval [0-9]+$"; then
         local mins
@@ -451,7 +408,7 @@ ${vip_list}
         echo "${fname}" | grep -q "\.txt$" || fname="${fname}.txt"
         local n
         n=$(delete_script "${fname}")
-        send_msg "OK: ${fname} deleted from ${n} клонов"
+        send_msg "OK: ${fname} удалён из ${n} клонов"
 
       else
         case "${msg_text}" in
@@ -475,13 +432,14 @@ ${vip_list}
 /clearvip clienq - вернуть общую
 /vips - список випок
 
--- Скрипты --
+-- Куки --
 Отправь cookies.txt - загрузить куки
-Отправь .txt - скрипт во все клоны
-/sync - из Clone001 во все
 /cookies - куки всех клонов файлом
 /setcookie clienq КУКА - куки для клона
-/setcookies - как загрузить куки
+
+-- Скрипты --
+Отправь .txt - скрипт во все клоны
+/sync - из Clone001 во все
 /scripts - список скриптов
 /delscript название - удалить"
             ;;
@@ -518,15 +476,39 @@ ${procs}"
 ${all}"
             ;;
 
+          /vips)
+            local vip_list=""
+            local i=1
+            for pkg in $(get_packages); do
+              local short
+              short=$(echo "${pkg}" | sed 's/com.roblox.//')
+              if [ -f "${VIP_DIR}/${pkg}.txt" ]; then
+                vip_list="${vip_list}${i}. ${short} - своя випка
+"
+              else
+                vip_list="${vip_list}${i}. ${short} - общая
+"
+              fi
+              i=$((i+1))
+            done
+            send_msg "Список випок:
+${vip_list}
+/setvip clienq ССЫЛКА
+/clearvip clienq
+/link ССЫЛКА - общая"
+            ;;
+
           /cookies)
             send_msg "Собираю куки всех клонов..."
             local cookies_out="/sdcard/cookies_export.txt"
             rm -f "${cookies_out}"
-            local i=1
             local found=0
+            local i=1
             for pkg in $(get_packages); do
-              local short=$(echo "${pkg}" | sed 's/com.roblox.//')
-              local token=$(get_cookie_for_pkg "${pkg}")
+              local short
+              short=$(echo "${pkg}" | sed 's/com.roblox.//')
+              local token
+              token=$(get_cookie_for_pkg "${pkg}")
               if [ -n "${token}" ]; then
                 echo "${token}" >> "${cookies_out}"
                 found=$((found+1))
@@ -536,8 +518,7 @@ ${all}"
               i=$((i+1))
             done
             if [ "${found}" -gt 0 ]; then
-              # Отправить файл
-              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"                 -F "chat_id=${CHAT_ID}"                 -F "document=@${cookies_out}"                 -F "caption=Куки ${found} аккаунтов"                 > /dev/null 2>&1
+              send_file "${cookies_out}" "Куки ${found} аккаунтов"
               rm -f "${cookies_out}"
             else
               send_msg "Куки не найдены ни в одном клоне"
@@ -545,16 +526,28 @@ ${all}"
             ;;
 
           /setcookies)
-            send_msg "Отправь файл cookies.txt — каждая кука на новой строке 'cookies.txt' or 'accounts.txt'"
+            send_msg "Отправь файл cookies.txt
+Формат: каждая кука на новой строке
+Строка 1 -> Клон 1
+Строка 2 -> Клон 2
+и так далее"
             ;;
 
-          /скриптов)
-            local scripts клонов
-            scripts=$(list_скриптов)
-            клонов=$(clone_count)
+          /sync)
+            send_msg "Синхронизирую скрипты из RobloxClone001..."
+            local n sc
+            n=$(sync_scripts)
+            sc=$(list_scripts | wc -l | tr -d ' ')
+            send_msg "OK: синхронизировано в ${n} клонов (${sc} скриптов)"
+            ;;
+
+          /scripts)
+            local scripts clones
+            scripts=$(list_scripts)
+            clones=$(clone_count)
             if [ -z "${scripts}" ]; then
               send_msg "Автоексекутер
-Клонов: ${клонов}
+Клонов: ${clones}
 Скриптов нет — отправь .txt или /sync"
             else
               local list=""
@@ -565,7 +558,7 @@ ${all}"
                 i=$((i+1))
               done <<< "${scripts}"
               send_msg "Автоексекутер
-Клонов: ${клонов}
+Клонов: ${clones}
 ${list}
 /sync - из Clone001
 /delscript название - удалить"
