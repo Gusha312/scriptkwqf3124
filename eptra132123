@@ -1,4 +1,3 @@
-
 --[[ ===== НАСТРОЙКИ ===== ]]
 local IS_MAIN    = false
 local SERVER_URL = "http://185.194.177.252:8003"
@@ -412,22 +411,61 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 
     if STOPPED then print("[Twink] Остановлен (ожидание очереди)"); return end
 
-    -- ШАГ 3: телепортируемся
+    -- ШАГ 3: телепортируемся — повторяем пока не попадём
+    -- При ошибке 773 (сервер недоступен) берём новый jobId от основного
+    local tpFailed = false
+    local tpFailReason = ""
+
+    TeleportService.TeleportInitFailed:Connect(function(plr, failReason, errorMessage)
+        if plr == player then
+            tpFailed = true
+            tpFailReason = tostring(failReason) .. " | " .. tostring(errorMessage)
+            warn("[Twink] TeleportInitFailed:", tpFailReason)
+            STOPPED = false  -- разрешаем повтор
+        end
+    end)
+
     while not STOPPED do
-        local freshJobId = jobId
-        pcall(function()
-            local r = httpGet(SERVER_URL .. "/api/mainjobid")
-            if r and r.jobId and r.jobId ~= "" then freshJobId = r.jobId end
-        end)
-        print("[Twink] Телепортируемся:", freshJobId)
+        tpFailed = false
+
+        -- Всегда берём свежий jobId от основного
+        local freshJobId = ""
+        local attempts = 0
+        repeat
+            attempts += 1
+            task.wait(2)
+            pcall(function()
+                local r = httpGet(SERVER_URL .. "/api/mainjobid")
+                if r and r.jobId and r.jobId ~= "" then freshJobId = r.jobId end
+            end)
+        until freshJobId ~= "" or attempts >= 10
+
+        if freshJobId == "" then
+            warn("[Twink] Не удалось получить jobId после 10 попыток, ждём 10 сек...")
+            task.wait(10)
+            continue
+        end
+
+        print("[Twink] Телепортируемся в jobId:", freshJobId)
         local ok, err = pcall(function()
             TeleportService:TeleportToPlaceInstance(14119723130, freshJobId)
         end)
+
         if ok then
-            print("[Twink] Телепорт запущен успешно")
-            task.wait(10)
+            print("[Twink] Телепорт запущен — ждём...")
+            -- Ждём либо телепорта либо ошибки (до 15 сек)
+            local waitTp = 0
+            repeat
+                task.wait(1); waitTp += 1
+            until STOPPED or tpFailed or waitTp >= 15
+
+            if tpFailed then
+                warn("[Twink] Телепорт не удался:", tpFailReason, "— берём новый jobId...")
+                task.wait(3)
+                -- продолжаем цикл с новым jobId
+            end
         else
-            warn("[Twink] Ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
+            warn("[Twink] pcall ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
             task.wait(5)
         end
     end
@@ -562,30 +600,64 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         return result, total
     end
 
+    --[[
+        Кодируем количество в дробное число:
+        320 предметов → Amount = 3.21 (3 сотни, 20 остаток, 1 в конце обязателен)
+        321 → 3.21
+        150 → 1.51
+        45  → 0.45  (меньше 100 — целая часть 0)
+        1   → 0.01
+        Формула: floor(total/100) + (остаток/100) + 0.01 если остаток == 0
+        Важно: если остаток 0 — пишем 01 в конце
+    ]]
+    local function encodeAmount(total)
+        if total <= 150 then
+            -- Маленькие числа передаём как есть
+            return total
+        end
+        local hundreds  = math.floor(total / 100)
+        local remainder = total % 100
+        -- Последняя цифра остатка всегда 1
+        -- 20 → 21, 00 → 01, 21 → 21, 30 → 31
+        local lastDigit = remainder % 10
+        if lastDigit ~= 1 then
+            remainder = remainder - lastDigit + 1
+            -- если remainder стал 0 → 01
+            if remainder <= 0 then remainder = 1 end
+        end
+        local str = tostring(hundreds) .. "." .. string.format("%02d", remainder)
+        local result = tonumber(str)
+        print(string.format("[encodeAmount] %d → %.4g", total, result))
+        return result
+    end
+
     local function buildChunks(snap)
         local allSlots = {}
 
-        -- snapKey — ключ в снапшоте (для плюшей/палитр отличается от name)
-        local function addSlots(itemType, name, snapKey, totalAmount)
+        -- Каждый предмет — один слот с закодированным количеством
+        local function addSlot(itemType, name, snapKey, totalAmount)
             if totalAmount <= 0 then return end
-            local remaining = totalAmount
-            while remaining > 0 do
-                local portion = math.min(remaining, AMOUNT_PER_SLOT)
-                table.insert(allSlots, { itemType = itemType, name = name, snapKey = snapKey, amount = portion })
-                remaining -= portion
-            end
+            local encoded = encodeAmount(totalAmount)
+            table.insert(allSlots, {
+                itemType = itemType,
+                name     = name,
+                snapKey  = snapKey,
+                amount   = encoded,
+                realAmount = totalAmount  -- реальное кол-во для верификации
+            })
         end
 
-        for _, name in ipairs(tokenNames)    do addSlots("Tokens",    name, name,                   snap[name] or 0) end
-        for _, name in ipairs(creatureNames) do addSlots("Creatures", name, name,                   snap[name] or 0) end
-        for _, name in ipairs(plushieNames)  do addSlots("Plushies",  name, "PLUSHIE_" .. name,     snap["PLUSHIE_" .. name] or 0) end
-        for _, name in ipairs(paletteNames)  do addSlots("Palettes",  name, "PALETTE_" .. name,     snap["PALETTE_" .. name] or 0) end
+        for _, name in ipairs(tokenNames)    do addSlot("Tokens",    name, name,               snap[name] or 0) end
+        for _, name in ipairs(creatureNames) do addSlot("Creatures", name, name,               snap[name] or 0) end
+        for _, name in ipairs(plushieNames)  do addSlot("Plushies",  name, "PLUSHIE_"..name,   snap["PLUSHIE_"..name] or 0) end
+        for _, name in ipairs(paletteNames)  do addSlot("Palettes",  name, "PALETTE_"..name,   snap["PALETTE_"..name] or 0) end
 
-        -- Сортируем: сначала полные слоты (amount == AMOUNT_PER_SLOT), потом остатки по убыванию
+        -- Сортируем по реальному количеству — больше → первее
         table.sort(allSlots, function(a, b)
-            return a.amount > b.amount
+            return a.realAmount > b.realAmount
         end)
 
+        -- Разбиваем на чанки по 9 слотов
         local chunks, current = {}, {}
         for _, slot in ipairs(allSlots) do
             if #current >= TRADE_SLOTS then
@@ -605,38 +677,57 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             local placed = false
             while not placed and attempts < 10 do
                 attempts += 1
-                local ok, result = pcall(function()
-                    return tradeRem:InvokeServer(unpack({"AddTradeItem", {
-                        Overwrite = true,
-                        ItemType  = slot.itemType,
-                        Name      = slot.name,
-                        Amount    = slot.amount
-                    }}))
+
+                -- Запускаем InvokeServer в отдельном потоке с таймаутом 3 сек
+                local result = nil
+                local done   = false
+                task.spawn(function()
+                    local ok, res = pcall(function()
+                        return tradeRem:InvokeServer(unpack({"AddTradeItem", {
+                            Overwrite = true,
+                            ItemType  = slot.itemType,
+                            Name      = slot.name,
+                            Amount    = slot.amount
+                        }}))
+                    end)
+                    if not done then
+                        result = ok and res or nil
+                        done   = true
+                    end
                 end)
-                if ok and result == true then
-                    -- Предмет успешно положен
+
+                -- Ждём ответа максимум 3 сек
+                local waited = 0
+                while not done and waited < 3 do
+                    task.wait(0.1)
+                    waited += 0.1
+                end
+                done = true  -- прерываем спавн если завис
+
+                if result == true then
                     placed = true
-                    print("[Twink14] ✅", slot.itemType, slot.name, "x"..slot.amount, "(попытка "..attempts..")")
-                elseif ok and result == false then
-                    -- Слот занят или предмет уже есть — пробуем ещё раз через паузу
-                    print("[Twink14] ⚠️ false для", slot.name, "— слот занят? попытка "..attempts.."/10, повтор...")
+                    print(string.format("[Twink14] ✅ %s %s x%s → encoded=%.4g (попытка %d)",
+                        slot.itemType, slot.name, tostring(slot.realAmount or slot.amount), slot.amount, attempts))
+                elseif result == false then
+                    print("[Twink14] ⚠️ false для", slot.name, "попытка "..attempts.."/10")
                     task.wait(0.5)
                 else
-                    -- pcall упал — ошибка RemoteFunction
-                    print("[Twink14] ❌ pcall ошибка для", slot.name, ":", tostring(result), "попытка "..attempts)
+                    print("[Twink14] ⏱ таймаут/ошибка для", slot.name, "попытка "..attempts)
                     task.wait(0.5)
                 end
             end
             if not placed then
                 warn("[Twink14] Не удалось положить", slot.name, "после 10 попыток — пропускаем")
             end
+            -- КД между предметами
+            task.wait(1.5)
         end
         print("[Twink14] Чанк положен, слотов:", #chunk)
     end
 
     local function verifyTradeSuccess(snapBefore, chunk)
         local expectedDelta = 0
-        for _, slot in ipairs(chunk) do expectedDelta += slot.amount end
+        for _, slot in ipairs(chunk) do expectedDelta += (slot.realAmount or slot.amount) end
         print("[Twink14][verify] Ожидаем уменьшение на:", expectedDelta)
 
         -- Ждём пока данные обновятся после трейда (до 30 сек)
@@ -647,13 +738,14 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             -- Считаем реальное уменьшение
             local actualDelta = 0
             for _, slot in ipairs(chunk) do
-                local key    = slot.snapKey or slot.name
-                local before = snapBefore[key] or 0
-                local after  = snapAfter[key]  or 0
-                local diff   = before - after
+                local key      = slot.snapKey or slot.name
+                local before   = snapBefore[key] or 0
+                local after    = snapAfter[key]  or 0
+                local diff     = before - after
+                local expected = slot.realAmount or slot.amount
                 actualDelta += diff
-                print(string.format("[Twink14][verify] %s: до=%d после=%d diff=%d",
-                    slot.name, before, after, diff))
+                print(string.format("[Twink14][verify] %s: до=%d после=%d diff=%d ожид=%d encoded=%.2f",
+                    slot.name, before, after, diff, expected, slot.amount))
             end
 
             print(string.format("[Twink14][verify] попытка %d/15 | delta=%d/%d",
