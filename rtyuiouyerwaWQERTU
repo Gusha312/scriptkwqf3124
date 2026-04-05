@@ -1,6 +1,6 @@
 --[[ ===== НАСТРОЙКИ ===== ]]
 local IS_MAIN    = false
-local SERVER_URL = "http://185.194.177.252:8002"
+local SERVER_URL = "http://185.194.177.252:8001"
 --[[ ===================== ]]
 
 local TRADE_SLOTS     = 9
@@ -52,6 +52,18 @@ end
 --  ОСНОВНОЙ — 14119723130
 -- ════════════════════════════════
 if IS_MAIN and PlaceId == 14119723130 then
+
+    -- АнтиАФК для основного
+    task.spawn(function()
+        local VirtualUser = game:GetService("VirtualUser")
+        while true do
+            task.wait(15)
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+        end
+    end)
 
     task.spawn(function()
         while true do
@@ -474,6 +486,35 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 --  ТВИНК — 14119723130
 -- ════════════════════════════════
 elseif not IS_MAIN and PlaceId == 14119723130 then
+
+    -- АнтиАФК — двигаем камеру каждые 15 сек чтобы не кикнуло
+    task.spawn(function()
+        local VirtualUser = game:GetService("VirtualUser")
+        while true do
+            task.wait(15)
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+        end
+    end)
+
+    -- АнтиАФК через симуляцию нажатия клавиши
+    task.spawn(function()
+        local ContextActionService = game:GetService("ContextActionService")
+        while true do
+            task.wait(60)
+            pcall(function()
+                -- Симулируем движение мыши чтобы сбросить AFK таймер
+                local cam = workspace.CurrentCamera
+                if cam then
+                    cam.CFrame = cam.CFrame * CFrame.Angles(0, 0.001, 0)
+                    task.wait(0.1)
+                    cam.CFrame = cam.CFrame * CFrame.Angles(0, -0.001, 0)
+                end
+            end)
+        end
+    end)
 
     local mainInfo = httpGet(SERVER_URL .. "/api/mainjobid")
     local mainName = mainInfo and mainInfo.name or ""
