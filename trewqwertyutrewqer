@@ -411,22 +411,61 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 
     if STOPPED then print("[Twink] Остановлен (ожидание очереди)"); return end
 
-    -- ШАГ 3: телепортируемся
+    -- ШАГ 3: телепортируемся — повторяем пока не попадём
+    -- При ошибке 773 (сервер недоступен) берём новый jobId от основного
+    local tpFailed = false
+    local tpFailReason = ""
+
+    TeleportService.TeleportInitFailed:Connect(function(plr, failReason, errorMessage)
+        if plr == player then
+            tpFailed = true
+            tpFailReason = tostring(failReason) .. " | " .. tostring(errorMessage)
+            warn("[Twink] TeleportInitFailed:", tpFailReason)
+            STOPPED = false  -- разрешаем повтор
+        end
+    end)
+
     while not STOPPED do
-        local freshJobId = jobId
-        pcall(function()
-            local r = httpGet(SERVER_URL .. "/api/mainjobid")
-            if r and r.jobId and r.jobId ~= "" then freshJobId = r.jobId end
-        end)
-        print("[Twink] Телепортируемся:", freshJobId)
+        tpFailed = false
+
+        -- Всегда берём свежий jobId от основного
+        local freshJobId = ""
+        local attempts = 0
+        repeat
+            attempts += 1
+            task.wait(2)
+            pcall(function()
+                local r = httpGet(SERVER_URL .. "/api/mainjobid")
+                if r and r.jobId and r.jobId ~= "" then freshJobId = r.jobId end
+            end)
+        until freshJobId ~= "" or attempts >= 10
+
+        if freshJobId == "" then
+            warn("[Twink] Не удалось получить jobId после 10 попыток, ждём 10 сек...")
+            task.wait(10)
+            continue
+        end
+
+        print("[Twink] Телепортируемся в jobId:", freshJobId)
         local ok, err = pcall(function()
             TeleportService:TeleportToPlaceInstance(14119723130, freshJobId)
         end)
+
         if ok then
-            print("[Twink] Телепорт запущен успешно")
-            task.wait(10)
+            print("[Twink] Телепорт запущен — ждём...")
+            -- Ждём либо телепорта либо ошибки (до 15 сек)
+            local waitTp = 0
+            repeat
+                task.wait(1); waitTp += 1
+            until STOPPED or tpFailed or waitTp >= 15
+
+            if tpFailed then
+                warn("[Twink] Телепорт не удался:", tpFailReason, "— берём новый jobId...")
+                task.wait(3)
+                -- продолжаем цикл с новым jobId
+            end
         else
-            warn("[Twink] Ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
+            warn("[Twink] pcall ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
             task.wait(5)
         end
     end
