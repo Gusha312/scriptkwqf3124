@@ -317,7 +317,7 @@ launch_all() {
     launch_pkg "${pkg}"
     set_cooldown "${pkg}"
     count=$((count+1))
-    sleep 60
+    sleep 25
   done
   echo "${count}"
 }
@@ -349,7 +349,7 @@ watchdog() {
       else
         [ -z "${rss}" ] && send_msg "РЕСТАРТ: ${short} не найден (${crashes}/${MAX_CRASHES})" || send_msg "РЕСТАРТ: ${short} завис RAM:${ram_mb}MB (${crashes}/${MAX_CRASHES})"
         kill_pkg_hard "${pkg}"
-        sleep 60
+        sleep 25
         launch_pkg "${pkg}"
         set_cooldown "${pkg}"
       fi
@@ -361,7 +361,7 @@ watchdog() {
   for pkg in ${problem_pkgs}; do
     local short=$(echo "${pkg}" | sed 's/com.roblox.//')
     send_msg "ПЕРЕЗАПУСК: ${short}..."
-    sleep 60
+    sleep 25
     launch_pkg "${pkg}"
     set_cooldown "${pkg}"
     reset_crash_count "${pkg}"
