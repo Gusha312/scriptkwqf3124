@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BOT_TOKEN="8406385623:AAHNkql4gq_cxhYhsWIIlrcj87Meg_l7Kwk"
+BOT_TOKEN="8683670019:AAErGx540OHyWQpp2DN3Kez2ER5c-XCg1qQ"
 CHAT_ID="899435753"
 HOME_DIR="/data/data/com.termux/files/home"
 VIP_FILE="${HOME_DIR}/vip_link.txt"
@@ -86,6 +86,177 @@ get_procs_info() {
     i=$((i+1))
   done
   echo "${result}"
+}
+
+
+# Создать python скрипт проверки аккаунтов
+create_checker() {
+  cat > "${HOME_DIR}/check_accounts.py" << 'PYEOF'
+import sys
+import json
+import urllib.request
+import urllib.error
+
+def check_account(cookie):
+    cookie = cookie.strip()
+    if not cookie:
+        return None
+
+    headers = {
+        "Cookie": f".ROBLOSECURITY={cookie}",
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    try:
+        req = urllib.request.Request(
+            "https://users.roblox.com/v1/users/authenticated",
+            headers=headers
+        )
+        r = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(r.read())
+        username = data.get("name", "Unknown")
+        user_id = data.get("id")
+
+        # Проверка бана
+        req2 = urllib.request.Request(
+            "https://accountinformation.roblox.com/v1/description",
+            headers=headers
+        )
+        banned = False
+        try:
+            urllib.request.urlopen(req2, timeout=10)
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                banned = True
+
+        # Face verify
+        req3 = urllib.request.Request(
+            "https://accountinformation.roblox.com/v1/users/authenticated/age-bracket",
+            headers=headers
+        )
+        face_verified = False
+        try:
+            r3 = urllib.request.urlopen(req3, timeout=10)
+            d3 = json.loads(r3.read())
+            face_verified = d3.get("ageBracket", -1) == 0
+        except:
+            pass
+
+        return {
+            "status": "BANNED" if banned else "VALID",
+            "username": username,
+            "user_id": user_id,
+            "face_verified": face_verified,
+            "cookie": cookie[:30] + "..."
+        }
+
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            return {"status": "INVALID", "cookie": cookie[:30] + "..."}
+        return {"status": "ERROR", "code": e.code, "cookie": cookie[:30] + "..."}
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e), "cookie": cookie[:30] + "..."}
+
+if __name__ == "__main__":
+    input_file = sys.argv[1] if len(sys.argv) > 1 else None
+    if not input_file:
+        print("Usage: check_accounts.py <cookies_file>")
+        sys.exit(1)
+
+    valid = []
+    banned = []
+    invalid = []
+    face = []
+
+    with open(input_file, "r") as f:
+        cookies = [line.strip() for line in f if line.strip()]
+
+    total = len(cookies)
+    for i, cookie in enumerate(cookies):
+        result = check_account(cookie)
+        if not result:
+            continue
+        status = result.get("status")
+        username = result.get("username", "?")
+        fv = result.get("face_verified", False)
+        print(f"[{i+1}/{total}] {status} | {username} | face:{fv}")
+        sys.stdout.flush()
+        if status == "VALID":
+            valid.append(f"{username}:{cookie}")
+            if fv:
+                face.append(f"{username}:{cookie}")
+        elif status == "BANNED":
+            banned.append(f"{username}:{cookie}")
+        else:
+            invalid.append(cookie[:30])
+
+    # Сохранить результаты
+    import os
+    out_dir = os.path.dirname(input_file)
+    with open(f"{out_dir}/valid.txt", "w") as f:
+        f.write("\n".join(valid))
+    with open(f"{out_dir}/banned.txt", "w") as f:
+        f.write("\n".join(banned))
+    with open(f"{out_dir}/invalid.txt", "w") as f:
+        f.write("\n".join(invalid))
+    with open(f"{out_dir}/face_verified.txt", "w") as f:
+        f.write("\n".join(face))
+
+    print(f"DONE valid:{len(valid)} banned:{len(banned)} invalid:{len(invalid)} face:{len(face)}")
+PYEOF
+}
+
+
+# Проверить аккаунт по куке (возвращает "username|status")
+check_single_account() {
+  local cookie=$1
+  python3 - << PYEOF
+import urllib.request, json, sys
+
+cookie = """${cookie}""".strip()
+if not cookie:
+    print("UNKNOWN|INVALID")
+    sys.exit()
+
+headers = {
+    "Cookie": f".ROBLOSECURITY={cookie}",
+    "User-Agent": "Mozilla/5.0"
+}
+
+try:
+    req = urllib.request.Request(
+        "https://users.roblox.com/v1/users/authenticated",
+        headers=headers
+    )
+    r = urllib.request.urlopen(req, timeout=8)
+    data = json.loads(r.read())
+    print(f"{data.get('name','?')}|VALID")
+except urllib.error.HTTPError as e:
+    body = e.read().decode()
+    if "moderated" in body.lower() or e.code == 403:
+        print("BANNED|BANNED")
+    elif e.code == 401:
+        print("INVALID|INVALID")
+    else:
+        print(f"ERROR|ERROR")
+except Exception as e:
+    print(f"ERROR|ERROR")
+PYEOF
+}
+
+# Кэш ников и статусов (обновляется при /status)
+ACCOUNT_CACHE="${HOME_DIR}/account_cache.txt"
+[ ! -f "${ACCOUNT_CACHE}" ] && touch "${ACCOUNT_CACHE}"
+
+get_cached_account() {
+  grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f2-
+}
+
+update_account_cache() {
+  local pkg=$1 username=$2 status=$3
+  grep -v "^${pkg}|" "${ACCOUNT_CACHE}" > "${ACCOUNT_CACHE}.tmp" 2>/dev/null
+  mv "${ACCOUNT_CACHE}.tmp" "${ACCOUNT_CACHE}"
+  echo "${pkg}|${username}|${status}" >> "${ACCOUNT_CACHE}"
 }
 
 get_all_procs() {
@@ -441,6 +612,8 @@ except:
 -- Куки --
 Отправь cookies.txt - загрузить куки
 /cookies - куки всех клонов файлом
+/checkaccounts - проверить аккаунты клонов
+/checkfile - проверить куки из файла (назови check_*.txt)
 /setcookie clienq КУКА - куки для клона
 
 -- Скрипты --
@@ -458,9 +631,26 @@ except:
             ;;
 
           /status)
+            send_msg "Обновляю данные аккаунтов..."
+            # Обновить кэш аккаунтов
+            for pkg in $(get_packages); do
+              local token=$(get_cookie_for_pkg "${pkg}")
+              if [ -n "${token}" ]; then
+                local result=$(check_single_account "${token}")
+                local uname=$(echo "${result}" | cut -d'|' -f1)
+                local ustatus=$(echo "${result}" | cut -d'|' -f2)
+                update_account_cache "${pkg}" "${uname}" "${ustatus}"
+                # Если бан/невалид — останавливаем клон
+                if [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ]; then
+                  su -c "am force-stop ${pkg}" > /dev/null 2>&1
+                  disable_clone "${pkg}"
+                fi
+              fi
+            done
             local interval mins elapsed rem_mins procs
             interval=$(cat "${INTERVAL_FILE}")
             mins=$((interval/60))
+            last_launch=$(cat "${LAST_LAUNCH_FILE}")
             elapsed=$(($(date +%s) - last_launch))
             rem_mins=$(( (interval - elapsed) / 60 ))
             procs=$(get_procs_info)
@@ -502,6 +692,38 @@ ${vip_list}
 /setvip clienq ССЫЛКА
 /clearvip clienq
 /link ССЫЛКА - общая"
+            ;;
+
+          /checkaccounts)
+            # Проверить куки всех клонов
+            send_msg "Собираю куки для проверки..."
+            create_checker
+            local check_input="${HOME_DIR}/check_input.txt"
+            rm -f "${check_input}"
+            for pkg in $(get_packages); do
+              local token=$(get_cookie_for_pkg "${pkg}")
+              [ -n "${token}" ] && echo "${token}" >> "${check_input}"
+            done
+            if [ ! -s "${check_input}" ]; then
+              send_msg "Куки не найдены ни в одном клоне"
+            else
+              local count=$(wc -l < "${check_input}")
+              send_msg "Проверяю ${count} аккаунтов..."
+              python3 "${HOME_DIR}/check_accounts.py" "${check_input}" > "${HOME_DIR}/check_log.txt" 2>&1
+              local last=$(tail -1 "${HOME_DIR}/check_log.txt")
+              # Отправить файлы с результатами
+              for f in valid banned invalid face_verified; do
+                local fp="${HOME_DIR}/${f}.txt"
+                if [ -s "${fp}" ]; then
+                  curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"                     -F "chat_id=${CHAT_ID}"                     -F "document=@${fp}"                     -F "caption=${f}" > /dev/null 2>&1
+                fi
+              done
+              send_msg "Проверка завершена: ${last}"
+            fi
+            ;;
+
+          /checkfile)
+            send_msg "Отправь .txt файл с куками для проверки (назови check_*.txt)"
             ;;
 
           /cookies)
