@@ -588,7 +588,7 @@ ${vip_list}
         enable_clone "${epkg}"
         send_msg "OK: $(echo ${epkg} | sed 's/com.roblox.//') включён"
 
-      elif echo "${msg_text}" = "/checkaccounts" ]; then
+      elif [ "${msg_text}" = "/checkaccounts" ]; then
         send_msg "Проверяю аккаунты клонов..."
         local summary=$(check_all_accounts)
         send_msg "Готово: ${summary}"
@@ -729,7 +729,7 @@ ${crash_list}
 
 # ── Старт ──
 send_msg "Менеджер запущен! Проверяю аккаунты..."
-local summary=$(check_all_accounts)
+summary=$(check_all_accounts)
 send_msg "Проверка завершена: ${summary}
 Напиши /start"
 
