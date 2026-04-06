@@ -248,6 +248,14 @@ PYEOF
 ACCOUNT_CACHE="${HOME_DIR}/account_cache.txt"
 [ ! -f "${ACCOUNT_CACHE}" ] && touch "${ACCOUNT_CACHE}"
 
+get_cached_account_name() {
+  grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f2
+}
+
+get_cached_account_status() {
+  grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f3
+}
+
 get_cached_account() {
   grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f2-
 }
