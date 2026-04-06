@@ -390,7 +390,7 @@ launch_all() {
     launch_pkg "${pkg}"
     set_cooldown "${pkg}"
     count=$((count+1))
-    sleep 3
+    sleep 60
   done
   echo "${count}"
 }
@@ -853,7 +853,7 @@ while true; do
     echo "${now}" > "${LAST_LAUNCH_FILE}"
   fi
 
-  if [ $((now - watchdog_timer)) -ge 40 ]; then
+  if [ "${ACCOUNTS_CHECKED}" = "1" ] && [ $((now - watchdog_timer)) -ge 40 ]; then
     watchdog
     watchdog_timer=${now}
   fi
