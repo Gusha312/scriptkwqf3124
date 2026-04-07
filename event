@@ -1,35 +1,3 @@
-wait(25)
-local args = {
-	"CreatureEditor",
-	"Sochuri"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(unpack(args))
-wait(1)
-local args = {
-	"SurvivalBasics"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(unpack(args))
-wait(1)
-local args = {
-	"LearnSniffing"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PostTutorialStageRemote"):FireServer(unpack(args))
-wait(1)
-local args = {
-	"SniffWater"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PostTutorialStageRemote"):FireServer(unpack(args))
-wait(1)
-local args = {
-	"SniffFood"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PostTutorialStageRemote"):FireServer(unpack(args))
-wait(1)
-local args = {
-	"Complete"
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetTutorialStageRemote"):InvokeServer(unpack(args))
-wait(1)
 if game.PlaceId == 5233782396 then
 while true do
 wait(5)
