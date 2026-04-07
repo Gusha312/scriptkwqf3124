@@ -1,6 +1,6 @@
+#!/bin/bash
 
-
-BOT_TOKEN="8749328755:AAHahkjoINc0I1pCQPJGtTl9slGWZR9vzp8"
+BOT_TOKEN="8683670019:AAErGx540OHyWQpp2DN3Kez2ER5c-XCg1qQ"
 CHAT_ID="899435753"
 HOME_DIR="/data/data/com.termux/files/home"
 VIP_FILE="${HOME_DIR}/vip_link.txt"
@@ -165,10 +165,10 @@ get_procs_info() {
     [ -f "${VIP_DIR}/${pkg}.txt" ] && vip_mark="*"
 
     if [ "${ustatus}" = "BANNED" ]; then
-      result="${result}БАН  ${uname} Клон${i} ${short} -- ЗАБЛОКИРОВАН
+      result="${result}ЗАБЛОКИРОВАН ${uname} Клон${i} ${short}
 "
     elif [ "${ustatus}" = "INVALID" ]; then
-      result="${result}КУК  ${uname} Клон${i} ${short} -- КУКА НЕВАЛИДНА
+      result="${result}НЕВАЛИД ${uname} Клон${i} ${short}
 "
     else
       local line=$(echo "${ps_out}" | awk -v p="${pkg}" '$NF==p {print}' | head -1)
@@ -490,7 +490,30 @@ except:
       if download_file "${file_id}" "${tmp}"; then
         local size=$(wc -c < "${tmp}" 2>/dev/null || echo 0)
         if [ "${size}" -gt 0 ]; then
-          if echo "${file_name}" | grep -qiE "^check_"; then
+          if echo "${file_name}" | grep -qiE "^ban\.txt$"; then
+            # Заменить куки забаненных/невалидных клонов
+            local new_cookies=()
+            while IFS= read -r line || [ -n "${line}" ]; do
+              line=$(echo "${line}" | tr -d "
+" | sed "s/[[:space:]]*$//")
+              [ -n "${line}" ] && new_cookies+=("${line}")
+            done < "${tmp}"
+            rm -f "${tmp}"
+            local replaced=0 cookie_idx=0
+            for pkg in $(get_packages); do
+              local ustatus=$(get_cached_status "${pkg}")
+              if [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ]; then
+                [ "${cookie_idx}" -ge "${#new_cookies[@]}" ] && break
+                local short=$(echo "${pkg}" | sed 's/com.roblox.//')
+                enable_clone "${pkg}"
+                set_cookie_for_pkg "${pkg}" "${new_cookies[$cookie_idx]}"
+                send_msg "OK: кука для ${short} заменена"
+                replaced=$((replaced+1))
+                cookie_idx=$((cookie_idx+1))
+              fi
+            done
+            send_msg "Заменено кук: ${replaced}"
+          elif echo "${file_name}" | grep -qiE "^check_"; then
             cp "${tmp}" "${HOME_DIR}/check_input.txt"; rm -f "${tmp}"
             create_checker
             local count=$(wc -l < "${HOME_DIR}/check_input.txt")
@@ -617,6 +640,7 @@ ${vip_list}
 
 -- Куки --
 /cookies -- получить все куки
+/banned -- куки забаненных/невалидных
 /setcookie клон КУКА -- установить куку
 Отправь cookies.txt -- загрузить куки
 
@@ -658,6 +682,26 @@ ${procs}"
             send_msg "Сканирую..."
             send_msg "Процессы:
 $(get_all_procs)"
+            ;;
+
+          /banned)
+            local banned_out="${HOME_DIR}/banned_export.txt"
+            rm -f "${banned_out}"
+            local found=0
+            for pkg in $(get_packages); do
+              local ustatus=$(get_cached_status "${pkg}")
+              if [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ]; then
+                local token=$(get_cookie_for_pkg "${pkg}")
+                [ -n "${token}" ] && printf "%s
+" "${token}" >> "${banned_out}" && found=$((found+1))
+              fi
+            done
+            if [ "${found}" -gt 0 ]; then
+              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"                 -F "chat_id=${CHAT_ID}"                 -F "document=@${banned_out}"                 -F "caption=Бан/Невалид: ${found} аккаунтов" > /dev/null 2>&1
+              rm -f "${banned_out}"
+            else
+              send_msg "Забаненных/невалидных аккаунтов нет"
+            fi
             ;;
 
           /cookies)
