@@ -9,6 +9,52 @@ workspace:WaitForChild("Event"):WaitForChild("ForageableNodes"):WaitForChild("Co
 true
 }
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(args))
+local args = {
+	"Eggshell",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"Dalitil",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"ForgetMeNot",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"MTL_Eggstorm",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"MTL_Eggstravaganza",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"Ushrumesh",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"Verdant Warden",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"Cow",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+local args = {
+	"Egg Gobbler",
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
+
 end
 end
 end
