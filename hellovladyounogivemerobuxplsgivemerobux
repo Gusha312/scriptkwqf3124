@@ -1,5 +1,5 @@
 -- [[ ПОЛНЫЙ СКРИПТ: ЗАХВАТ + ТЕЛЕПОРТ + СТАТИСТИКА + КОНТРОЛЬ ОНЛАЙНА ]]
-local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1458175374310773022/6CySzBLqZwamvppCi-BtywbO2OQ6ukXd3lMADvdfGyYNnIRk9aqA7JJJebfcqXDKj5Of"
+local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460368964130701397/vhFTl_UDYexyOrvWfMw6s-XcpV1SAIhuJE6vAZYhnAF7zrmHZJUGuSxu4rZCdOy6r0KQ"
 local COINS_LIMIT = 7000000
 local MIN_PLAYERS_THRESHOLD = 30 -- Если 30 или меньше, уходим
 local CHECK_INTERVAL = 150 -- КД проверки (2.5 минуты)
@@ -150,9 +150,6 @@ local function setupAntiAFK()
         if tick() - lastActionTime < 30 then return end
         lastActionTime = tick()
         VirtualInputManager:SendMouseMoveEvent(1, 1, workspace)
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
     end)
 end
 
