@@ -1,4 +1,5 @@
 wait(10)
+-- Ждём полной загрузки игры
 repeat task.wait(1) until game:IsLoaded()
 task.wait(3)
 
@@ -211,7 +212,7 @@ local function checkAndReviveDragon()
     end
 end
 
--- ======= МОБЫ =======
+-- ======= МОБЫ (ОБНОВЛЁННАЯ ВЕРСИЯ) =======
 local MobFolder
 
 local function getMobsInRadius(position, radius)
@@ -232,11 +233,15 @@ local function getMobsInRadius(position, radius)
 end
 
 local function killMobsAtSpawn(spawnCFrame, radius, slot)
-    teleportTo(spawnCFrame)
-    task.wait(0.3)
+    local function isMobAlive(mobRoot)
+        local ok, health = pcall(function() return mobRoot:FindFirstChild("Health").Value end)
+        return ok and health and health > 0
+    end
+
     local startTime = tick()
     while tick() - startTime < 30 do
         local mobs = getMobsInRadius(spawnCFrame.Position, radius)
+        -- добавляем мобов у SpawnPart босса (на всякий случай)
         local ok, sp = pcall(function() return slot.SpawnPart end)
         if ok and sp then
             for _, m in ipairs(getMobsInRadius(sp.Position, radius)) do
@@ -245,12 +250,32 @@ local function killMobsAtSpawn(spawnCFrame, radius, slot)
                 if not found then table.insert(mobs, m) end
             end
         end
-        if #mobs == 0 then break end
-        for _, mobRoot in ipairs(mobs) do
-            fireAttack("Mobs", mobRoot)
-            task.wait(0.1)
+
+        if #mobs == 0 then
+            print("[BOT] Мобы убиты!")
+            break
         end
+
+        for _, mobRoot in ipairs(mobs) do
+            if isMobAlive(mobRoot) then
+                -- Телепорт к мобу
+                local mobPos = mobRoot.Position
+                hrp.CFrame = CFrame.new(mobPos + Vector3.new(0, 5, 0))
+                task.wait(0.2)
+
+                -- Атакуем, пока моб жив (максимум 10 ударов)
+                local attackCount = 0
+                while isMobAlive(mobRoot) and attackCount < 10 do
+                    fireAttack("Mobs", mobRoot)
+                    task.wait(0.1)
+                    attackCount = attackCount + 1
+                end
+            end
+        end
+        task.wait(0.5) -- пауза перед следующим сканированием
     end
+    -- Возвращаемся к спавну
+    teleportTo(spawnCFrame)
 end
 
 -- ======= GUI КЛИК =======
@@ -390,7 +415,7 @@ local function runBossCycle()
     s1Active = false
     print("[BOT] Stage 2!")
 
-    -- Stage 2 — мобы
+    -- Stage 2 — мобы (используем обновлённую функцию)
     for _, n in ipairs({3,2,1,4}) do
         if getStage(fightId) == 3 then break end
         local ok, spawn = pcall(function() return slot.MobSpawns[tostring(n)] end)
