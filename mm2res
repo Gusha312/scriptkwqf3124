@@ -4,11 +4,10 @@ repeat task.wait(1) until game:IsLoaded()
 task.wait(3)
 
 -- =============================================
--- ОПТИМИЗАЦИЯ ГРАФИКИ (ГАРАНТИРОВАННЫЙ МИНИМУМ)
+-- ОПТИМИЗАЦИЯ ГРАФИКИ (МИНИМУМ)
 -- =============================================
 task.spawn(function()
     task.wait(1)
-
     local function setMinGraphics()
         pcall(function()
             local userSettings = UserSettings()
@@ -55,9 +54,8 @@ task.spawn(function()
             local clouds = workspace:FindFirstChild("Clouds")
             if clouds then clouds.Enabled = false end
         end)
-        print("[BOT] Графика принудительно установлена на минимум")
+        print("[BOT] Графика принудительно на минимуме")
     end
-
     setMinGraphics()
     while true do
         task.wait(30)
@@ -225,11 +223,13 @@ local function getPlaySound()
     return nil
 end
 
+-- ВАЖНО: добавлена микро-задержка после каждой атаки
 local function fireAttack(attackType, target)
     local ps = getPlaySound()
     if ps then
-        local ok = pcall(function() ps:FireServer("Breath", attackType, target) end)
-        if ok then return end
+        pcall(function() ps:FireServer("Breath", attackType, target) end)
+        task.wait(0.05)
+        return
     end
     cachedPlaySound = nil
     pcall(function()
@@ -242,7 +242,8 @@ local function fireAttack(attackType, target)
                 if psr then
                     psr:FireServer("Breath", attackType, target)
                     cachedPlaySound = psr
-                    break
+                    task.wait(0.05)
+                    return
                 end
             end
         end
@@ -263,7 +264,7 @@ local function checkAndReviveDragon()
     end
 end
 
--- ======= МОБЫ =======
+-- ======= МОБЫ (МАКСИМАЛЬНО БЕЗОПАСНАЯ ВЕРСИЯ) =======
 local MobFolder
 
 local function getMobsInRadius(position, radius)
@@ -289,6 +290,10 @@ local function killMobsAtSpawn(spawnCFrame, radius, slot)
         return ok and health and health > 0
     end
 
+    print("[BOT] Начинаем зачистку мобов у спавна")
+    teleportTo(spawnCFrame)
+    task.wait(1) -- ждём телепорт
+
     local startTime = tick()
     while tick() - startTime < 30 do
         local mobs = getMobsInRadius(spawnCFrame.Position, radius)
@@ -300,26 +305,37 @@ local function killMobsAtSpawn(spawnCFrame, radius, slot)
                 if not found then table.insert(mobs, m) end
             end
         end
+
         if #mobs == 0 then
-            print("[BOT] Мобы убиты!")
+            print("[BOT] Все мобы мертвы")
             break
         end
+
+        print("[BOT] Найдено мобов: " .. #mobs)
+
         for _, mobRoot in ipairs(mobs) do
-            if isMobAlive(mobRoot) then
-                local mobPos = mobRoot.Position
-                hrp.CFrame = CFrame.new(mobPos + Vector3.new(0, 5, 0))
-                task.wait(0.2)
-                local attackCount = 0
-                while isMobAlive(mobRoot) and attackCount < 5 do
-                    fireAttack("Mobs", mobRoot)
-                    task.wait(0.15)
-                    attackCount = attackCount + 1
-                end
+            task.wait(0.3) -- пауза перед обработкой моба
+            if not isMobAlive(mobRoot) then
+                continue
             end
+
+            local mobPos = mobRoot.Position
+            hrp.CFrame = CFrame.new(mobPos + Vector3.new(0, 5, 0))
+            task.wait(0.4) -- увеличенная пауза после телепорта
+
+            local attackCount = 0
+            while isMobAlive(mobRoot) and attackCount < 4 do
+                fireAttack("Mobs", mobRoot)
+                task.wait(0.25) -- пауза между ударами
+                attackCount = attackCount + 1
+            end
+            task.wait(0.2)
         end
-        task.wait(0.5)
+        task.wait(0.5) -- пауза между сканированиями
     end
     teleportTo(spawnCFrame)
+    task.wait(1)
+    print("[BOT] Зачистка мобов завершена")
 end
 
 -- ======= GUI КЛИК =======
@@ -333,9 +349,9 @@ local function clickButton(btn)
     task.wait(0.5)
     local screen = Workspace.CurrentCamera.ViewportSize
     VIM:SendMouseButtonEvent(math.floor(screen.X/2), math.floor(screen.Y/2), 0, true, game, 1)
-    task.wait(0.15)
+    task.wait(0.2)
     VIM:SendMouseButtonEvent(math.floor(screen.X/2), math.floor(screen.Y/2), 0, false, game, 1)
-    task.wait(0.3)
+    task.wait(0.5)
     btn.Size = origSize; btn.Position = origPos; btn.AnchorPoint = origAnchor; btn.ZIndex = origZIndex
     task.wait(0.2)
 end
@@ -435,23 +451,21 @@ local function runBossCycle()
     end
     print("[BOT] Босс появился!")
 
-    -- ===== STAGE 1 (ИСПРАВЛЕНО) =====
-    local s1Active = true
-    for i = 1, 3 do
-        task.spawn(function()
-            while s1Active do
-                local ok, root = pcall(function()
-                    return Workspace.ActiveBossModels[fightId].HumanoidRootPart
-                end)
-                if ok and root then
-                    fireAttack("Bosses", root)
-                end
-                task.wait(0.08)
-            end
-        end)
-    end
+    -- Stage 1
+    local stage1Active = true
     task.spawn(function()
-        while s1Active do
+        while stage1Active do
+            local ok, root = pcall(function()
+                return Workspace.ActiveBossModels[fightId].HumanoidRootPart
+            end)
+            if ok and root then
+                fireAttack("Bosses", root)
+            end
+            task.wait(0.25)
+        end
+    end)
+    task.spawn(function()
+        while stage1Active do
             local ok, sp = pcall(function() return slot.SpawnPart end)
             if ok and sp and (hrp.Position - sp.Position).Magnitude > 100 then
                 hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
@@ -459,47 +473,52 @@ local function runBossCycle()
             task.wait(1)
         end
     end)
-    local s1t = tick()
     while getStage(fightId) ~= 2 do
         task.wait(0.5)
-        if tick() - s1t > 10 then s1t = tick(); print("[BOT] Stage 1: " .. getStage(fightId)) end
     end
-    s1Active = false
+    stage1Active = false
+    task.wait(1)
     print("[BOT] Stage 2!")
 
-    -- Stage 2 — мобы
+    -- Stage 2 (мобы) с дополнительными паузами
     for _, n in ipairs({3,2,1,4}) do
         if getStage(fightId) == 3 then break end
         local ok, spawn = pcall(function() return slot.MobSpawns[tostring(n)] end)
-        if ok and spawn then killMobsAtSpawn(spawn.CFrame, 100, slot) end
+        if ok and spawn then
+            killMobsAtSpawn(spawn.CFrame, 150, slot)
+            task.wait(2) -- пауза после спавна
+        end
     end
     while getStage(fightId) ~= 3 do
         for _, n in ipairs({3,2,1,4}) do
             if getStage(fightId) == 3 then break end
             local ok, spawn = pcall(function() return slot.MobSpawns[tostring(n)] end)
-            if ok and spawn then killMobsAtSpawn(spawn.CFrame, 100, slot) end
+            if ok and spawn then
+                killMobsAtSpawn(spawn.CFrame, 150, slot)
+                task.wait(2)
+            end
         end
+        task.wait(1)
     end
     print("[BOT] Stage 3!")
+    task.wait(2)
 
-    -- ===== STAGE 3 (ИСПРАВЛЕНО) =====
+    -- Stage 3
     tpToSpawn()
-    local s3Active = true
-    for i = 1, 3 do
-        task.spawn(function()
-            while s3Active do
-                local ok, root = pcall(function()
-                    return Workspace.ActiveBossModels[fightId].HumanoidRootPart
-                end)
-                if ok and root then
-                    fireAttack("Bosses", root)
-                end
-                task.wait(0.08)
-            end
-        end)
-    end
+    local stage3Active = true
     task.spawn(function()
-        while s3Active do
+        while stage3Active do
+            local ok, root = pcall(function()
+                return Workspace.ActiveBossModels[fightId].HumanoidRootPart
+            end)
+            if ok and root then
+                fireAttack("Bosses", root)
+            end
+            task.wait(0.25)
+        end
+    end)
+    task.spawn(function()
+        while stage3Active do
             local ok, sp = pcall(function() return slot.SpawnPart end)
             if ok and sp and (hrp.Position - sp.Position).Magnitude > 100 then
                 hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
@@ -507,11 +526,12 @@ local function runBossCycle()
             task.wait(1)
         end
     end)
-    while not isDead(fightId) do task.wait(0.1) end
-    s3Active = false
+    while not isDead(fightId) do task.wait(0.2) end
+    stage3Active = false
     print("[BOT] Босс убит!")
+    task.wait(2)
 
-    -- ===== СБОР НАГРАД (ОПТИМИЗИРОВАН) =====
+    -- Сбор наград
     collectingLoot = true
     local LootFrame = nil
     print("[BOT] Ждём GUI наград...")
@@ -549,7 +569,7 @@ local function runBossCycle()
                 local upper = btn:FindFirstChild("UpperLabel")
                 if upper then clickButton(upper) end
             end
-            task.wait(1.5)
+            task.wait(2)
         end
 
         local claimBtn = LootFrame:FindFirstChild("ClaimButton")
@@ -557,7 +577,7 @@ local function runBossCycle()
             local upper = claimBtn:FindFirstChild("UpperLabel")
             if upper then
                 clickButton(upper)
-                task.wait(2)
+                task.wait(2.5)
             end
         end
 
@@ -568,7 +588,7 @@ local function runBossCycle()
                 for _ = 1, 5 do
                     if not LootFrame.Visible then break end
                     clickButton(upper)
-                    task.wait(1.5)
+                    task.wait(2)
                 end
             end
         end
