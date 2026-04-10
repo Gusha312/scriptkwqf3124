@@ -4,41 +4,65 @@ repeat task.wait(1) until game:IsLoaded()
 task.wait(3)
 
 -- =============================================
--- ОПТИМИЗАЦИЯ ГРАФИКИ (МИНИМАЛЬНЫЕ НАСТРОЙКИ)
+-- ОПТИМИЗАЦИЯ ГРАФИКИ (ГАРАНТИРОВАННЫЙ МИНИМУМ)
 -- =============================================
 task.spawn(function()
     task.wait(1)
-    pcall(function()
-        local userSettings = UserSettings()
-        local gameSettings = userSettings.GameSettings
-        gameSettings.SavedQualityLevel = 0
-        print("[BOT] Графика: качество 0")
-    end)
-    pcall(function()
-        local lighting = game:GetService("Lighting")
-        lighting.GlobalShadows = false
-        lighting.EnvironmentDiffuseScale = 0
-        lighting.EnvironmentSpecularScale = 0
-        lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
-        lighting.Brightness = 1
-        lighting.FogEnd = 1000
-        if lighting:FindFirstChild("Bloom") then lighting.Bloom.Enabled = false end
-        if lighting:FindFirstChild("Blur") then lighting.Blur.Enabled = false end
-        if lighting:FindFirstChild("SunRays") then lighting.SunRays.Enabled = false end
-        if lighting:FindFirstChild("ColorCorrection") then lighting.ColorCorrection.Enabled = false end
-        if lighting:FindFirstChild("DepthOfField") then lighting.DepthOfField.Enabled = false end
-        print("[BOT] Освещение и эффекты отключены")
-    end)
-    pcall(function()
-        local terrain = workspace:FindFirstChild("Terrain")
-        if terrain then
-            terrain.WaterWaveSize = 0
-            terrain.WaterWaveSpeed = 0
-            terrain.WaterReflectance = 0
-            terrain.WaterTransparency = 0.5
-        end
-        print("[BOT] Вода оптимизирована")
-    end)
+
+    local function setMinGraphics()
+        pcall(function()
+            local userSettings = UserSettings()
+            local gameSettings = userSettings.GameSettings
+            gameSettings.SavedQualityLevel = 1
+            gameSettings.QualityLevel = 1
+        end)
+        pcall(function()
+            settings().Rendering.QualityLevel = 1
+            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+            settings().Rendering.ShadowQuality = Enum.ShadowQuality.Off
+            settings().Rendering.ReflectionQuality = Enum.ReflectionQuality.Off
+            settings().Rendering.AntiAliasingMode = Enum.AntiAliasingMode.Off
+        end)
+        pcall(function()
+            local userGameSettings = UserSettings():GetService("UserGameSettings")
+            userGameSettings.MasterVolume = 0
+            userGameSettings.QualityLevel = 1
+            userGameSettings.SavedQualityLevel = 1
+        end)
+        pcall(function()
+            local lighting = game:GetService("Lighting")
+            lighting.GlobalShadows = false
+            lighting.EnvironmentDiffuseScale = 0
+            lighting.EnvironmentSpecularScale = 0
+            lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+            lighting.Brightness = 1
+            lighting.FogEnd = 1000
+            lighting.ClockTime = 12
+            if lighting:FindFirstChild("Bloom") then lighting.Bloom.Enabled = false end
+            if lighting:FindFirstChild("Blur") then lighting.Blur.Enabled = false end
+            if lighting:FindFirstChild("SunRays") then lighting.SunRays.Enabled = false end
+            if lighting:FindFirstChild("ColorCorrection") then lighting.ColorCorrection.Enabled = false end
+            if lighting:FindFirstChild("DepthOfField") then lighting.DepthOfField.Enabled = false end
+        end)
+        pcall(function()
+            local terrain = workspace:FindFirstChild("Terrain")
+            if terrain then
+                terrain.WaterWaveSize = 0
+                terrain.WaterWaveSpeed = 0
+                terrain.WaterReflectance = 0
+                terrain.WaterTransparency = 0.5
+            end
+            local clouds = workspace:FindFirstChild("Clouds")
+            if clouds then clouds.Enabled = false end
+        end)
+        print("[BOT] Графика принудительно установлена на минимум")
+    end
+
+    setMinGraphics()
+    while true do
+        task.wait(30)
+        setMinGraphics()
+    end
 end)
 
 local Players = game:GetService("Players")
@@ -223,32 +247,6 @@ local function fireAttack(attackType, target)
             end
         end
     end)
-end
-
-local function attackBoss(id)
-    if not bossExists(id) then return end
-    local root = Workspace.ActiveBossModels[id].HumanoidRootPart
-    local ps = getPlaySound()
-    if ps then
-        pcall(function() ps:FireServer("Breath", "Bosses", root) end)
-    else
-        cachedPlaySound = nil
-        pcall(function()
-            local dragons = character:FindFirstChild("Dragons")
-            if not dragons then return end
-            for _, dragon in ipairs(dragons:GetChildren()) do
-                local r = dragon:FindFirstChild("Remotes")
-                if r then
-                    local psr = r:FindFirstChild("PlaySoundRemote")
-                    if psr then
-                        psr:FireServer("Breath", "Bosses", root)
-                        cachedPlaySound = psr
-                        return
-                    end
-                end
-            end
-        end)
-    end
 end
 
 local function checkAndReviveDragon()
@@ -437,12 +435,17 @@ local function runBossCycle()
     end
     print("[BOT] Босс появился!")
 
-    -- Stage 1
+    -- ===== STAGE 1 (ИСПРАВЛЕНО) =====
     local s1Active = true
     for i = 1, 3 do
         task.spawn(function()
             while s1Active do
-                attackBoss(fightId)
+                local ok, root = pcall(function()
+                    return Workspace.ActiveBossModels[fightId].HumanoidRootPart
+                end)
+                if ok and root then
+                    fireAttack("Bosses", root)
+                end
                 task.wait(0.08)
             end
         end)
@@ -479,13 +482,18 @@ local function runBossCycle()
     end
     print("[BOT] Stage 3!")
 
-    -- Stage 3
+    -- ===== STAGE 3 (ИСПРАВЛЕНО) =====
     tpToSpawn()
     local s3Active = true
     for i = 1, 3 do
         task.spawn(function()
             while s3Active do
-                attackBoss(fightId)
+                local ok, root = pcall(function()
+                    return Workspace.ActiveBossModels[fightId].HumanoidRootPart
+                end)
+                if ok and root then
+                    fireAttack("Bosses", root)
+                end
                 task.wait(0.08)
             end
         end)
@@ -503,9 +511,7 @@ local function runBossCycle()
     s3Active = false
     print("[BOT] Босс убит!")
 
-    -- =============================================
-    -- СБОР НАГРАД (ОПТИМИЗИРОВАН, БЕЗ СПАМА)
-    -- =============================================
+    -- ===== СБОР НАГРАД (ОПТИМИЗИРОВАН) =====
     collectingLoot = true
     local LootFrame = nil
     print("[BOT] Ждём GUI наград...")
