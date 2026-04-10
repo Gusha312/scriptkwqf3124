@@ -1,4 +1,4 @@
--- Ждём полной загрузки игры
+wait(10)
 repeat task.wait(1) until game:IsLoaded()
 task.wait(3)
 
@@ -9,45 +9,69 @@ local HttpService = game:GetService("HttpService")
 local ok_vim, VIM = pcall(function() return game:GetService("VirtualInputManager") end)
 if not ok_vim then VIM = nil end
 
--- ======= НАСТРОЙКИ СТАТИСТИКИ =======
-local STAT_SERVER = "http://185.194.177.252:804"
-local requestFunc = syn and syn.request or http_request or request
-
--- Ждём LocalPlayer
-local player
-repeat
-    task.wait(0.5)
-    player = Players.LocalPlayer
-until player
+local player = Players.LocalPlayer
 
 -- Ждём персонажа
-local character
-local hrp
-
+local character, hrp
 local function updateCharacter(char)
     character = char
     hrp = char:WaitForChild("HumanoidRootPart")
 end
-
 local function waitForCharacter()
     local char = player.Character
-    while not char or not char.Parent do
-        task.wait(0.5)
-        char = player.Character
-    end
+    if not char or not char.Parent then char = player.CharacterAdded:Wait() end
     updateCharacter(char)
 end
-
 waitForCharacter()
-
--- Обновляем при респавне
-player.CharacterAdded:Connect(function(newChar)
-    updateCharacter(newChar)
-end)
+player.CharacterAdded:Connect(updateCharacter)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
+-- =============================================
+-- ТЕЛЕПОРТАЦИЯ В НУЖНЫЙ МИР (ПРОВЕРКА PREHISTORIC)
+-- =============================================
+if game.PlaceId == 3475397644 then
+    print("[BOT] ⚠ Находимся в запрещённом плейсе 3475397644. Ждём Data...")
+    
+    -- Ждём, пока player.Data появится (максимум 10 секунд)
+    local dataReady = false
+    for i = 1, 20 do
+        if pcall(function() return player.Data end) then
+            dataReady = true
+            break
+        end
+        task.wait(0.5)
+    end
+    
+    local prehistoric = false
+    if dataReady then
+        pcall(function()
+            prehistoric = player.Data.Worlds.Prehistoric.Value
+        end)
+    else
+        warn("[BOT] Data не загрузилась, используем prehistoric = false")
+    end
+    
+    local targetPlaceId = prehistoric and 4869039553 or 3475419198
+    print("[BOT] Prehistoric = " .. tostring(prehistoric) .. " → телепорт в " .. targetPlaceId)
+    
+    local args = { targetPlaceId, {} }
+    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("WorldTeleportRemote"):InvokeServer(unpack(args))
+    
+    -- Бесконечное ожидание телепортации (скрипт перезагрузится в новом месте)
+    while true do task.wait(1) end
+end
+
+print("[BOT] ✅ Работаем в разрешённом мире: PlaceId = " .. game.PlaceId)
+
 -- ======= СТАТИСТИКА =======
+local STAT_SERVER = "http://185.194.177.252:804"
+local requestFunc = syn and syn.request or http_request or request
+
+local POTION_PATHS = {
+    -- { key = 'НазваниеЗелья', path = 'НазваниеЗелья' }
+}
+
 local function httpPost(url, data)
     if not requestFunc then return end
     pcall(function()
@@ -61,10 +85,21 @@ end
 
 local function reportError(msg)
     print("[ERR] " .. tostring(msg))
-    httpPost(STAT_SERVER .. "/api/stats", {
-        name = player.Name,
-        error = tostring(msg)
-    })
+    httpPost(STAT_SERVER .. "/api/stats", { name = player.Name, error = tostring(msg) })
+end
+
+local function getCoins()
+    local ok, val = pcall(function() return player.Data.Currency.Coins.Value end)
+    return ok and val or 0
+end
+
+local function getPotions()
+    local result = {}
+    for _, p in ipairs(POTION_PATHS) do
+        local ok, val = pcall(function() return player.Data.Resources[p.path].Value end)
+        result[p.key] = ok and val or 0
+    end
+    return result
 end
 
 local function getDragons()
@@ -80,58 +115,10 @@ local function getDragons()
     return dragons
 end
 
-task.spawn(function()
-    task.wait(15)
-    while true do
-        pcall(function()
-            local stormboundEggs = 0
-            local questsDone = 0
-            pcall(function() stormboundEggs = player.Data.Eggs.StormboundEgg.Value end)
-            pcall(function() questsDone = player.Data["ArchiesConservationProjectEventVeidreki"].Leaderboard["2"].MissionsCompleted.Value end)
-            httpPost(STAT_SERVER .. "/api/stats", {
-                name = player.Name,
-                dragons = getDragons(),
-                cycles = cycles or 0,
-                stormboundEggs = stormboundEggs,
-                questsDone = questsDone
-            })
-        end)
-        task.wait(60)
-    end
-end)
--- ======= КОНЕЦ СТАТИСТИКИ =======
-local MobFolder = Workspace:FindFirstChild("MobFolder")
-
-local PLOT_NAME = player.Name .. "_Plot"
-local DATA_PATH = "ArchiesConservationProjectEventVeidreki"
-local STORMBOUND_LIMIT = 10
-local PLACE_ID = game.PlaceId
-local collectingLoot = false -- флаг сбора наград
-
-local PLACE_MAIN = 3475419198      -- босс, квесты, фарм
-local PLACE_STORMBOUND = 3475397644 -- инкубаторы
-
-print("[BOT] Загрузка... PlaceId=" .. PLACE_ID)
-task.wait(10)
-
--- Ждём загрузки данных игрока
-print("[BOT] Ждём загрузки Data...")
-local dataWaited = 0
-repeat
-    task.wait(2)
-    dataWaited = dataWaited + 2
-    if dataWaited % 10 == 0 then
-        print("[BOT] Ждём Data... " .. dataWaited .. " сек")
-    end
-until (pcall(function()
-    local d = player.Data
-    assert(d and d:FindFirstChildOfClass("Folder") or d:FindFirstChildOfClass("IntValue") or d:FindFirstChildOfClass("NumberValue") or d:FindFirstChildOfClass("StringValue"))
-end)) or dataWaited >= 120
-print("[BOT] Data загружена! Запуск через 3 сек...")
-task.wait(3)
-print("[BOT] Запуск!")
-
 -- ======= ХЕЛПЕРЫ =======
+local cycles = 0
+local collectingLoot = false
+
 local function waitUntil(cond, timeout, interval)
     local start = tick()
     interval = interval or 0.3
@@ -146,75 +133,33 @@ local function teleportTo(cframe)
     hrp.CFrame = cframe + Vector3.new(0, 3, 0)
 end
 
+-- ======= ДРАКОН =======
 local function getDragonId()
-    -- Через character напрямую
     local ok1, d1 = pcall(function() return character:FindFirstChild("Dragons") end)
-    if ok1 and d1 then
-        local c = d1:GetChildren()
-        if #c > 0 then return c[1].Name end
-    end
-    -- Через Workspace.Characters
+    if ok1 and d1 then local c = d1:GetChildren(); if #c > 0 then return c[1].Name end end
     local ok2, d2 = pcall(function() return Workspace.Characters[player.Name].Dragons end)
-    if ok2 and d2 then
-        local c = d2:GetChildren()
-        if #c > 0 then return c[1].Name end
-    end
-    -- Через player.Data.Dragons
+    if ok2 and d2 then local c = d2:GetChildren(); if #c > 0 then return c[1].Name end end
     local ok3, d3 = pcall(function() return player.Data.Dragons end)
-    if ok3 and d3 then
-        local c = d3:GetChildren()
-        if #c > 0 then return c[1].Name end
-    end
+    if ok3 and d3 then local c = d3:GetChildren(); if #c > 0 then return c[1].Name end end
     return "1"
-end
-
-local function checkAndReviveDragon()
-    local dragonId = getDragonId()
-    if not dragonId then return end
-
-    local ok2, health = pcall(function()
-        return player.Data.Dragons[dragonId].Health.Value
-    end)
-    if ok2 and health ~= nil and health <= 0 then
-        print("[BOT] Дракон " .. dragonId .. " мёртв — воскрешаем!")
-        pcall(function()
-            Remotes:WaitForChild("HealDragonRemote"):InvokeServer(dragonId, "RevivalHeart")
-        end)
-        task.wait(1)
-        print("[BOT] Экипируем дракона " .. dragonId .. "...")
-        pcall(function()
-            Remotes:WaitForChild("EquipDragonRemote"):InvokeServer(dragonId)
-        end)
-        task.wait(1)
-        cachedPlaySound = nil -- сбрасываем кэш после смены дракона
-    end
 end
 
 local cachedPlaySound = nil
 
 local function getPlaySound()
-    -- Проверяем кэш
-    if cachedPlaySound and cachedPlaySound.Parent then
-        return cachedPlaySound
-    end
-    -- Пробуем найти через character.Dragons
-    local dragonId = getDragonId()
-    -- Вариант 1: через character
+    if cachedPlaySound and cachedPlaySound.Parent then return cachedPlaySound end
     local ok1, ps1 = pcall(function()
         local dragons = character:FindFirstChild("Dragons")
-        if not dragons then error("no Dragons") end
-        local dragon = dragons:FindFirstChild(dragonId) or dragons:GetChildren()[1]
-        if not dragon then error("no dragon") end
+        if not dragons then error() end
+        local id = getDragonId()
+        local dragon = dragons:FindFirstChild(id) or dragons:GetChildren()[1]
+        if not dragon then error() end
         return dragon:WaitForChild("Remotes"):WaitForChild("PlaySoundRemote")
     end)
-    if ok1 and ps1 then
-        cachedPlaySound = ps1
-        return ps1
-    end
-    -- Вариант 2: перебираем всех драконов в character
+    if ok1 and ps1 then cachedPlaySound = ps1; return ps1 end
     local ok2, ps2 = pcall(function()
         local dragons = character:FindFirstChild("Dragons")
-        if not dragons then error("no Dragons") end
+        if not dragons then error() end
         for _, dragon in ipairs(dragons:GetChildren()) do
             local r = dragon:FindFirstChild("Remotes")
             if r then
@@ -222,255 +167,123 @@ local function getPlaySound()
                 if ps then return ps end
             end
         end
-        error("not found")
+        error()
     end)
-    if ok2 and ps2 then
-        cachedPlaySound = ps2
-        return ps2
-    end
+    if ok2 and ps2 then cachedPlaySound = ps2; return ps2 end
     return nil
 end
 
--- Сброс кэша при смене дракона
-local function resetPlaySoundCache()
+local function fireAttack(attackType, target)
+    local ps = getPlaySound()
+    if ps then
+        local ok = pcall(function() ps:FireServer("Breath", attackType, target) end)
+        if ok then return end
+    end
     cachedPlaySound = nil
-end
-
--- ======= ИНКУБАТОРЫ =======
-local function getIncubators()
-    local incubators = {}
-    local ok, buildings = pcall(function()
-        return Workspace.Interactions.Plots.Plots[PLOT_NAME].Base.Buildings
-    end)
-    if not ok then return incubators end
-    for _, b in ipairs(buildings:GetChildren()) do
-        if b.Name == "Incubator" then
-            table.insert(incubators, b)
-        end
-    end
-    return incubators
-end
-
-local function getStormboundCount()
-    local ok, val = pcall(function() return player.Data.Eggs.StormboundEgg.Value end)
-    return ok and val or 0
-end
-
-local function getGrasslandCount()
-    local ok, val = pcall(function() return player.Data.Eggs.GrasslandEgg.Value end)
-    return ok and val or 0
-end
-
-local function placeEggs(eggName)
-    print("[BOT] Раскладываем " .. eggName .. " в инкубаторы...")
-    local incubators = getIncubators()
-    local placed = 0
-    for _, inc in ipairs(incubators) do
-        local count = eggName == "StormboundEgg" and getStormboundCount() or getGrasslandCount()
-        if count <= 0 then break end
-        if not inc:FindFirstChild("Egg") then
-            -- Телепортируемся к инкубатору
-            local ok0, incPart = pcall(function() return inc.PrimaryPart or inc:FindFirstChildWhichIsA("BasePart") end)
-            if ok0 and incPart then
-                hrp.CFrame = incPart.CFrame + Vector3.new(0, 3, 0)
-                task.wait(0.3)
-            end
-            local ok, remote = pcall(function() return inc:WaitForChild("IncubateRemote", 2) end)
-            if ok and remote then
-                remote:InvokeServer(eggName)
-                placed = placed + 1
-                print("[BOT] Поставили " .. eggName .. " (" .. placed .. ")")
-                task.wait(0.3)
-            end
-        end
-    end
-    print("[BOT] Поставлено: " .. placed)
-end
-
-local function claimIncubators()
-    print("[BOT] Собираем из инкубаторов...")
-    local incubators = getIncubators()
-    for _, inc in ipairs(incubators) do
-        if inc:FindFirstChild("Egg") then
-            -- Телепортируемся к инкубатору
-            local ok0, incPart = pcall(function() return inc.PrimaryPart or inc:FindFirstChildWhichIsA("BasePart") end)
-            if ok0 and incPart then
-                hrp.CFrame = incPart.CFrame + Vector3.new(0, 3, 0)
-                task.wait(0.3)
-            end
-            local ok, remote = pcall(function() return inc:WaitForChild("ClaimRemote", 2) end)
-            if ok and remote then
-                remote:InvokeServer()
-                print("[BOT] Собрали из инкубатора")
-                task.wait(0.5)
-            end
-        end
-    end
-end
-
--- ======= ДРАКОНЫ =======
-local KEEP_DRAGONS = {"Veidreki", "Seikarin", "Atarix", "Saurium"}
-
-local function keepDragon(name)
-    for _, k in ipairs(KEEP_DRAGONS) do
-        if name == k then return true end
-    end
-    return false
-end
-
-local function manageDragons()
-    local ok, dragons = pcall(function() return player.Data.Dragons end)
-    if not ok then return end
-    for _, dragon in ipairs(dragons:GetChildren()) do
-        local id = dragon.Name
-        local ok2, dragonName = pcall(function() return dragon.Value end)
-        if not ok2 then continue end
-
-        local ok3, cosmetic = pcall(function() return dragon.Genetics.Cosmetic.Value end)
-        if ok3 and cosmetic == "[Error:Cosmetic]" then
-            print("[BOT] Дракон " .. id .. " Cosmetic — пропускаем")
-            continue
-        end
-
-        if not keepDragon(dragonName) then
-            print("[BOT] Удаляем дракона " .. id .. " (" .. tostring(dragonName) .. ")")
-            pcall(function()
-                Remotes:WaitForChild("DeleteDragonRemote"):InvokeServer({tostring(id)})
-            end)
-            task.wait(0.3)
-        end
-    end
-end
-
--- ======= КВЕСТЫ =======
-local function getData()
-    return player.Data[DATA_PATH].Projects["2"].Repeatable["1"]
-end
-
-local function isQuestDone(n)
-    local ok, val = pcall(function() return getData()[tostring(n)].Completed.Value end)
-    return ok and val == true
-end
-
-local function isMissionDone()
-    local ok, val = pcall(function()
-        return player.Data[DATA_PATH].Projects["2"].Repeatable["1"].Value
-    end)
-    return ok and val == true
-end
-
-local function getAmount(n)
-    local ok, val = pcall(function() return getData()[tostring(n)].Amount.Value end)
-    return ok and val or 0
-end
-
-local function findActiveNest()
-    local ok, activeNode = pcall(function()
-        return Workspace.Interactions.Nodes.Eggs.ActiveNodes.Grassland
-    end)
-    if not ok or not activeNode then return nil, nil end
-    local ok2, nestTop = pcall(function() return activeNode.NestTop end)
-    if not ok2 or not nestTop then return nil, nil end
-    local targetPos = nestTop.CFrame.Position
-    local eggsFolder = Workspace.Interactions.Nodes.Eggs
-    for i = 1, 20 do
-        local ok3, nest = pcall(function() return eggsFolder[tostring(i)].Nest end)
-        if ok3 and nest then
-            local ok4, nestVal = pcall(function() return nest.Value end)
-            if ok4 and nestVal then
-                local nums = {}
-                for n in tostring(nestVal):gmatch("[-]?%d+%.?%d*") do
-                    table.insert(nums, tonumber(n))
-                end
-                if #nums >= 3 then
-                    local nestPos = Vector3.new(nums[1], nums[2], nums[3])
-                    if (nestPos - targetPos).Magnitude <= 10 then
-                        return i, nestTop.CFrame
-                    end
+    pcall(function()
+        local dragons = character:FindFirstChild("Dragons")
+        if not dragons then return end
+        for _, dragon in ipairs(dragons:GetChildren()) do
+            local r = dragon:FindFirstChild("Remotes")
+            if r then
+                local psr = r:FindFirstChild("PlaySoundRemote")
+                if psr then
+                    psr:FireServer("Breath", attackType, target)
+                    cachedPlaySound = psr
+                    break
                 end
             end
         end
-    end
-    return nil, nestTop.CFrame
+    end)
 end
 
-local function farmGrasslandEggs(needed)
-    print("[QUEST] Фармим Grassland яйца (нужно " .. needed .. ")...")
-    local lastUse = 0
-    while getGrasslandCount() < needed do
-        local now = tick()
-        local cd = math.random(5, 6)
-        if now - lastUse < cd then task.wait(cd - (now - lastUse)) end
-
-        local nestId, nestCFrame = findActiveNest()
-
-        if not nestCFrame then
-            print("[QUEST] ActiveNode не найден, ждём...")
-            task.wait(2)
-            continue
-        end
-
-        -- Телепортируемся к ноду
-        hrp.CFrame = nestCFrame
-        task.wait(0.2)
-        hrp.CFrame = nestCFrame
-        task.wait(0.2)
-
-        -- Проверяем что тепнулись (позиция изменилась)
-        local dist = (hrp.Position - nestCFrame.Position).Magnitude
-        if dist > 20 then
-            print("[QUEST] Телепорт не удался, повтор...")
-            continue
-        end
-
-        local startId = nestId or 1
-        for i = startId, startId + 19 do
-            Remotes:WaitForChild("CollectEggRemote"):InvokeServer(tostring(i))
-        end
-
-        lastUse = tick()
-        print("[QUEST] Яиц: " .. getGrasslandCount() .. "/" .. needed)
+local function checkAndReviveDragon()
+    local dragonId = getDragonId()
+    if not dragonId then return end
+    local ok, health = pcall(function() return player.Data.Dragons[dragonId].Health.Value end)
+    if ok and health ~= nil and health <= 0 then
+        print("[BOT] Дракон мёртв — воскрешаем!")
+        pcall(function() Remotes:WaitForChild("HealDragonRemote"):InvokeServer(dragonId, "RevivalHeart") end)
+        task.wait(1)
+        pcall(function() Remotes:WaitForChild("EquipDragonRemote"):InvokeServer(dragonId) end)
+        task.wait(1)
+        cachedPlaySound = nil
     end
 end
 
-local function doQuest2()
-    if isQuestDone(2) then return end
-    print("[QUEST2] Пожертвование яиц (" .. getAmount(2) .. "/5)...")
-    if getGrasslandCount() < 5 then farmGrasslandEggs(5) end
-    Remotes:WaitForChild("OfferItemArchiesConservationProjectsMissionRemote"):InvokeServer("2", "Repeatable", "1", "2")
-    task.wait(0.5)
-    waitUntil(function() return isQuestDone(2) end, 10, 0.5)
-    print("[QUEST2] Выполнен!")
+-- ======= МОБЫ =======
+local MobFolder
+
+local function getMobsInRadius(position, radius)
+    local mobs = {}
+    if not MobFolder then return mobs end
+    for _, mob in ipairs(MobFolder:GetChildren()) do
+        local mobRoot = mob:FindFirstChild(mob.Name)
+        if mobRoot then
+            local alive = true
+            local hok, health = pcall(function() return mobRoot:FindFirstChild("Health").Value end)
+            if hok and health ~= nil and health <= 0 then alive = false end
+            if alive and (position - mobRoot.Position).Magnitude <= radius then
+                table.insert(mobs, mobRoot)
+            end
+        end
+    end
+    return mobs
 end
 
-local function doQuest3()
-    if isQuestDone(3) then return end
-    print("[QUEST3] Жертвуем еду (" .. getAmount(3) .. "/30)...")
-    Remotes:WaitForChild("OfferItemArchiesConservationProjectsMissionRemote"):InvokeServer("2", "Repeatable", "1", "3")
-    task.wait(0.5)
-    waitUntil(function() return isQuestDone(3) end, 10, 0.5)
-    print("[QUEST3] Выполнен!")
+local function killMobsAtSpawn(spawnCFrame, radius, slot)
+    teleportTo(spawnCFrame)
+    task.wait(0.3)
+    local startTime = tick()
+    while tick() - startTime < 30 do
+        local mobs = getMobsInRadius(spawnCFrame.Position, radius)
+        local ok, sp = pcall(function() return slot.SpawnPart end)
+        if ok and sp then
+            for _, m in ipairs(getMobsInRadius(sp.Position, radius)) do
+                local found = false
+                for _, e in ipairs(mobs) do if e == m then found = true; break end end
+                if not found then table.insert(mobs, m) end
+            end
+        end
+        if #mobs == 0 then break end
+        for _, mobRoot in ipairs(mobs) do
+            fireAttack("Mobs", mobRoot)
+            task.wait(0.1)
+        end
+    end
 end
 
--- ======= BOSS FARM =======
+-- ======= GUI КЛИК =======
+local function clickButton(btn)
+    if not btn or not VIM then return end
+    local origSize, origPos, origAnchor, origZIndex = btn.Size, btn.Position, btn.AnchorPoint, btn.ZIndex
+    btn.Size = UDim2.new(100, 0, 100, 0)
+    btn.Position = UDim2.new(0.5, 0, 0.5, 0)
+    btn.AnchorPoint = Vector2.new(0.5, 0.5)
+    btn.ZIndex = 99999
+    task.wait(0.5)
+    local screen = Workspace.CurrentCamera.ViewportSize
+    VIM:SendMouseButtonEvent(math.floor(screen.X/2), math.floor(screen.Y/2), 0, true, game, 1)
+    task.wait(0.15)
+    VIM:SendMouseButtonEvent(math.floor(screen.X/2), math.floor(screen.Y/2), 0, false, game, 1)
+    task.wait(0.3)
+    btn.Size = origSize; btn.Position = origPos; btn.AnchorPoint = origAnchor; btn.ZIndex = origZIndex
+    task.wait(0.2)
+end
+
+-- ======= ЦИКЛ БОССА =======
 local function getFightId()
-    local ok, instances = pcall(function()
-        return Workspace.Interactions.Boss.BossInstances
-    end)
+    local ok, instances = pcall(function() return Workspace.Interactions.Boss.BossInstances end)
     if not ok then return nil end
     for _, inst in ipairs(instances:GetChildren()) do
-        if inst.Name:sub(-#player.Name) == player.Name then
-            return inst.Name
-        end
+        if inst.Name:sub(-#player.Name) == player.Name then return inst.Name end
     end
     return nil
 end
 
 local function getInstanceSlot()
     for i = 1, 6 do
-        local ok, slot = pcall(function()
-            return Workspace.Interactions.Boss.InstancePositions[tostring(i)]
-        end)
+        local ok, slot = pcall(function() return Workspace.Interactions.Boss.InstancePositions[tostring(i)] end)
         if ok and slot then
             local spawnOk, _ = pcall(function() return slot.SpawnPart end)
             if spawnOk then return slot end
@@ -480,327 +293,139 @@ local function getInstanceSlot()
 end
 
 local function getStage(id)
-    local ok, val = pcall(function()
-        return Workspace.Interactions.Boss.BossInstances[id].Stage.Value
-    end)
+    local ok, val = pcall(function() return Workspace.Interactions.Boss.BossInstances[id].Stage.Value end)
     return ok and val or 0
 end
 
 local function isDead(id)
-    local ok, val = pcall(function()
-        return Workspace.Interactions.Boss.BossInstances[id].Dead.Value
-    end)
+    local ok, val = pcall(function() return Workspace.Interactions.Boss.BossInstances[id].Dead.Value end)
     return ok and val or false
 end
 
 local function bossExists(id)
-    local ok, _ = pcall(function()
-        return Workspace.ActiveBossModels[id].HumanoidRootPart
-    end)
+    local ok = pcall(function() return Workspace.ActiveBossModels[id].HumanoidRootPart end)
     return ok
 end
 
-local function attackBoss(id)
-    local ok, root = pcall(function()
-        return Workspace.ActiveBossModels[id].HumanoidRootPart
-    end)
-    if not ok or not root then return end
-
-    -- Пробуем напрямую без getPlaySound
-    local fired = false
-    -- Вариант 1: через кэш/getPlaySound
-    local ps = getPlaySound()
-    if ps then
-        local ok2 = pcall(function() ps:FireServer("Breath", "Bosses", root) end)
-        if ok2 then fired = true end
-    end
-    -- Вариант 2: перебираем character.Dragons напрямую
-    if not fired then
-        pcall(function()
-            local dragons = character:FindFirstChild("Dragons")
-            if not dragons then return end
-            for _, dragon in ipairs(dragons:GetChildren()) do
-                local r = dragon:FindFirstChild("Remotes")
-                if r then
-                    local psr = r:FindFirstChild("PlaySoundRemote")
-                    if psr then
-                        psr:FireServer("Breath", "Bosses", root)
-                        fired = true
-                        cachedPlaySound = psr
-                        break
-                    end
-                end
-            end
-        end)
-    end
-end
-
-local function attackMob(mobRoot)
-    local fired = false
-    local ps = getPlaySound()
-    if ps then
-        local ok = pcall(function() ps:FireServer("Breath", "Mobs", mobRoot) end)
-        if ok then fired = true end
-    end
-    if not fired then
-        pcall(function()
-            local dragons = character:FindFirstChild("Dragons")
-            if not dragons then return end
-            for _, dragon in ipairs(dragons:GetChildren()) do
-                local r = dragon:FindFirstChild("Remotes")
-                if r then
-                    local psr = r:FindFirstChild("PlaySoundRemote")
-                    if psr then
-                        psr:FireServer("Breath", "Mobs", mobRoot)
-                        fired = true
-                        cachedPlaySound = psr
-                        break
-                    end
-                end
-            end
-        end)
-    end
-end
-
-local function getMobsInRadius(position, radius)
-    local mobs = {}
-    if not MobFolder then return mobs end
-    for _, mob in ipairs(MobFolder:GetChildren()) do
-        local mobRoot = mob:FindFirstChild(mob.Name)
-        if mobRoot then
-            local alive = true
-            local healthOk, health = pcall(function()
-                return mobRoot:FindFirstChild("Health").Value
-            end)
-            if healthOk and health ~= nil and health <= 0 then alive = false end
-            if alive then
-                local dist = (position - mobRoot.Position).Magnitude
-                if dist <= radius then table.insert(mobs, mobRoot) end
-            end
-        end
-    end
-    return mobs
-end
-
-local function killMobsAtSpawn(spawnCFrame, radius)
-    teleportTo(spawnCFrame)
-    task.wait(0.3)
-    local startTime = tick()
-    while tick() - startTime < 30 do
-        -- Ищем мобов у спавна мобов
-        local mobs = getMobsInRadius(spawnCFrame.Position, radius)
-        -- Добавляем мобов у SpawnPart босса
-        local ok, sp = pcall(function() return slot.SpawnPart end)
-        if ok and sp then
-            for _, m in ipairs(getMobsInRadius(sp.Position, radius)) do
-                local found = false
-                for _, existing in ipairs(mobs) do
-                    if existing == m then found = true; break end
-                end
-                if not found then table.insert(mobs, m) end
-            end
-        end
-        if #mobs == 0 then
-            print("[BOT] Мобы убиты!")
-            break
-        end
-        for _, mobRoot in ipairs(mobs) do
-            attackMob(mobRoot)
-            task.wait(0.1)
-        end
-    end
-end
-
-local function clickButton(btn)
-    if not btn then return end
-    -- Запоминаем оригинальные свойства UpperLabel
-    local origSize = btn.Size
-    local origPos = btn.Position
-    local origAnchor = btn.AnchorPoint
-    local origZIndex = btn.ZIndex
-
-    -- Расширяем UpperLabel на весь экран и центрируем
-    btn.Size = UDim2.new(100, 0, 100, 0)
-    btn.Position = UDim2.new(0.5, 0, 0.5, 0)
-    btn.AnchorPoint = Vector2.new(0.5, 0.5)
-    btn.ZIndex = 99999
-    task.wait(0.5)
-
-    -- Кликаем по центру экрана
-    local screen = Workspace.CurrentCamera.ViewportSize
-    local cx = math.floor(screen.X / 2)
-    local cy = math.floor(screen.Y / 2)
-    VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-    task.wait(0.15)
-    VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-    task.wait(0.3)
-
-    -- Восстанавливаем
-    btn.Size = origSize
-    btn.Position = origPos
-    btn.AnchorPoint = origAnchor
-    btn.ZIndex = origZIndex
-    task.wait(0.2)
-end
-
 local function runBossCycle()
-    local fightId = nil
-
-    -- Ждём пока старый FightId пропадёт
-    local oldId = getFightId()
-    if oldId then
-        print("[BOT] Ждём пока старый FightId пропадёт: " .. oldId)
-        waitUntil(function()
-            return getFightId() == nil
-        end, 30, 0.5)
-        task.wait(1)
-    end
-
-    -- Проверяем здоровье дракона перед циклом
     checkAndReviveDragon()
 
-    -- Создаём очередь с повторами пока не появится FightId
-    fightId = nil
+    -- Создаём очередь
+    local fightId = nil
     local queueAttempts = 0
     while not fightId do
         queueAttempts = queueAttempts + 1
-        print("[BOT] Создаём очередь (попытка " .. queueAttempts .. ")...")
+        print("[BOT] Очередь (попытка " .. queueAttempts .. ")...")
         Remotes.CreateBossQueueRemote:InvokeServer("Everyone")
         Remotes.StartBossQueueRemote:InvokeServer()
-
-        waitUntil(function()
-            fightId = getFightId()
-            return fightId ~= nil
-        end, 15, 0.5)
-
-        if not fightId then
-            print("[BOT] FightId не появился, ждём 5 сек...")
-            task.wait(5)
-        end
+        waitUntil(function() fightId = getFightId(); return fightId ~= nil end, 15, 0.5)
+        if not fightId then task.wait(5) end
     end
     print("[BOT] FightId: " .. fightId)
 
-    -- Телепортируемся к боссу и ждём появления слота
+    -- Телепортируемся к боссу
     local slot = nil
     local tpAttempts = 0
     repeat
         tpAttempts = tpAttempts + 1
-        print("[BOT] Телепорт к боссу (попытка " .. tpAttempts .. ")...")
+        print("[BOT] ТП к боссу (попытка " .. tpAttempts .. ")...")
         Remotes.GetTeleportRemote:InvokeServer("ToBossInstance", {FightId = fightId, Spawn = true})
         local waited = 0
         while waited < 8 do
             slot = getInstanceSlot()
             if slot then break end
-            task.wait(0.5)
-            waited = waited + 0.5
+            task.wait(0.5); waited = waited + 0.5
         end
     until slot ~= nil or tpAttempts >= 10
     task.wait(1)
 
     if not slot then
-        reportError("Слот не найден после 10 попыток телепорта")
+        reportError("Слот не найден после 10 попыток")
         task.wait(2)
         return false
     end
-    print("[BOT] Слот найден: " .. slot.Name)
+    print("[BOT] Слот: " .. slot.Name)
 
-    local function teleportToSpawnPart()
+    -- ТП к SpawnPart
+    local function tpToSpawn()
         local ok, sp = pcall(function() return slot.SpawnPart end)
-        if not ok or not sp then return false end
-        local spawnPos = sp.Position + Vector3.new(0, 5, 0)
+        if not ok or not sp then return end
+        local pos = sp.Position + Vector3.new(0, 5, 0)
         for i = 1, 15 do
-            hrp.CFrame = CFrame.new(spawnPos)
+            hrp.CFrame = CFrame.new(pos)
             task.wait(0.3)
-            local dist = (hrp.Position - sp.Position).Magnitude
-            print("[BOT] ТП к SpawnPart dist=" .. math.floor(dist) .. " попытка=" .. i)
-            if dist < 25 then
-                print("[BOT] Успешно на SpawnPart!")
-                return true
+            if (hrp.Position - sp.Position).Magnitude < 25 then
+                print("[BOT] На SpawnPart!")
+                return
             end
         end
-        print("[BOT] SpawnPart недостижима, продолжаем всё равно")
-        return true -- продолжаем даже если не добрались
     end
-    teleportToSpawnPart()
+    tpToSpawn()
 
-    local bossFound = waitUntil(function() return bossExists(fightId) end, 30, 0.5)
-    if not bossFound then
-        print("[BOT] Босс не появился, повтор...")
+    -- Ждём босса
+    if not waitUntil(function() return bossExists(fightId) end, 30, 0.5) then
+        reportError("Босс не появился за 30 сек")
         task.wait(2)
         return false
     end
     print("[BOT] Босс появился!")
 
-    -- Stage 1 — 3 потока атаки + 1 поток удержания позиции
-    local stage1Active = true
-    for t = 1, 3 do
-        task.spawn(function()
-            while stage1Active do attackBoss(fightId) task.wait(0.05) end
-        end)
-    end
-    -- Поток удержания позиции на SpawnPart
+    -- Stage 1
+    local s1Active = true
+    for i = 1, 3 do task.spawn(function() while s1Active do fireAttack("Bosses", Workspace.ActiveBossModels[fightId] and Workspace.ActiveBossModels[fightId].HumanoidRootPart) task.wait(0.05) end end) end
     task.spawn(function()
-        while stage1Active do
+        while s1Active do
             local ok, sp = pcall(function() return slot.SpawnPart end)
-            if ok and sp then
-                local dist = (hrp.Position - sp.Position).Magnitude
-                if dist > 100 then
-                    hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
-                end
+            if ok and sp and (hrp.Position - sp.Position).Magnitude > 100 then
+                hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
             end
             task.wait(1)
         end
     end)
-    local stage1Start = tick()
+    local s1t = tick()
     while getStage(fightId) ~= 2 do
         task.wait(0.5)
-        if tick() - stage1Start > 10 then
-            stage1Start = tick()
-            print("[BOT] Stage 1 текущий: " .. tostring(getStage(fightId)) .. " FightId: " .. tostring(fightId))
-        end
+        if tick() - s1t > 10 then s1t = tick(); print("[BOT] Stage 1: " .. getStage(fightId)) end
     end
-    stage1Active = false
+    s1Active = false
     print("[BOT] Stage 2!")
 
     -- Stage 2 — мобы
-    local spawnOrder = {3, 2, 1, 4}
+    for _, n in ipairs({3,2,1,4}) do
+        if getStage(fightId) == 3 then break end
+        local ok, spawn = pcall(function() return slot.MobSpawns[tostring(n)] end)
+        if ok and spawn then killMobsAtSpawn(spawn.CFrame, 100, slot) end
+    end
+    -- Крутимся пока Stage не 3
     while getStage(fightId) ~= 3 do
-        for _, spawnNum in ipairs(spawnOrder) do
+        for _, n in ipairs({3,2,1,4}) do
             if getStage(fightId) == 3 then break end
-            local sok, spawn = pcall(function() return slot.MobSpawns[tostring(spawnNum)] end)
-            if sok and spawn then killMobsAtSpawn(spawn.CFrame, 100) end
+            local ok, spawn = pcall(function() return slot.MobSpawns[tostring(n)] end)
+            if ok and spawn then killMobsAtSpawn(spawn.CFrame, 100, slot) end
         end
     end
     print("[BOT] Stage 3!")
 
-    -- Телепортируемся на платформу босса для Stage 3
-    print("[BOT] ТП к SpawnPart для Stage 3...")
-    teleportToSpawnPart()
-
-    -- Stage 3 — 3 потока атаки + 1 поток удержания позиции
-    local stage3Active = true
-    for t = 1, 3 do
-        task.spawn(function()
-            while stage3Active do attackBoss(fightId) task.wait(0.05) end
-        end)
-    end
+    -- Stage 3
+    tpToSpawn()
+    local s3Active = true
+    for i = 1, 3 do task.spawn(function() while s3Active do fireAttack("Bosses", Workspace.ActiveBossModels[fightId] and Workspace.ActiveBossModels[fightId].HumanoidRootPart) task.wait(0.05) end end) end
     task.spawn(function()
-        while stage3Active do
+        while s3Active do
             local ok, sp = pcall(function() return slot.SpawnPart end)
-            if ok and sp then
-                local dist = (hrp.Position - sp.Position).Magnitude
-                if dist > 100 then
-                    hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
-                end
+            if ok and sp and (hrp.Position - sp.Position).Magnitude > 100 then
+                hrp.CFrame = CFrame.new(sp.Position + Vector3.new(0, 5, 0))
             end
             task.wait(1)
         end
     end)
     while not isDead(fightId) do task.wait(0.1) end
-    stage3Active = false
+    s3Active = false
     print("[BOT] Босс убит!")
 
-    -- Ждём GUI наград (макс 30 сек)
+    -- =============================================
+    -- СБОР НАГРАД (УЛУЧШЕННАЯ ЛОГИКА ИЗ ТВОЕГО КОДА)
+    -- =============================================
     collectingLoot = true
     local LootFrame = nil
     print("[BOT] Ждём GUI наград...")
@@ -853,9 +478,10 @@ local function runBossCycle()
             end
         end
 
-        -- Кнопка ClaimButton основная
+        -- Основная ClaimButton
         local ok2, btn2 = pcall(function() return LootFrame:WaitForChild("ClaimButton", 3):WaitForChild("UpperLabel", 3) end)
         if ok2 and btn2 then
+            print("[BOT] ClaimButton...")
             clickButton(btn2)
             waitUntil(function()
                 local ok, v = pcall(function() return not btn2.Parent end)
@@ -863,7 +489,7 @@ local function runBossCycle()
             end, 3, 0.2)
         end
 
-        -- Кнопка LeaveButton — спамим пока LootFrame не скроется
+        -- LeaveButton — спамим пока LootFrame не скроется
         local ok3, btn3 = pcall(function() return LootFrame:WaitForChild("LeaveButton", 3):WaitForChild("UpperLabel", 3) end)
         if ok3 and btn3 then
             local leaveStart = tick()
@@ -884,163 +510,53 @@ local function runBossCycle()
     end
     collectingLoot = false
 
-    -- Ждём пока старый FightId пропадёт
+    -- Ждём пропадания FightId
     local oldId = fightId
-    waitUntil(function()
+    print("[BOT] Ждём FightId пропадёт...")
+    local ws = tick()
+    while tick()-ws < 60 do
         local cur = getFightId()
-        return cur == nil or cur ~= oldId
-    end, 20, 0.5)
-    print("[BOT] FightId пропал, готовы к новому циклу!")
-    task.wait(2)
+        if cur == nil or cur ~= oldId then break end
+        task.wait(1)
+    end
+    waitUntil(function()
+        local ok, inst = pcall(function() return Workspace.Interactions.Boss.BossInstances[oldId] end)
+        return not ok or not inst or not inst.Parent
+    end, 30, 0.5)
+    print("[BOT] Готовы к новому циклу!")
+    task.wait(3)
     return true
 end
 
--- ======= STORMBOUND ПЛЕЙС =======
-local function runStormboundPlace()
-    print("[STORMBOUND] Запуск в Stormbound плейсе...")
-
-    -- Если сразу 0 яиц — сразу возвращаемся
-    if getStormboundCount() <= 0 then
-        print("[STORMBOUND] Яиц нет сразу — возвращаемся на фарм!")
-        local attempts0 = 0
-        repeat
-            attempts0 = attempts0 + 1
-            Remotes:WaitForChild("WorldTeleportRemote"):InvokeServer(3475419198, {MoveBackToAdventure = true})
-            task.wait(5)
-        until (attempts0 >= 5)
-        return
-    end
-
-    -- Телепортируемся к своему плоту
-    print("[STORMBOUND] Телепортируемся к плоту...")
-    local posBefore = hrp.Position
-    local tpAttempts = 0
-    repeat
-        tpAttempts = tpAttempts + 1
-        Remotes:WaitForChild("GetTeleportRemote"):InvokeServer("Plot", PLOT_NAME)
-        task.wait(3)
-    until (hrp.Position - posBefore).Magnitude > 10 or tpAttempts >= 5
-    print("[STORMBOUND] На плоту!")
-    task.wait(1)
-
-    -- Собираем из инкубаторов
-    claimIncubators()
-    task.wait(0.5)
-
-    -- Управляем драконами
-    manageDragons()
-    task.wait(0.5)
-
-    -- Если есть яйца — ставим
-    if getStormboundCount() > 0 then
-        placeEggs("StormboundEgg")
-        task.wait(0.5)
-    end
-
-    -- Возвращаемся
-    print("[STORMBOUND] Готово, возвращаемся на фарм!")
-    local posBefore2 = hrp.Position
-    local attempts2 = 0
-    repeat
-        attempts2 = attempts2 + 1
-        Remotes:WaitForChild("WorldTeleportRemote"):InvokeServer(3475419198, {MoveBackToAdventure = true})
-        task.wait(5)
-    until (hrp.Position - posBefore2).Magnitude > 50 or attempts2 >= 5
-end
-
--- ======= ОСНОВНОЙ ПЛЕЙС =======
-local function runMainPlace()
-    print("[MAIN] Запуск в основном плейсе...")
-    MobFolder = Workspace:WaitForChild("MobFolder")
-
-    -- Главный поэтапный цикл
-    local cycles = 0
+-- ======= СТАТИСТИКА (фон) =======
+task.spawn(function()
+    task.wait(15)
     while true do
-        -- Проверяем Stormbound
-        if getStormboundCount() >= STORMBOUND_LIMIT then
-            print("[STORMBOUND] " .. getStormboundCount() .. " яиц — телепортируемся!")
-            local posBefore = hrp.Position
-            local attempts = 0
-            repeat
-                attempts = attempts + 1
-                Remotes:WaitForChild("WorldTeleportRemote"):InvokeServer(3475397644, {SpawnAtPlot = true})
-                task.wait(5)
-            until (hrp.Position - posBefore).Magnitude > 50 or attempts >= 5
-            task.wait(5)
-            continue
-        end
-
-        if isMissionDone() then
-            print("[QUEST] Миссия выполнена! Фармим боссов 5 мин...")
-            local missionWait = tick()
-            while tick() - missionWait < 300 do
-                local success = runBossCycle()
-                if success then
-                    cycles = cycles + 1
-                    print("[BOT] Цикл #" .. cycles .. " (во время кд миссии)")
-                end
-                task.wait(1)
-            end
-            continue
-        end
-
-        print("[QUEST] Q1:" .. getAmount(1) .. "/2 Q2:" .. getAmount(2) .. "/5 Q3:" .. getAmount(3) .. "/30")
-
-        -- Шаг 1: Квест 1 — убиваем боссов
-        if not isQuestDone(1) then
-            print("[QUEST1] Нужно убить боссов (" .. getAmount(1) .. "/2), запускаем boss farm...")
-            local success = runBossCycle()
-            if success then
-                cycles = cycles + 1
-                print("[BOT] Цикл #" .. cycles .. " завершён!")
-            end
-            task.wait(1)
-            continue -- возвращаемся в начало чтобы проверить статус
-        end
-
-        -- Шаг 2: Квест 2 — яйца
-        if not isQuestDone(2) then
-            print("[QUEST2] Пожертвование яиц (" .. getAmount(2) .. "/5)...")
-            if getGrasslandCount() < 5 then
-                farmGrasslandEggs(5)
-            end
-            Remotes:WaitForChild("OfferItemArchiesConservationProjectsMissionRemote"):InvokeServer("2", "Repeatable", "1", "2")
-            task.wait(0.5)
-            waitUntil(function() return isQuestDone(2) end, 10, 0.5)
-            print("[QUEST2] Выполнен!")
-            continue
-        end
-
-        -- Шаг 3: Квест 3 — еда
-        if not isQuestDone(3) then
-            print("[QUEST3] Жертвуем еду (" .. getAmount(3) .. "/30)...")
-            Remotes:WaitForChild("OfferItemArchiesConservationProjectsMissionRemote"):InvokeServer("2", "Repeatable", "1", "3")
-            task.wait(0.5)
-            waitUntil(function() return isQuestDone(3) end, 10, 0.5)
-            print("[QUEST3] Выполнен!")
-            continue
-        end
-
-        -- Все квесты выполнены — фармим боссов пока ждём
-        print("[QUEST] Все квесты выполнены! Фармим боссов 5 мин...")
-        local allDoneWait = tick()
-        while tick() - allDoneWait < 300 do
-            local success = runBossCycle()
-            if success then
-                cycles = cycles + 1
-                print("[BOT] Цикл #" .. cycles .. " (во время кд квестов)")
-            end
-            task.wait(1)
-        end
+        pcall(function()
+            httpPost(STAT_SERVER .. "/api/stats", {
+                name = player.Name,
+                dragons = getDragons(),
+                cycles = cycles,
+                coins = getCoins(),
+                potions = getPotions()
+            })
+        end)
+        task.wait(60)
     end
-end
+end)
 
--- ======= ОПРЕДЕЛЯЕМ ПЛЕЙС И ЗАПУСКАЕМ =======
-if PLACE_ID == PLACE_STORMBOUND then
-    runStormboundPlace()
-elseif PLACE_ID == PLACE_MAIN then
-    runMainPlace()
-else
-    print("[BOT] Неизвестный плейс: " .. PLACE_ID .. " — запускаем основной режим")
-    runMainPlace()
+-- ======= ЗАПУСК =======
+print("[BOT] Загрузка... PlaceId=" .. game.PlaceId)
+task.wait(10)
+print("[BOT] Ждём Data...")
+local dw = 0
+repeat task.wait(2); dw = dw + 2
+until pcall(function() local d = player.Data; assert(#d:GetChildren() > 0) end) or dw >= 120
+print("[BOT] Запуск!")
+MobFolder = Workspace:FindFirstChild("MobFolder")
+
+while true do
+    local ok = runBossCycle()
+    if ok then cycles = cycles + 1; print("[BOT] Цикл #" .. cycles) end
+    task.wait(1)
 end
