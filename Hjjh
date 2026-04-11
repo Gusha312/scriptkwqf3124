@@ -14,7 +14,7 @@ ACCOUNT_CACHE="${HOME_DIR}/account_cache.txt"
 AUTOEXEC_BASE="/storage/emulated/0"
 COOLDOWN_SECS=120
 MAX_CRASHES=4
-DEFAULT_VIP="https://www.roblox.com/games/3475397644/Dragon-Adventures?privateServerLinkCode=07114316663722936313817004712715"
+DEFAULT_VIP="https://www.roblox.com/games/5233782396/Creatures-of-Sonaria-Survive-Kaiju-Animals?privateServerLinkCode=16193965606610021298517092398744"
 
 mkdir -p "${HOME_DIR}" "${VIP_DIR}"
 [ ! -f "${INTERVAL_FILE}" ]    && echo "3600"        > "${INTERVAL_FILE}"
