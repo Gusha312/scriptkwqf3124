@@ -395,9 +395,10 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                 end
 
                 for i, code in ipairs(r.codes) do
-                    print("[Twink] Вводим промокод:", code)
+                    local codeLower = string.lower(code)
+                    print("[Twink] Вводим промокод:", codeLower)
                     local ok, result = pcall(function()
-                        return redeemRemote:InvokeServer(unpack({code}))
+                        return redeemRemote:InvokeServer(unpack({codeLower}))
                     end)
                     print("[Twink] Промокод", code, ok and "OK" or "ERR", tostring(result))
                     if i < #r.codes then task.wait(5) end
