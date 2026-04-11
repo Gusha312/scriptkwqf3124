@@ -45,23 +45,15 @@ if game.PlaceId == 5233782396 then
         end
     end)
 
-    -- Delivery: каждый раз рандомный нод из DeliveryObjectNodes
+    -- Delivery: рандомное число от 1 до 25
     task.spawn(function()
-        local deliveryFolder = workspace:WaitForChild("Event"):WaitForChild("DeliveryObject"):WaitForChild("DeliveryObjectNodes")
-
         while true do
-            local nodes = deliveryFolder:GetChildren()
-
-            if #nodes > 0 then
-                local node = nodes[math.random(1, #nodes)]
-                RS:WaitForChild("GetSpawnedDeliveryObjectRemote"):InvokeServer(node.Name)
-                RS:WaitForChild("DeliveryDropoffEvent"):FireServer(
-                    workspace:WaitForChild("Event"):WaitForChild("DeliveryObject"):WaitForChild("DeliveryBasket")
-                )
-                task.wait(1)
-            else
-                task.wait(3)
-            end
+            local randomId = math.random(1, 25)
+            RS:WaitForChild("GetSpawnedDeliveryObjectRemote"):InvokeServer(tostring(randomId))
+            RS:WaitForChild("DeliveryDropoffEvent"):FireServer(
+                workspace:WaitForChild("Event"):WaitForChild("DeliveryObject"):WaitForChild("DeliveryBasket")
+            )
+            task.wait(0.3)
         end
     end)
 end
