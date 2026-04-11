@@ -375,6 +375,45 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 
     print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
 
+    -- Цикл проверки промокодов
+    task.spawn(function()
+        local lastCodes = {}
+        while not STOPPED do
+            task.wait(10)
+            pcall(function()
+                local r = httpGet(SERVER_URL .. "/api/promo")
+                if not (r and r.codes and #r.codes > 0) then return end
+
+                -- Проверяем что это новые промокоды (не те что уже вводили)
+                local firstCode = r.codes[1]
+                if lastCodes[firstCode] then return end
+
+                print("[Twink] Получены промокоды:", #r.codes)
+                local redeemRemote = ReplicatedStorage:WaitForChild("Remotes")
+                    :WaitForChild("RedeemCodeRemote", 10)
+                if not redeemRemote then
+                    warn("[Twink] RedeemCodeRemote не найден!")
+                    return
+                end
+
+                for i, code in ipairs(r.codes) do
+                    print("[Twink] Вводим промокод:", code)
+                    local ok, result = pcall(function()
+                        return redeemRemote:InvokeServer(unpack({code}))
+                    end)
+                    print("[Twink] Промокод", code, ok and "OK" or "ERR", tostring(result))
+                    lastCodes[code] = true
+                    -- КД между промокодами 5 сек (кроме последнего)
+                    if i < #r.codes then
+                        task.wait(5)
+                    end
+                end
+
+                print("[Twink] Все промокоды введены!")
+            end)
+        end
+    end)
+
     -- ШАГ 1: ждём команду телепорта
     local jobId = nil
     repeat
