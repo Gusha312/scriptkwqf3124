@@ -1,68 +1,70 @@
 if game.PlaceId == 5233782396 then
-while true do
-wait(5)
-for i = 1,40 do
-wait(0.5)
-local args = {
-i,
-workspace:WaitForChild("Event"):WaitForChild("ForageableNodes"):WaitForChild("Common"),
-true
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(args))
-local args = {
-	"Eggshell",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"Dalitil",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"ForgetMeNot",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"MTL_Eggstorm",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"MTL_Eggstravaganza",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"Ushrumesh",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"Verdant Warden",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"Cow",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	"Egg Gobbler",
-	1
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PurchaseEventItemRemote"):InvokeServer(unpack(args))
-local args = {
-	workspace:WaitForChild("Event"):WaitForChild("Matching"):WaitForChild("Matching"):WaitForChild("Meshes/World Decor_Cube.7891 (1)")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CardMatchStart"):InvokeServer(unpack(args))
-local args = {
-	true
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CardMatchRemote"):InvokeServer(unpack(args))
+    local RS = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 
-end
-end
+    -- Forage: i от 1 до 40, каждые 0.5с
+    task.spawn(function()
+        while true do
+            for i = 1, 40 do
+                task.spawn(function()
+                    RS:WaitForChild("CompleteForageableRemote"):InvokeServer(
+                        i,
+                        workspace:WaitForChild("Event"):WaitForChild("ForageableNodes"):WaitForChild("Common"),
+                        true
+                    )
+                end)
+                task.wait(0.5)
+            end
+            task.wait(5)
+        end
+    end)
+
+    -- Purchases: каждые 10с
+    task.spawn(function()
+        local items = {
+            "Eggshell", "Dalitil", "ForgetMeNot",
+            "MTL_Eggstorm", "MTL_Eggstravaganza",
+            "Ushrumesh", "Verdant Warden", "Cow", "Egg Gobbler",
+        }
+        local purchaseRemote = RS:WaitForChild("PurchaseEventItemRemote")
+        while true do
+            for _, name in ipairs(items) do
+                purchaseRemote:InvokeServer(name, 1)
+            end
+            task.wait(10)
+        end
+    end)
+
+    -- Card match: каждые 8с
+    task.spawn(function()
+        while true do
+            RS:WaitForChild("CardMatchStart"):InvokeServer(
+                workspace:WaitForChild("Event"):WaitForChild("Matching"):WaitForChild("Matching"):WaitForChild("Meshes/World Decor_Cube.7891 (1)")
+            )
+            RS:WaitForChild("CardMatchRemote"):InvokeServer(true)
+            task.wait(8)
+        end
+    end)
+
+    -- Delivery: динамически читает ноды из DeliveryObjectNodes
+    task.spawn(function()
+        local deliveryFolder = workspace:WaitForChild("Event"):WaitForChild("DeliveryObject"):WaitForChild("DeliveryObjectNodes")
+
+        while true do
+            local nodes = deliveryFolder:GetChildren()
+
+            if #nodes > 0 then
+                for _, node in ipairs(nodes) do
+                    RS:WaitForChild("GetSpawnedDeliveryObjectRemote"):InvokeServer(node.Name)
+                    RS:WaitForChild("DeliveryDropoffEvent"):FireServer(
+                        workspace:WaitForChild("Event"):WaitForChild("DeliveryObject"):WaitForChild("DeliveryBasket")
+                    )
+                    task.wait(1)
+                end
+            else
+                task.wait(3)
+            end
+
+            task.wait(2)
+        end
+    end)
 end
