@@ -53,6 +53,18 @@ end
 -- ════════════════════════════════
 if IS_MAIN and PlaceId == 14119723130 then
 
+    -- АнтиАФК для основного
+    task.spawn(function()
+        local VirtualUser = game:GetService("VirtualUser")
+        while true do
+            task.wait(15)
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+        end
+    end)
+
     task.spawn(function()
         while true do
             local jid = tostring(game.JobId or "")
@@ -334,6 +346,17 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                             dataToSend["PALETTE_" .. pName] = math.floor(tonumber(val) or 0)
                         end
                     end
+                    -- Materials: PlayerGui.Data.MaterialPalettes
+                    local materialsFolder = data:FindFirstChild("MaterialPalettes")
+                    if materialsFolder then
+                        local materialsRes = httpGet(SERVER_URL .. "/api/materials")
+                        for _, mName in ipairs(materialsRes or {}) do
+                            local c = materialsFolder:FindFirstChild(mName)
+                            local val = c and c.Value or 0
+                            if type(val) == "boolean" then val = val and 1 or 0 end
+                            dataToSend["MATERIAL_" .. mName] = math.floor(tonumber(val) or 0)
+                        end
+                    end
                 end
             end
             if not STOPPED then
@@ -351,6 +374,38 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
     end)
 
     print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
+
+    -- Цикл проверки промокодов — срабатывает когда на сайте нажали "Ввести промокоды"
+    task.spawn(function()
+        local lastPromoTime = 0
+        while not STOPPED do
+            task.wait(5)
+            pcall(function()
+                local r = httpGet(SERVER_URL .. "/api/promo")
+                if not (r and r.codes and #r.codes > 0) then return end
+                if not r.sentAt or r.sentAt == lastPromoTime then return end
+                lastPromoTime = r.sentAt
+
+                print("[Twink] Получены промокоды:", #r.codes)
+                local redeemRemote = ReplicatedStorage:WaitForChild("Remotes")
+                    :WaitForChild("RedeemCodeRemote", 10)
+                if not redeemRemote then
+                    warn("[Twink] RedeemCodeRemote не найден!")
+                    return
+                end
+
+                for i, code in ipairs(r.codes) do
+                    print("[Twink] Вводим промокод:", code)
+                    local ok, result = pcall(function()
+                        return redeemRemote:InvokeServer(unpack({code}))
+                    end)
+                    print("[Twink] Промокод", code, ok and "OK" or "ERR", tostring(result))
+                    if i < #r.codes then task.wait(5) end
+                end
+                print("[Twink] Все промокоды введены!")
+            end)
+        end
+    end)
 
     -- ШАГ 1: ждём команду телепорта
     local jobId = nil
@@ -412,61 +467,49 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
     if STOPPED then print("[Twink] Остановлен (ожидание очереди)"); return end
 
     -- ШАГ 3: телепортируемся — повторяем пока не попадём
-    -- При ошибке 773 (сервер недоступен) берём новый jobId от основного
-    local tpFailed = false
-    local tpFailReason = ""
+    -- При любой ошибке (включая 773) берём свежий jobId и пробуем снова
 
+    -- Флаг ошибки телепорта
+    local tpFailed = false
     TeleportService.TeleportInitFailed:Connect(function(plr, failReason, errorMessage)
         if plr == player then
             tpFailed = true
-            tpFailReason = tostring(failReason) .. " | " .. tostring(errorMessage)
-            warn("[Twink] TeleportInitFailed:", tpFailReason)
-            STOPPED = false  -- разрешаем повтор
+            warn("[Twink] TeleportInitFailed:", tostring(failReason), tostring(errorMessage))
         end
     end)
 
     while not STOPPED do
         tpFailed = false
 
-        -- Всегда берём свежий jobId от основного
+        -- Берём свежий jobId
         local freshJobId = ""
-        local attempts = 0
-        repeat
-            attempts += 1
-            task.wait(2)
-            pcall(function()
-                local r = httpGet(SERVER_URL .. "/api/mainjobid")
-                if r and r.jobId and r.jobId ~= "" then freshJobId = r.jobId end
-            end)
-        until freshJobId ~= "" or attempts >= 10
+        pcall(function()
+            local r = httpGet(SERVER_URL .. "/api/mainjobid")
+            if r and r.jobId and r.jobId ~= "" then freshJobId = r.jobId end
+        end)
 
         if freshJobId == "" then
-            warn("[Twink] Не удалось получить jobId после 10 попыток, ждём 10 сек...")
-            task.wait(10)
+            print("[Twink] Нет jobId — ждём 5 сек...")
+            task.wait(5)
             continue
         end
 
-        print("[Twink] Телепортируемся в jobId:", freshJobId)
-        local ok, err = pcall(function()
+        print("[Twink] Телепортируемся:", freshJobId)
+        pcall(function()
             TeleportService:TeleportToPlaceInstance(14119723130, freshJobId)
         end)
 
-        if ok then
-            print("[Twink] Телепорт запущен — ждём...")
-            -- Ждём либо телепорта либо ошибки (до 15 сек)
-            local waitTp = 0
-            repeat
-                task.wait(1); waitTp += 1
-            until STOPPED or tpFailed or waitTp >= 15
+        -- Ждём до 15 сек — либо телепортировало (STOPPED=true) либо ошибка
+        local w = 0
+        repeat task.wait(1); w += 1 until STOPPED or tpFailed or w >= 15
 
-            if tpFailed then
-                warn("[Twink] Телепорт не удался:", tpFailReason, "— берём новый jobId...")
-                task.wait(3)
-                -- продолжаем цикл с новым jobId
-            end
-        else
-            warn("[Twink] pcall ошибка телепорта:", tostring(err), "— повтор через 5 сек...")
-            task.wait(5)
+        if tpFailed then
+            warn("[Twink] Ошибка телепорта — повтор через 3 сек с новым jobId...")
+            task.wait(3)
+        elseif not STOPPED then
+            -- Не телепортировало и нет ошибки — пробуем снова
+            print("[Twink] Телепорт завис — повтор...")
+            task.wait(2)
         end
     end
 
@@ -474,6 +517,35 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 --  ТВИНК — 14119723130
 -- ════════════════════════════════
 elseif not IS_MAIN and PlaceId == 14119723130 then
+
+    -- АнтиАФК — двигаем камеру каждые 15 сек чтобы не кикнуло
+    task.spawn(function()
+        local VirtualUser = game:GetService("VirtualUser")
+        while true do
+            task.wait(15)
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+        end
+    end)
+
+    -- АнтиАФК через симуляцию нажатия клавиши
+    task.spawn(function()
+        local ContextActionService = game:GetService("ContextActionService")
+        while true do
+            task.wait(60)
+            pcall(function()
+                -- Симулируем движение мыши чтобы сбросить AFK таймер
+                local cam = workspace.CurrentCamera
+                if cam then
+                    cam.CFrame = cam.CFrame * CFrame.Angles(0, 0.001, 0)
+                    task.wait(0.1)
+                    cam.CFrame = cam.CFrame * CFrame.Angles(0, -0.001, 0)
+                end
+            end)
+        end
+    end)
 
     local mainInfo = httpGet(SERVER_URL .. "/api/mainjobid")
     local mainName = mainInfo and mainInfo.name or ""
@@ -520,6 +592,14 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         paletteNames = palettesRes
         print("[Twink14] Палитры загружены:", #paletteNames)
         for _, n in ipairs(paletteNames) do print("  -", n) end
+    end
+
+    local materialNames = {}
+    local materialsRes = httpGet(SERVER_URL .. "/api/materials")
+    if materialsRes and type(materialsRes) == "table" then
+        materialNames = materialsRes
+        print("[Twink14] Материалы загружены:", #materialNames)
+        for _, n in ipairs(materialNames) do print("  -", n) end
     end
 
     local function getDataFolder()
@@ -596,6 +676,22 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             print("[Twink14][snapshot] SpecialPalettes папка не найдена")
         end
 
+        -- Materials: player.Data.MaterialPalettes
+        local materialsFolder = dataFolder:FindFirstChild("MaterialPalettes")
+        if materialsFolder then
+            for _, name in ipairs(materialNames) do
+                local c   = materialsFolder:FindFirstChild(name)
+                local val = c and c.Value or 0
+                if type(val) == "boolean" then val = val and 1 or 0 end
+                val = math.floor(tonumber(val) or 0)
+                result["MATERIAL_" .. name] = val
+                total += val
+                if val > 0 then print("[Twink14][snapshot] Material", name, "=", val) end
+            end
+        else
+            print("[Twink14][snapshot] MaterialPalettes папка не найдена")
+        end
+
         print("[Twink14][snapshot] Итого:", total)
         return result, total
     end
@@ -610,40 +706,35 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         Формула: floor(total/100) + (остаток/100) + 0.01 если остаток == 0
         Важно: если остаток 0 — пишем 01 в конце
     ]]
+    -- Баг игры: если предметов > 150, передаём amount/100 с последней цифрой 1
+    -- 320 → 3.21, 151 → 1.51, 150 → 150, 149 → 149
     local function encodeAmount(total)
-        if total <= 150 then
-            -- Маленькие числа передаём как есть
-            return total
-        end
+        if total <= 150 then return total end
         local hundreds  = math.floor(total / 100)
         local remainder = total % 100
-        -- Последняя цифра остатка всегда 1
-        -- 20 → 21, 00 → 01, 21 → 21, 30 → 31
         local lastDigit = remainder % 10
         if lastDigit ~= 1 then
             remainder = remainder - lastDigit + 1
-            -- если remainder стал 0 → 01
             if remainder <= 0 then remainder = 1 end
         end
-        local str = tostring(hundreds) .. "." .. string.format("%02d", remainder)
-        local result = tonumber(str)
-        print(string.format("[encodeAmount] %d → %.4g", total, result))
+        local result = tonumber(tostring(hundreds) .. "." .. string.format("%02d", remainder))
+        print(string.format("[encode] %d → %.4g", total, result))
         return result
     end
 
     local function buildChunks(snap)
         local allSlots = {}
 
-        -- Каждый предмет — один слот с закодированным количеством
+        -- Один слот на весь предмет с encodeAmount
         local function addSlot(itemType, name, snapKey, totalAmount)
             if totalAmount <= 0 then return end
             local encoded = encodeAmount(totalAmount)
             table.insert(allSlots, {
-                itemType = itemType,
-                name     = name,
-                snapKey  = snapKey,
-                amount   = encoded,
-                realAmount = totalAmount  -- реальное кол-во для верификации
+                itemType   = itemType,
+                name       = name,
+                snapKey    = snapKey,
+                amount     = encoded,
+                realAmount = totalAmount
             })
         end
 
@@ -651,6 +742,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         for _, name in ipairs(creatureNames) do addSlot("Creatures", name, name,               snap[name] or 0) end
         for _, name in ipairs(plushieNames)  do addSlot("Plushies",  name, "PLUSHIE_"..name,   snap["PLUSHIE_"..name] or 0) end
         for _, name in ipairs(paletteNames)  do addSlot("Palettes",  name, "PALETTE_"..name,   snap["PALETTE_"..name] or 0) end
+        for _, name in ipairs(materialNames) do addSlot("Materials", name, "MATERIAL_"..name,  snap["MATERIAL_"..name] or 0) end
 
         -- Сортируем по реальному количеству — больше → первее
         table.sort(allSlots, function(a, b)
@@ -773,7 +865,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         })
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         task.wait(1)
-        player:Kick("Всё закончил я всё!")
+        player:Kick("Сбор завершён!")
     end
 
     -- Вызывается при ошибке — статистику НЕ трогаем
@@ -782,7 +874,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         warn("[Twink14] Статистика сохранена.")
         httpPost(SERVER_URL .. "/api/queue/done", { name = myName })
         task.wait(1)
-        player:Kick("Ошибка передачи: " .. tostring(reason))
+        player:Kick("Ошибка: " .. tostring(reason))
     end
 
     local function doOneTrade(chunk, chunkIndex, totalChunks, snapBefore)
