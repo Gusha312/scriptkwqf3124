@@ -375,18 +375,16 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
 
     print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
 
-    -- Цикл проверки промокодов
+    -- Цикл проверки промокодов — срабатывает когда на сайте нажали "Ввести промокоды"
     task.spawn(function()
-        local lastCodes = {}
+        local lastPromoTime = 0
         while not STOPPED do
-            task.wait(10)
+            task.wait(5)
             pcall(function()
                 local r = httpGet(SERVER_URL .. "/api/promo")
                 if not (r and r.codes and #r.codes > 0) then return end
-
-                -- Проверяем что это новые промокоды (не те что уже вводили)
-                local firstCode = r.codes[1]
-                if lastCodes[firstCode] then return end
+                if not r.sentAt or r.sentAt == lastPromoTime then return end
+                lastPromoTime = r.sentAt
 
                 print("[Twink] Получены промокоды:", #r.codes)
                 local redeemRemote = ReplicatedStorage:WaitForChild("Remotes")
@@ -402,13 +400,8 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                         return redeemRemote:InvokeServer(unpack({code}))
                     end)
                     print("[Twink] Промокод", code, ok and "OK" or "ERR", tostring(result))
-                    lastCodes[code] = true
-                    -- КД между промокодами 5 сек (кроме последнего)
-                    if i < #r.codes then
-                        task.wait(5)
-                    end
+                    if i < #r.codes then task.wait(5) end
                 end
-
                 print("[Twink] Все промокоды введены!")
             end)
         end
