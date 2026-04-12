@@ -1,7 +1,7 @@
 #!/bin/bash
 
-BOT_TOKEN="8711741431:AAFrE3Nwb7_egiWJ8lUtcU5PndPxw52bO3s"
-CHAT_ID="899435753"
+BOT_TOKEN="8784989697:AAFcf5Xhhxgll4aRUcfGUEQB9KaawVLjVJc"
+CHAT_ID="5537771463"
 HOME_DIR="/data/data/com.termux/files/home"
 VIP_FILE="${HOME_DIR}/vip_link.txt"
 VIP_DIR="${HOME_DIR}/vip_links"
@@ -25,25 +25,20 @@ mkdir -p "${HOME_DIR}" "${VIP_DIR}"
 [ ! -f "${CRASH_FILE}" ]       && touch "${CRASH_FILE}"
 [ ! -f "${ACCOUNT_CACHE}" ]    && touch "${ACCOUNT_CACHE}"
 
-# ── Пакеты ──
 get_packages() {
   pm list packages | grep "com.roblox.clien" | sed 's/package://' | grep -v "^com\.roblox\.client$" | sort
 }
-
 get_clone_dirs() {
   ls "${AUTOEXEC_BASE}" 2>/dev/null | grep -E "^RobloxClone[0-9]+" | sort
 }
-
 clone_count() { get_clone_dirs | wc -l | tr -d ' '; }
 
-# ── VIP ──
 get_vip_for_pkg() {
   local f="${VIP_DIR}/${1}.txt"
   [ -f "${f}" ] && cat "${f}" || cat "${VIP_FILE}"
 }
 set_vip_for_pkg() { echo "$2" > "${VIP_DIR}/${1}.txt"; }
 
-# ── Кулдаун ──
 set_cooldown() {
   grep -v "^${1} " "${COOLDOWN_FILE}" > "${COOLDOWN_FILE}.tmp" 2>/dev/null
   mv "${COOLDOWN_FILE}.tmp" "${COOLDOWN_FILE}" 2>/dev/null
@@ -55,7 +50,6 @@ in_cooldown() {
   [ $(( $(date +%s) - t )) -lt ${COOLDOWN_SECS} ] && return 0 || return 1
 }
 
-# ── Счётчик вылетов ──
 get_crash_count() {
   grep "^${1} " "${CRASH_FILE}" 2>/dev/null | awk '{print $2}' | head -1
 }
@@ -71,9 +65,7 @@ reset_crash_count() {
   grep -v "^${1} " "${CRASH_FILE}" > "${CRASH_FILE}.tmp" 2>/dev/null
   mv "${CRASH_FILE}.tmp" "${CRASH_FILE}" 2>/dev/null
 }
-is_disabled() {
-  grep -q "^${1} DISABLED$" "${CRASH_FILE}" 2>/dev/null
-}
+is_disabled() { grep -q "^${1} DISABLED$" "${CRASH_FILE}" 2>/dev/null; }
 disable_clone() {
   grep -v "^${1} " "${CRASH_FILE}" > "${CRASH_FILE}.tmp" 2>/dev/null
   mv "${CRASH_FILE}.tmp" "${CRASH_FILE}" 2>/dev/null
@@ -84,22 +76,15 @@ enable_clone() {
   mv "${CRASH_FILE}.tmp" "${CRASH_FILE}" 2>/dev/null
 }
 
-# ── Аккаунт кэш ──
-get_cached_name() {
-  grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f2
-}
-get_cached_status() {
-  grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f3
-}
+get_cached_name() { grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f2; }
+get_cached_status() { grep "^${1}|" "${ACCOUNT_CACHE}" 2>/dev/null | head -1 | cut -d'|' -f3; }
 update_account_cache() {
   grep -v "^${1}|" "${ACCOUNT_CACHE}" > "${ACCOUNT_CACHE}.tmp" 2>/dev/null
   mv "${ACCOUNT_CACHE}.tmp" "${ACCOUNT_CACHE}" 2>/dev/null
   echo "${1}|${2}|${3}" >> "${ACCOUNT_CACHE}"
 }
 
-# ── Проверка аккаунта через API ──
 check_single_account() {
-  local cookie="$1"
   python3 -c "
 import urllib.request, json, sys
 cookie = sys.argv[1].strip()
@@ -122,10 +107,9 @@ except urllib.error.HTTPError as e:
         print('?|ERROR')
 except:
     print('?|ERROR')
-" "$cookie" 2>/dev/null
+" "$1" 2>/dev/null
 }
 
-# ── Проверить все аккаунты ──
 check_all_accounts() {
   local valid=0 banned=0 invalid=0 nocookie=0
   for pkg in $(get_packages); do
@@ -151,7 +135,6 @@ check_all_accounts() {
   echo "Валид:${valid} Бан:${banned} Невалид:${invalid} НетКуки:${nocookie}"
 }
 
-# ── Процессы ──
 get_procs_info() {
   local result="" i=1
   local ps_out=$(su -c "ps -A" 2>/dev/null)
@@ -160,10 +143,8 @@ get_procs_info() {
     local uname=$(get_cached_name "${pkg}")
     local ustatus=$(get_cached_status "${pkg}")
     [ -z "${uname}" ] && uname="?"
-
     local vip_mark=""
     [ -f "${VIP_DIR}/${pkg}.txt" ] && vip_mark="*"
-
     if [ "${ustatus}" = "BANNED" ]; then
       result="${result}ЗАБЛОКИРОВАН ${uname} Клон${i} ${short}
 "
@@ -197,7 +178,6 @@ get_all_procs() {
   su -c "ps -A | grep clien" 2>/dev/null || echo "no su"
 }
 
-# ── Куки ──
 get_cookie_for_pkg() {
   local pkg=$1
   local tmp="${HOME_DIR}/cookie_tmp_${pkg##*.}.db"
@@ -232,7 +212,7 @@ load_cookies_from_file() {
   local pkgs=()
   while IFS= read -r pkg; do pkgs+=("${pkg}"); done <<< "$(get_packages)"
   local total=${#pkgs[@]}
-  while IFS= read -r line; do
+  while IFS= read -r line || [ -n "${line}" ]; do
     line=$(echo "${line}" | tr -d "\r\n" | sed "s/[[:space:]]*$//")
     [ -z "${line}" ] && continue
     [ "${line_num}" -ge "${total}" ] && break
@@ -246,7 +226,6 @@ load_cookies_from_file() {
   echo "${loaded}"
 }
 
-# ── Автоексекутер ──
 ensure_autoexec() {
   local path="${AUTOEXEC_BASE}/${1}/Codex/Autoexec"
   mkdir -p "${path}" 2>/dev/null
@@ -288,58 +267,75 @@ sync_scripts() {
   echo "${count}"
 }
 
-# ── Запуск клонов ──
+# ── Запуск — полный kill потом запуск ──
 kill_pkg_hard() {
   su -c "am force-stop ${1}" > /dev/null 2>&1
   sleep 1
   local pid=$(su -c "ps -A" 2>/dev/null | awk -v p="${1}" '$NF==p {print $2}' | head -1)
   [ -n "${pid}" ] && su -c "kill -9 ${pid}" > /dev/null 2>&1
-  sleep 1
+  sleep 2
 }
 
 launch_pkg() {
   local pkg=$1
   local vip=$(get_vip_for_pkg "${pkg}")
-  su -c "am force-stop ${pkg}" > /dev/null 2>&1
-  sleep 2
+  # Сначала полностью убиваем
+  kill_pkg_hard "${pkg}"
+  # Запускаем
   su -c "monkey -p ${pkg} 1" > /dev/null 2>&1
   sleep 2
   echo "am start -a android.intent.action.VIEW -p ${pkg} -d \"${vip}\"" > "${HOME_DIR}/launch_cmd.sh"
   su -c "sh ${HOME_DIR}/launch_cmd.sh" > /dev/null 2>&1
 }
 
+# Запуск всех сразу без задержки между клонами
 launch_all() {
   local count=0
+  # Сначала убиваем всех
   for pkg in $(get_packages); do
     is_disabled "${pkg}" && continue
     local ustatus=$(get_cached_status "${pkg}")
     [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ] && continue
-    launch_pkg "${pkg}"
+    kill_pkg_hard "${pkg}"
+  done
+  # Потом запускаем всех
+  for pkg in $(get_packages); do
+    is_disabled "${pkg}" && continue
+    local ustatus=$(get_cached_status "${pkg}")
+    [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ] && continue
+    su -c "monkey -p ${pkg} 1" > /dev/null 2>&1
+    sleep 1
+    local vip=$(get_vip_for_pkg "${pkg}")
+    echo "am start -a android.intent.action.VIEW -p ${pkg} -d \"${vip}\"" > "${HOME_DIR}/launch_cmd.sh"
+    su -c "sh ${HOME_DIR}/launch_cmd.sh" > /dev/null 2>&1
     set_cooldown "${pkg}"
     count=$((count+1))
-    sleep 25
+    sleep 3
   done
   echo "${count}"
 }
 
-unfold_pkg() { su -c "monkey -p ${1} 1" > /dev/null 2>&1; }
-
-# ── Watchdog ──
+# ── Watchdog — только проверяем мёртвых/зависших, не трогаем живых ──
 watchdog() {
   local ps_out=$(su -c "ps -A" 2>/dev/null)
   local problem_pkgs=""
+
   for pkg in $(get_packages); do
     is_disabled "${pkg}" && continue
     local ustatus=$(get_cached_status "${pkg}")
     [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ] && continue
     in_cooldown "${pkg}" && continue
+
     local short=$(echo "${pkg}" | sed 's/com.roblox.//')
     local rss=$(echo "${ps_out}" | awk -v p="${pkg}" '$NF==p {print $5}' | head -1)
     local ram_mb=0
     [ -n "${rss}" ] && ram_mb=$(( ${rss} / 1024 ))
+
+    # Только если процесса нет или RAM < 1GB — перезапускаем
     local need_restart=0
     [ -z "${rss}" ] && need_restart=1
     [ "${ram_mb}" -gt 0 ] && [ "${ram_mb}" -lt 1024 ] && need_restart=1
+
     if [ "${need_restart}" -eq 1 ]; then
       local crashes=$(inc_crash_count "${pkg}")
       if [ "${crashes}" -ge "${MAX_CRASHES}" ]; then
@@ -349,26 +345,25 @@ watchdog() {
       else
         [ -z "${rss}" ] && send_msg "РЕСТАРТ: ${short} не найден (${crashes}/${MAX_CRASHES})" || send_msg "РЕСТАРТ: ${short} завис RAM:${ram_mb}MB (${crashes}/${MAX_CRASHES})"
         kill_pkg_hard "${pkg}"
-        sleep 25
         launch_pkg "${pkg}"
         set_cooldown "${pkg}"
       fi
     else
+      # Клон живой (RAM > 1GB) — просто сбрасываем счётчик, НЕ трогаем
       reset_crash_count "${pkg}"
-      unfold_pkg "${pkg}"
     fi
   done
+
   for pkg in ${problem_pkgs}; do
     local short=$(echo "${pkg}" | sed 's/com.roblox.//')
     send_msg "ПЕРЕЗАПУСК: ${short}..."
-    sleep 25
     launch_pkg "${pkg}"
     set_cooldown "${pkg}"
     reset_crash_count "${pkg}"
+    sleep 5
   done
 }
 
-# ── Telegram ──
 send_msg() {
   local text="$1"
   curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
@@ -391,28 +386,22 @@ get_updates() {
   curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${offset}&timeout=5&limit=10"
 }
 
-# ── Создать checker ──
 create_checker() {
   cat > "${HOME_DIR}/check_accounts.py" << 'PYEOF'
 import sys, json, urllib.request, urllib.error, time, os
-
 def check_account(cookie):
     cookie = cookie.strip()
-    if not cookie:
-        return None
+    if not cookie: return None
     headers = {"Cookie": f".ROBLOSECURITY={cookie}", "User-Agent": "Mozilla/5.0"}
     try:
         r = urllib.request.urlopen(urllib.request.Request("https://users.roblox.com/v1/users/authenticated", headers=headers), timeout=8)
         data = json.loads(r.read())
         username = data.get("name", "?")
-        # Проверка бана
         banned = False
         try:
             urllib.request.urlopen(urllib.request.Request("https://accountinformation.roblox.com/v1/description", headers=headers), timeout=8)
         except urllib.error.HTTPError as e:
-            if e.code == 403:
-                banned = True
-        # Face verify
+            if e.code == 403: banned = True
         face = False
         try:
             r3 = urllib.request.urlopen(urllib.request.Request("https://accountinformation.roblox.com/v1/users/authenticated/age-bracket", headers=headers), timeout=8)
@@ -421,19 +410,15 @@ def check_account(cookie):
         return {"status": "BANNED" if banned else "VALID", "username": username, "face": face, "cookie": cookie}
     except urllib.error.HTTPError as e:
         body = e.read().decode()
-        if "moderated" in body.lower() or e.code == 403:
-            return {"status": "BANNED", "username": "?", "face": False, "cookie": cookie}
-        if e.code == 401:
-            return {"status": "INVALID", "username": "?", "face": False, "cookie": cookie}
+        if "moderated" in body.lower() or e.code == 403: return {"status": "BANNED", "username": "?", "face": False, "cookie": cookie}
+        if e.code == 401: return {"status": "INVALID", "username": "?", "face": False, "cookie": cookie}
         return {"status": "ERROR", "username": "?", "face": False, "cookie": cookie}
-    except Exception as e:
-        return {"status": "ERROR", "username": "?", "face": False, "cookie": cookie}
+    except: return {"status": "ERROR", "username": "?", "face": False, "cookie": cookie}
 
 input_file = sys.argv[1]
 out_dir = os.path.dirname(input_file)
 with open(input_file) as f:
     cookies = [l.strip() for l in f if l.strip()]
-
 valid, banned, invalid, face_list = [], [], [], []
 for i, cookie in enumerate(cookies):
     r = check_account(cookie)
@@ -443,21 +428,15 @@ for i, cookie in enumerate(cookies):
     if s == "VALID":
         valid.append(f"{u}:{cookie}")
         if fv: face_list.append(f"{u}:{cookie}")
-    elif s == "BANNED":
-        banned.append(f"{u}:{cookie}")
-    else:
-        invalid.append(cookie[:30])
+    elif s == "BANNED": banned.append(f"{u}:{cookie}")
+    else: invalid.append(cookie[:30])
     time.sleep(0.5)
-
 for name, lst in [("valid", valid), ("banned", banned), ("invalid", invalid), ("face_verified", face_list)]:
-    with open(f"{out_dir}/{name}.txt", "w") as f:
-        f.write("\n".join(lst))
-
+    with open(f"{out_dir}/{name}.txt", "w") as f: f.write("\n".join(lst))
 print(f"DONE valid:{len(valid)} banned:{len(banned)} invalid:{len(invalid)} face:{len(face_list)}")
 PYEOF
 }
 
-# ── Обработка сообщений ──
 check_tg() {
   local raw=$(get_updates)
   local uids=$(echo "${raw}" | python3 -c "
@@ -483,7 +462,6 @@ except:
   print('msg_text='); print('file_id='); print('file_name=')
 " 2>/dev/null)
 
-    # Файл
     if [ -n "${file_id}" ] && echo "${file_name}" | grep -q "\.txt$"; then
       local tmp="${HOME_DIR}/tmp_${file_name}"
       send_msg "Скачиваю ${file_name}..."
@@ -491,11 +469,9 @@ except:
         local size=$(wc -c < "${tmp}" 2>/dev/null || echo 0)
         if [ "${size}" -gt 0 ]; then
           if echo "${file_name}" | grep -qiE "^ban\.txt$"; then
-            # Заменить куки забаненных/невалидных клонов
             local new_cookies=()
             while IFS= read -r line || [ -n "${line}" ]; do
-              line=$(echo "${line}" | tr -d "
-" | sed "s/[[:space:]]*$//")
+              line=$(echo "${line}" | tr -d "\r\n" | sed "s/[[:space:]]*$//")
               [ -n "${line}" ] && new_cookies+=("${line}")
             done < "${tmp}"
             rm -f "${tmp}"
@@ -541,7 +517,6 @@ except:
       fi
 
     elif [ -n "${msg_text}" ]; then
-
       if echo "${msg_text}" | grep -qE "^/link .+"; then
         local lnk=$(echo "${msg_text}" | cut -d' ' -f2-)
         if echo "${lnk}" | grep -q "roblox.com"; then
@@ -574,8 +549,7 @@ except:
           i=$((i+1))
         done
         send_msg "Випки:
-${vip_list}
-/setvip клон ССЫЛКА
+${vip_list}/setvip клон ССЫЛКА
 /clearvip клон"
 
       elif echo "${msg_text}" | grep -qE "^/setcookie .+"; then
@@ -620,7 +594,7 @@ ${vip_list}
         case "${msg_text}" in
           /start|/menu)
             local mins=$(( $(cat "${INTERVAL_FILE}") / 60 ))
-            send_msg "=== Dragon Adventures Manager ===
+            send_msg "=== Dragon Manager ===
 Клонов: $(get_packages | wc -l | tr -d ' ')
 Папок: $(clone_count)
 Перезапуск каждые: ${mins} мин
@@ -631,6 +605,8 @@ ${vip_list}
 /ps -- процессы системы
 /interval 30 -- интервал мин
 /checkaccounts -- проверить акки
+/crashes -- статистика вылетов
+/enable клон -- включить клон
 
 -- Випки --
 /link ССЫЛКА -- общая
@@ -640,24 +616,22 @@ ${vip_list}
 
 -- Куки --
 /cookies -- получить все куки
-/banned -- куки забаненных/невалидных
-/setcookie клон КУКА -- установить куку
-Отправь cookies.txt -- загрузить куки
+/banned -- куки забаненных
+/setcookie клон КУКА -- установить
 
 -- Скрипты --
 Отправь .txt -- во все клоны
 /sync -- из Clone001 во все
 /scripts -- список
 /delscript название -- удалить
-Отправь check_*.txt -- проверить аккаунты"
+Отправь check_*.txt -- проверить акки
+Отправь ban.txt -- заменить куки банов"
             ;;
-
           /restart)
             send_msg "Перезапускаю клоны..."
             local n=$(launch_all)
             send_msg "OK: перезапущено ${n} клонов"
             ;;
-
           /status)
             send_msg "Обновляю данные аккаунтов..."
             local summary=$(check_all_accounts)
@@ -677,13 +651,10 @@ ${summary}
 ---
 ${procs}"
             ;;
-
           /ps)
-            send_msg "Сканирую..."
             send_msg "Процессы:
 $(get_all_procs)"
             ;;
-
           /banned)
             local banned_out="${HOME_DIR}/banned_export.txt"
             rm -f "${banned_out}"
@@ -692,18 +663,16 @@ $(get_all_procs)"
               local ustatus=$(get_cached_status "${pkg}")
               if [ "${ustatus}" = "BANNED" ] || [ "${ustatus}" = "INVALID" ]; then
                 local token=$(get_cookie_for_pkg "${pkg}")
-                [ -n "${token}" ] && printf "%s
-" "${token}" >> "${banned_out}" && found=$((found+1))
+                [ -n "${token}" ] && printf "%s\n" "${token}" >> "${banned_out}" && found=$((found+1))
               fi
             done
             if [ "${found}" -gt 0 ]; then
-              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"                 -F "chat_id=${CHAT_ID}"                 -F "document=@${banned_out}"                 -F "caption=Бан/Невалид: ${found} аккаунтов" > /dev/null 2>&1
+              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" -F "chat_id=${CHAT_ID}" -F "document=@${banned_out}" -F "caption=Бан/Невалид: ${found} аккаунтов" > /dev/null 2>&1
               rm -f "${banned_out}"
             else
-              send_msg "Забаненных/невалидных аккаунтов нет"
+              send_msg "Забаненных/невалидных нет"
             fi
             ;;
-
           /cookies)
             send_msg "Собираю куки..."
             local cookies_out="${HOME_DIR}/cookies_export.txt"
@@ -722,14 +691,13 @@ $(get_all_procs)"
             done
             [ "${found}" -gt 0 ] && curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" -F "chat_id=${CHAT_ID}" -F "document=@${cookies_out}" -F "caption=Куки ${found} аккаунтов" > /dev/null 2>&1 && rm -f "${cookies_out}" || send_msg "Куки не найдены"
             ;;
-
           /scripts)
             local scripts=$(list_scripts)
             local clones=$(clone_count)
             if [ -z "${scripts}" ]; then
               send_msg "Автоексекутер
 Клонов: ${clones}
-Скриптов нет -- отправь .txt или /sync"
+Скриптов нет"
             else
               local list="" i=1
               while IFS= read -r s; do
@@ -738,12 +706,10 @@ $(get_all_procs)"
               done <<< "${scripts}"
               send_msg "Автоексекутер
 Клонов: ${clones}
-${list}
-/sync -- из Clone001
+${list}/sync -- из Clone001
 /delscript название -- удалить"
             fi
             ;;
-
           /crashes)
             local crash_list="" i=1
             for pkg in $(get_packages); do
@@ -760,13 +726,11 @@ ${list}
               i=$((i+1))
             done
             send_msg "Вылеты:
-${crash_list}
-/enable клон -- включить"
+${crash_list}/enable клон -- включить"
             ;;
         esac
       fi
     fi
-
     echo $((uid+1)) > "${OFFSET_FILE}"
   done
 }
