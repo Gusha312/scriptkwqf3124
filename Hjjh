@@ -146,10 +146,10 @@ get_procs_info() {
     local vip_mark=""
     [ -f "${VIP_DIR}/${pkg}.txt" ] && vip_mark="*"
     if [ "${ustatus}" = "BANNED" ]; then
-      result="${result}ЗАБЛОКИРОВАН ${uname} Клон${i} ${short}
+      result="${result}🚫 ${uname} Клон${i} ${short}
 "
     elif [ "${ustatus}" = "INVALID" ]; then
-      result="${result}НЕВАЛИД ${uname} Клон${i} ${short}
+      result="${result}⛔ ${uname} Клон${i} ${short}
 "
     else
       local line=$(echo "${ps_out}" | awk -v p="${pkg}" '$NF==p {print}' | head -1)
@@ -158,14 +158,14 @@ get_procs_info() {
         local rss=$(echo "${line}" | awk '{print $5}')
         local ram_mb=$(( ${rss:-0} / 1024 ))
         if [ "${ram_mb}" -gt 1024 ]; then
-          result="${result}ВКЛ  ${uname} Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
+          result="${result}🟢 ${uname} Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
 "
         else
-          result="${result}МАЛ  ${uname} Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
+          result="${result}🔵 ${uname} Клон${i} ${short}${vip_mark} PID:${pid} RAM:${ram_mb}MB
 "
         fi
       else
-        result="${result}ВЫКЛ ${uname} Клон${i} ${short}${vip_mark} офлайн
+        result="${result}🔴 ${uname} Клон${i} ${short}${vip_mark} офлайн
 "
       fi
     fi
