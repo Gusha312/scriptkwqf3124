@@ -27,7 +27,7 @@ if game.PlaceId == 5233782396 then
             "Tulip", "CrackedEgg", "ShellBloom", "Scrambled",
             "Charcuterie", "WhimsyWool", "LuckyLamb", "MTL_EggYolk",
             "SIG_Chocolate", "Convarlia", "Demetyra", "Buff Eulopii",
-            "Grysallmog",
+            "Grysallmog", "Chick", "Bunny", "Lenarabu",
         }
         local purchaseRemote = RS:WaitForChild("PurchaseEventItemRemote")
         while true do
