@@ -1,4 +1,4 @@
--- [[ ПОЛНЫЙ СКРИПТ: ЗАХВАТ + ТЕЛЕПОРТ + СТАТИСТИКА + КОНТРОЛЬ ОНЛАЙНА ]]
+-- [[ ПОЛНЫЙ СКРИПТ: ЗАХВАТ + ТЕЛЕПОРТ + СТАТИСТИКА + КОНТРОЛЬ ОНЛАЙНА + ВЫБОР ЛУЧШЕГО СЕРВЕРА ]]
 local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460368964130701397/vhFTl_UDYexyOrvWfMw6s-XcpV1SAIhuJE6vAZYhnAF7zrmHZJUGuSxu4rZCdOy6r0KQ"
 local COINS_LIMIT = 7000000
 local MIN_PLAYERS_THRESHOLD = 30 -- Если 30 или меньше, уходим
@@ -55,7 +55,7 @@ UserInputService.WindowFocusReleased:Connect(function()
     setFpsCap(MIN_FPS)
 end)
 
--- [[ ОБНОВЛЕННЫЙ ВЕБХУК ]]
+-- [[ ОТПРАВКА СТАТИСТИКИ В DISCORD ]]
 
 local function sendDiscordWebhook(customMessage)
     local data = localPlayer:FindFirstChild("Data")
@@ -94,7 +94,62 @@ local function sendDiscordWebhook(customMessage)
     end)
 end
 
--- [[ ЛОГИКА ЗАХВАТА ]]
+-- [[ ПОИСК ЛУЧШЕГО СЕРВЕРА (ПО ОНЛАЙНУ) ]]
+
+-- Выбери режим: "top1" или "top2"
+local SERVER_SELECTION_MODE = "top1"  -- можно поменять на "top2"
+
+local function findBestServer()
+    local url = "https://games.roblox.com/v1/games/" .. TRADE_WORLD_ID .. "/servers/Public?limit=100"
+    local success, response = pcall(function()
+        return HttpService:GetAsync(url, true)
+    end)
+    
+    if not success then
+        warn("Не удалось получить список серверов:", response)
+        return nil
+    end
+
+    local data = HttpService:JSONDecode(response)
+    if not data or not data.data then return nil end
+
+    -- Сортируем серверы по убыванию количества игроков
+    table.sort(data.data, function(a, b)
+        return a.playing > b.playing
+    end)
+
+    local selectedServer = nil
+    if SERVER_SELECTION_MODE == "top1" then
+        selectedServer = data.data[1]
+    elseif SERVER_SELECTION_MODE == "top2" then
+        selectedServer = data.data[2]
+    end
+
+    if selectedServer then
+        print(string.format("✅ Выбран сервер: %s игроков, ID: %s", selectedServer.playing, selectedServer.id))
+        return selectedServer.id
+    else
+        print("⚠️ Не удалось найти подходящий сервер (список пуст или режим выбора неверен).")
+        return nil
+    end
+end
+
+local function joinServerById(jobId)
+    if not jobId then
+        warn("Нет ID сервера для подключения.")
+        return false
+    end
+    local success, err = pcall(function()
+        TeleportService:TeleportToPlaceInstance(TRADE_WORLD_ID, jobId, localPlayer)
+    end)
+    if not success then
+        warn("Ошибка телепортации на сервер: " .. tostring(err))
+        return false
+    end
+    return true
+end
+
+-- [[ ЛОГИКА ЗАХВАТА СТОЕК ]]
 
 local function claimStallsForever()
     if currentPlaceId == NORMAL_WORLD_ID then return end
@@ -124,14 +179,13 @@ local function claimStallsForever()
     end
 end
 
--- [[ ПРОВЕРКА ОНЛАЙНА ]]
+-- [[ КОНТРОЛЬ ОНЛАЙНА (УХОД ПРИ МАЛОМ КОЛИЧЕСТВЕ) ]]
 
 local function serverPlayerCheck()
     while true do
         task.wait(CHECK_INTERVAL)
         local playerCount = #Players:GetPlayers()
         
-        -- Если мы в Торговом мире и людей стало мало
         if currentPlaceId == TRADE_WORLD_ID and playerCount <= MIN_PLAYERS_THRESHOLD then
             print("📉 Мало игроков (" .. playerCount .. "). Ухожу в обычный мир...")
             sendDiscordWebhook("⚠️ Сервер пустеет (" .. playerCount .. " чел). Рестарт сервера...")
@@ -153,7 +207,7 @@ local function setupAntiAFK()
     end)
 end
 
--- [[ ЗАПУСК ]]
+-- [[ ГЛАВНАЯ ЛОГИКА ]]
 
 local function main()
     setFpsCap(MAX_FPS)
@@ -165,16 +219,27 @@ local function main()
         
         if currentCoins >= COINS_LIMIT then
             sendDiscordWebhook("🛑 Лимит 7М достигнут. Бот в простое.")
+            return
         else
-            task.wait(8) -- Ждем прогрузки перед прыжком
-            TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
+            task.wait(8) -- Ждём прогрузки перед прыжком
+            
+            -- Поиск лучшего сервера в торговом мире
+            local bestServerId = findBestServer()
+            if bestServerId then
+                joinServerById(bestServerId)
+            else
+                -- Если не нашли, телепортируемся на обычный (случайный) сервер торгового мира
+                print("⚠️ Не удалось найти лучший сервер, иду на обычный сервер торгового мира.")
+                TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
+            end
         end
     else
-        -- Мы в Торговом Мире
+        -- Мы в торговом мире
         sendDiscordWebhook()
         task.spawn(claimStallsForever)
-        task.spawn(serverPlayerCheck) -- Запуск контроля онлайна
+        task.spawn(serverPlayerCheck)
         
+        -- Периодическая отправка статистики (каждые 5 минут)
         task.spawn(function()
             while true do
                 task.wait(300)
