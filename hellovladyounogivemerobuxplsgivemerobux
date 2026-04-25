@@ -1,14 +1,35 @@
--- [[ ПОЛНЫЙ СКРИПТ: ЗАХВАТ + ТЕЛЕПОРТ + СТАТИСТИКА + КОНТРОЛЬ ОНЛАЙНА + ВЫБОР ЛУЧШЕГО СЕРВЕРА ]]
+-- [[ НАСТРОЙКИ ]]
 local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460368964130701397/vhFTl_UDYexyOrvWfMw6s-XcpV1SAIhuJE6vAZYhnAF7zrmHZJUGuSxu4rZCdOy6r0KQ"
 local COINS_LIMIT = 7000000
-local MIN_PLAYERS_THRESHOLD = 30 -- Если 30 или меньше, уходим
-local CHECK_INTERVAL = 150 -- КД проверки (2.5 минуты)
+local MIN_PLAYERS_THRESHOLD = 30
+local CHECK_INTERVAL = 60          -- проверка онлайна каждые 60 сек
+local SEND_STATS_INTERVAL = 300    -- вебхук со статистикой каждые 5 мин
+local REJOIN_INTERVAL = 1800       -- перезаход на новый сервер каждые 30 мин (0 чтобы отключить)
+local CLAIM_DELAY = 1.5
 
+-- Перекупаемые предметы
+local FLIP_ITEMS = {
+    {
+        itemName = "CreatureReviveToken",
+        buyPrice = 1300,
+        sellPrice = 1500,
+        maxTotal = nil             -- без лимита
+    },
+    {
+        itemName = "GalaxyExplorerGachaToken",
+        buyPrice = 1,
+        sellPrice = 5,
+        maxTotal = 20000
+    }
+}
+local MIN_COINS_RESERVE = 1000     -- оставляем на счету
+local MAX_LISTINGS = 4
+
+-- [[ СЕРВИСЫ ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
@@ -20,68 +41,81 @@ local TRADE_WORLD_ID = 14119723130
 local MAX_FPS = 360
 local MIN_FPS = 5
 local RENDER = true
+local SERVER_SELECTION_MODE = "top1"  -- "top1", "top2", "random_top5"
 
--- Твои CFrames
-local stallCFrames = {
-    CFrame.new(-115.76767, 31.4889774, -83.580658, -0.882971644, -0.469426453, -1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, -0.469426453, 0.882971644, 5.40614128e-05),
-    CFrame.new(-80.3615417, 31.4889774, -23.9790859, -0.0349992514, -0.999387324, 4.3451786e-05, -4.3451786e-05, 4.50015068e-05, 1, -0.999387324, 0.0349992514, -4.50611115e-05),
-    CFrame.new(-85.1257629, 31.4889774, 0.639569223, 0.342006564, -0.939697623, -7.00354576e-06, -7.00354576e-06, -1.00135803e-05, 1, -0.939697623, -0.342006564, -1.00135803e-05),
-    CFrame.new(-142.565216, 31.4889774, -92.6095505, -0.99452734, -0.104477406, 2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, -0.104477406, 0.99452728, -5.25712967e-05),
-    CFrame.new(-168.641525, 31.4889774, -90.8674011, -0.97028327, 0.241971374, -2.48849392e-06, 2.48849392e-06, 2.02655792e-05, 0.99999994, 0.241971374, 0.970283329, -2.02655792e-05),
-    CFrame.new(-191.504898, 31.4889774, -81.1337967, -0.787993431, 0.615683556, 1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, 0.615683556, 0.78799355, 4.12464142e-05),
-    CFrame.new(-160.504944, 31.4889774, 46.381073, 0.99452728, 0.104477406, -2.75298953e-06, -2.75298953e-06, 5.2511692e-05, 1, 0.104477406, -0.99452728, 5.2511692e-05),
-    CFrame.new(-134.42865, 31.4889774, 44.6389275, 0.970283389, -0.241971403, 2.48104334e-06, 2.48104334e-06, 2.01463699e-05, 1.00000012, -0.241971403, -0.970283508, 2.01463699e-05),
-    CFrame.new(-187.302505, 31.4889774, 37.3521729, 0.882971585, 0.469426453, 1.34855509e-05, 1.34855509e-05, -5.41210175e-05, 1, 0.469426453, -0.882971644, -5.41210175e-05),
-    CFrame.new(-111.565277, 31.4889774, 34.9053154, 0.78799355, -0.615683556, -1.41859055e-05, -1.41859055e-05, -4.12464142e-05, 1, -0.615683556, -0.78799355, -4.12464142e-05)
-}
+-- Память посещённых серверов
+local visitedServers = {}
+local MAX_VISITED_MEMORY = 20
 
 -- [[ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ]]
-
 local function formatNum(v)
     return tostring(v or 0):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
 end
 
 local function setFpsCap(fps)
-    if type(setfpscap) == "function" then setfpscap(fps) end
+    if type(setfpscap) == "function" then pcall(setfpscap, fps) end
 end
 
 UserInputService.WindowFocused:Connect(function()
     if RENDER then RunService:Set3dRenderingEnabled(true) end
     setFpsCap(MAX_FPS)
 end)
-
 UserInputService.WindowFocusReleased:Connect(function()
     if RENDER then RunService:Set3dRenderingEnabled(false) end
     setFpsCap(MIN_FPS)
 end)
 
--- [[ ОТПРАВКА СТАТИСТИКИ В DISCORD ]]
+local function waitForData(timeout)
+    timeout = timeout or 30
+    local start = tick()
+    while not localPlayer:FindFirstChild("Data") do
+        if tick() - start > timeout then return false end
+        task.wait(0.5)
+    end
+    return true
+end
 
-local function sendDiscordWebhook(customMessage)
-    local data = localPlayer:FindFirstChild("Data")
+-- [[ ДИСКОРД ВЕБХУК ]]
+local lastSentStats = {}
+local function sendDiscordWebhook(force, customMsg)
+    if not waitForData(5) then return end
+    local data = localPlayer.Data
     if not data then return end
 
     local function getItem(name)
-        local item = data.Items:FindFirstChild(name)
+        local item = data:FindFirstChild("Items") and data.Items:FindFirstChild(name)
         return item and formatNum(item.Value) or "0"
     end
 
     local shooms = formatNum(data.Coins.Value)
-    local raised = data.MarketStalls:FindFirstChild("ShoomsRaised") and formatNum(data.MarketStalls.ShoomsRaised.Value) or "0"
+    local raised = data:FindFirstChild("MarketStalls") and data.MarketStalls:FindFirstChild("ShoomsRaised") and formatNum(data.MarketStalls.ShoomsRaised.Value) or "0"
+    local playerCount = #Players:GetPlayers()
+    local timeStr = os.date("%H:%M:%S")
+    local jobId = game.JobId
 
-    local statsText = customMessage or string.format(
-        "**СТАТИСТИКА АККАУНТА (CoS):**\n👤 Ник: %s (@%s)\n🍄 Грибочков: %s\n🏪 Оборот: %s\n\n**ОСНОВНЫЕ ТОКЕНЫ:**\n🦴 Ревайвы: %s\n🌱 Фулл-гроу: %s\n\n**ТОКЕНЫ ПОГОДЫ:**\n🔴 Blood Moon: %s\n🌋 Volcano: %s\n⛈️ Thunderstorm: %s\n🌀 Hurricane: %s\n☁️ Storm: %s\n🌍 Earthquake: %s\n\n👥 Игроков на сервере: %d\n⏰ Время: %s",
-        localPlayer.DisplayName, localPlayer.Name, shooms, raised,
-        getItem("CreatureReviveToken"), 
-        getItem("FullGrowToken"),
-        getItem("BloodMoonSummonToken"),
-        getItem("VolcanoSummonToken"),
-        getItem("ThunderstormSummonToken"),
-        getItem("HurricaneSummonToken"),
-        getItem("StormSummonToken"),
-        getItem("EarthquakeSummonToken"),
-        #Players:GetPlayers(),
-        os.date("%H:%M:%S")
+    local newHash = shooms .. raised .. playerCount
+    if not force and newHash == lastSentStats.hash then return end
+    lastSentStats.hash = newHash
+
+    local statsText = customMsg or string.format(
+        "**ОТЧЁТ ПО СЕРВЕРУ**\n" ..
+        "👤 **Ник:** %s (@%s)\n" ..
+        "🍄 **Грибов на счету:** %s\n" ..
+        "🏪 **Заработано с лавок:** %s\n" ..
+        "🔁 **Токенов Revive:** %s\n" ..
+        "🌌 **Галактических:** %s\n" ..
+        "👥 **Игроков:** %d\n" ..
+        "🆔 **Server:** %s\n" ..
+        "⏰ **Время:** %s",
+        localPlayer.DisplayName,
+        localPlayer.Name,
+        shooms,
+        raised,
+        getItem("CreatureReviveToken"),
+        getItem("GalaxyExplorerGachaToken"),
+        playerCount,
+        jobId,
+        timeStr
     )
 
     pcall(function()
@@ -94,158 +128,275 @@ local function sendDiscordWebhook(customMessage)
     end)
 end
 
--- [[ ПОИСК ЛУЧШЕГО СЕРВЕРА (ПО ОНЛАЙНУ) ]]
-
--- Выбери режим: "top1" или "top2"
-local SERVER_SELECTION_MODE = "top1"  -- можно поменять на "top2"
-
+-- [[ ПОИСК СЕРВЕРА ]]
 local function findBestServer()
     local url = "https://games.roblox.com/v1/games/" .. TRADE_WORLD_ID .. "/servers/Public?limit=100"
-    local success, response = pcall(function()
-        return HttpService:GetAsync(url, true)
-    end)
-    
-    if not success then
-        warn("Не удалось получить список серверов:", response)
-        return nil
-    end
+    local success, response = pcall(HttpService.GetAsync, HttpService, url, true)
+    if not success then return nil end
 
     local data = HttpService:JSONDecode(response)
     if not data or not data.data then return nil end
 
-    -- Сортируем серверы по убыванию количества игроков
-    table.sort(data.data, function(a, b)
-        return a.playing > b.playing
-    end)
-
-    local selectedServer = nil
-    if SERVER_SELECTION_MODE == "top1" then
-        selectedServer = data.data[1]
-    elseif SERVER_SELECTION_MODE == "top2" then
-        selectedServer = data.data[2]
+    local fresh = {}
+    for _, s in ipairs(data.data) do
+        if not visitedServers[s.id] then table.insert(fresh, s) end
+    end
+    if #fresh == 0 then
+        visitedServers = {}
+        fresh = data.data
     end
 
-    if selectedServer then
-        print(string.format("✅ Выбран сервер: %s игроков, ID: %s", selectedServer.playing, selectedServer.id))
-        return selectedServer.id
-    else
-        print("⚠️ Не удалось найти подходящий сервер (список пуст или режим выбора неверен).")
-        return nil
+    table.sort(fresh, function(a,b) return a.playing > b.playing end)
+
+    local selected
+    if SERVER_SELECTION_MODE == "top1" then selected = fresh[1]
+    elseif SERVER_SELECTION_MODE == "top2" then selected = fresh[2]
+    elseif SERVER_SELECTION_MODE == "random_top5" then
+        local top = math.min(5, #fresh)
+        if top >= 1 then selected = fresh[math.random(1, top)] end
+    else selected = fresh[1] end
+
+    if selected then
+        visitedServers[selected.id] = true
+        print("✅ Выбран сервер: " .. selected.playing .. " игроков, ID: " .. selected.id)
+        return selected.id
     end
+    return nil
 end
 
 local function joinServerById(jobId)
-    if not jobId then
-        warn("Нет ID сервера для подключения.")
-        return false
-    end
-    local success, err = pcall(function()
-        TeleportService:TeleportToPlaceInstance(TRADE_WORLD_ID, jobId, localPlayer)
-    end)
-    if not success then
-        warn("Ошибка телепортации на сервер: " .. tostring(err))
-        return false
-    end
-    return true
+    if not jobId then return false end
+    local ok = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, TRADE_WORLD_ID, jobId, localPlayer)
+    return ok
 end
 
--- [[ ЛОГИКА ЗАХВАТА СТОЕК ]]
+-- [[ ЗАХВАТ СТОЕК ]]
+local function getAvailableStallAnchors()
+    local stalls = {}
+    local interactable = workspace:FindFirstChild("Interactable")
+    if not interactable then return stalls end
+    local stallsFolder = interactable:FindFirstChild("MarketStalls")
+    if not stallsFolder then return stalls end
+    for _, model in pairs(stallsFolder:GetChildren()) do
+        if model:IsA("Model") and model.Name:match("MarketStall") then
+            local anchor = model:FindFirstChild("AnchorPart")
+            if anchor and anchor:IsA("BasePart") then
+                table.insert(stalls, anchor)
+            end
+        end
+    end
+    return stalls
+end
 
 local function claimStallsForever()
-    if currentPlaceId == NORMAL_WORLD_ID then return end
-    
-    local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes")
-    local ClaimStallRemote = MarketRemotes:WaitForChild("ClaimStall")
+    if currentPlaceId ~= TRADE_WORLD_ID then return end
+    local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+    if not MarketRemotes then return end
+    local ClaimStallRemote = MarketRemotes:WaitForChild("ClaimStall", 10)
+    if not ClaimStallRemote then return end
 
     while true do
-        local currentCoins = 0
-        pcall(function() currentCoins = localPlayer.Data.Coins.Value end)
-        if currentCoins >= COINS_LIMIT then break end
+        pcall(function()
+            local coins = localPlayer.Data.Coins.Value
+            if coins >= COINS_LIMIT then return end
+        end)
+        local anchors = getAvailableStallAnchors()
+        for _, anchor in ipairs(anchors) do
+            pcall(function() ClaimStallRemote:FireServer(anchor) end)
+        end
+        task.wait(CLAIM_DELAY)
+    end
+end
 
-        local interactable = workspace:FindFirstChild("Interactable")
-        local stallsFolder = interactable and interactable:FindFirstChild("MarketStalls")
-        
-        if stallsFolder then
-            local children = stallsFolder:GetChildren()
-            for _, targetCF in ipairs(stallCFrames) do
-                for _, obj in pairs(children) do
-                    if obj.Name == "AnchorPart" and (obj.Position - targetCF.Position).Magnitude < 1.5 then
-                        ClaimStallRemote:FireServer(obj)
+-- [[ ПЕРЕКУПСТВО ]]
+local function getActiveListings()
+    local market = localPlayer:FindFirstChild("Data") and localPlayer.Data:FindFirstChild("MarketStalls")
+    if not market then return {} end
+    local list = {}
+    for i = 1, MAX_LISTINGS do
+        local slot = market:FindFirstChild("Listing"..i)
+        if slot and slot:IsA("Folder") then
+            local item = slot:FindFirstChild("ItemName")
+            local price = slot:FindFirstChild("Price")
+            local amount = slot:FindFirstChild("Amount")
+            local ltype = slot:FindFirstChild("ListingType")
+            if item and price and amount and ltype then
+                table.insert(list, {
+                    idx = i,
+                    item = item.Value,
+                    price = price.Value,
+                    amount = amount.Value,
+                    ltype = ltype.Value
+                })
+            end
+        end
+    end
+    return list
+end
+
+local function removeListing(idx)
+    pcall(function()
+        ReplicatedStorage.Remotes.RemoveStallItem:FireServer(idx)
+    end)
+end
+
+local function createListing(itemName, amount, price, ltype)
+    local remote = ltype == "Buying" and ReplicatedStorage.Remotes.ListPurchaseItem or ReplicatedStorage.Remotes.ListStallItem
+    pcall(function() remote:FireServer(itemName, amount, price) end)
+end
+
+local function flipperLoop()
+    while true do
+        task.wait(FLIP_CHECK_DELAY or 2)
+        if game.PlaceId ~= TRADE_WORLD_ID then break end
+        if not localPlayer:FindFirstChild("Data") then continue end
+
+        local data = localPlayer.Data
+        local coins = data.Coins and data.Coins.Value or 0
+        local availableCoins = math.max(0, coins - MIN_COINS_RESERVE)
+        local listings = getActiveListings()
+
+        -- Удаляем неактуальные листинги
+        for _, ls in ipairs(listings) do
+            local valid = false
+            for _, cfg in ipairs(FLIP_ITEMS) do
+                if ls.item == cfg.itemName then
+                    if (ls.ltype == "Buying" and ls.price == cfg.buyPrice) or (ls.ltype == "Selling" and ls.price == cfg.sellPrice) then
+                        valid = true
+                    end
+                    break
+                end
+            end
+            if not valid or ls.amount <= 0 then
+                removeListing(ls.idx)
+            end
+        end
+
+        listings = getActiveListings()
+        local freeSlots = MAX_LISTINGS - #listings
+        if freeSlots <= 0 then continue end
+
+        for _, cfg in ipairs(FLIP_ITEMS) do
+            if freeSlots <= 0 then break end
+            local itemCount = data:FindFirstChild("Items") and data.Items:FindFirstChild(cfg.itemName) and data.Items[cfg.itemName].Value or 0
+
+            local buyListing, sellListing
+            for _, ls in ipairs(listings) do
+                if ls.item == cfg.itemName then
+                    if ls.ltype == "Buying" then buyListing = ls
+                    elseif ls.ltype == "Selling" then sellListing = ls end
+                end
+            end
+
+            local inBuy = buyListing and buyListing.amount or 0
+            local inSell = sellListing and sellListing.amount or 0
+
+            -- Продажа
+            if itemCount > 0 and not sellListing and freeSlots > 0 then
+                local toSell = itemCount
+                if cfg.maxTotal then
+                    local maxSell = cfg.maxTotal - inSell
+                    toSell = math.min(toSell, maxSell)
+                end
+                if toSell > 0 then
+                    createListing(cfg.itemName, toSell, cfg.sellPrice, "Selling")
+                    freeSlots = freeSlots - 1
+                end
+            -- Покупка
+            elseif itemCount == 0 and not buyListing and freeSlots > 0 then
+                local maxByCoins = math.floor(availableCoins / cfg.buyPrice)
+                if maxByCoins > 0 then
+                    local toBuy = maxByCoins
+                    if cfg.maxTotal then
+                        toBuy = math.min(toBuy, cfg.maxTotal - (inBuy - inSell))
+                    end
+                    if toBuy > 0 then
+                        createListing(cfg.itemName, toBuy, cfg.buyPrice, "Buying")
+                        freeSlots = freeSlots - 1
                     end
                 end
             end
         end
-        task.wait(0.5)
     end
 end
 
--- [[ КОНТРОЛЬ ОНЛАЙНА (УХОД ПРИ МАЛОМ КОЛИЧЕСТВЕ) ]]
-
+-- [[ КОНТРОЛЬ ОНЛАЙНА ]]
 local function serverPlayerCheck()
     while true do
         task.wait(CHECK_INTERVAL)
+        if game.PlaceId ~= TRADE_WORLD_ID then break end
         local playerCount = #Players:GetPlayers()
-        
-        if currentPlaceId == TRADE_WORLD_ID and playerCount <= MIN_PLAYERS_THRESHOLD then
-            print("📉 Мало игроков (" .. playerCount .. "). Ухожу в обычный мир...")
-            sendDiscordWebhook("⚠️ Сервер пустеет (" .. playerCount .. " чел). Рестарт сервера...")
+        if playerCount <= MIN_PLAYERS_THRESHOLD then
+            print("📉 Мало игроков ("..playerCount.."). Ухожу в обычный мир...")
+            sendDiscordWebhook(true, "⚠️ Сервер пустеет ("..playerCount.." чел). Рестарт сервера...")
             task.wait(1)
-            TeleportService:Teleport(NORMAL_WORLD_ID, localPlayer)
+            pcall(TeleportService.Teleport, TeleportService, NORMAL_WORLD_ID, localPlayer)
             break
         end
     end
 end
 
--- [[ АНТИ-AFK ]]
+-- [[ АВТОПЕРЕЗАХОД ПО ТАЙМЕРУ ]]
+local function autoRejoinLoop()
+    if REJOIN_INTERVAL <= 0 then return end
+    while true do
+        task.wait(REJOIN_INTERVAL)
+        if game.PlaceId == TRADE_WORLD_ID then
+            print("🔄 Плановый реджоин на новый сервер...")
+            sendDiscordWebhook(true, "🔁 Плановый перезаход на свежий сервер для лавок.")
+            task.wait(1)
+            local best = findBestServer()
+            if best then
+                joinServerById(best)
+            else
+                pcall(TeleportService.Teleport, TeleportService, TRADE_WORLD_ID, localPlayer)
+            end
+        end
+    end
+end
 
+-- [[ АНТИ-АФК ]]
 local function setupAntiAFK()
-    local lastActionTime = tick()
-    RunService.Heartbeat:Connect(function()
-        if tick() - lastActionTime < 30 then return end
-        lastActionTime = tick()
-        VirtualInputManager:SendMouseMoveEvent(1, 1, workspace)
+    task.spawn(function()
+        while true do
+            task.wait(25)
+            if localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
+                localPlayer.Character.Humanoid:Move(Vector3.new())
+            end
+        end
     end)
 end
 
--- [[ ГЛАВНАЯ ЛОГИКА ]]
-
+-- [[ ГЛАВНАЯ ]]
 local function main()
     setFpsCap(MAX_FPS)
     setupAntiAFK()
 
     if currentPlaceId == NORMAL_WORLD_ID then
-        local currentCoins = 0
-        pcall(function() currentCoins = localPlayer.Data.Coins.Value end)
-        
-        if currentCoins >= COINS_LIMIT then
-            sendDiscordWebhook("🛑 Лимит 7М достигнут. Бот в простое.")
+        if not waitForData(10) then return end
+        if localPlayer.Data.Coins.Value >= COINS_LIMIT then
+            sendDiscordWebhook(true, "🛑 Лимит 7М достигнут. Бот в простое.")
             return
-        else
-            task.wait(8) -- Ждём прогрузки перед прыжком
-            
-            -- Поиск лучшего сервера в торговом мире
-            local bestServerId = findBestServer()
-            if bestServerId then
-                joinServerById(bestServerId)
-            else
-                -- Если не нашли, телепортируемся на обычный (случайный) сервер торгового мира
-                print("⚠️ Не удалось найти лучший сервер, иду на обычный сервер торгового мира.")
-                TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
-            end
         end
-    else
-        -- Мы в торговом мире
-        sendDiscordWebhook()
+        task.wait(8)
+        local best = findBestServer()
+        if best then joinServerById(best)
+        else pcall(TeleportService.Teleport, TeleportService, TRADE_WORLD_ID, localPlayer) end
+    elseif currentPlaceId == TRADE_WORLD_ID then
+        sendDiscordWebhook(true)
         task.spawn(claimStallsForever)
         task.spawn(serverPlayerCheck)
-        
-        -- Периодическая отправка статистики (каждые 5 минут)
+        task.spawn(flipperLoop)
+        task.spawn(autoRejoinLoop)
         task.spawn(function()
             while true do
-                task.wait(300)
+                task.wait(SEND_STATS_INTERVAL)
                 sendDiscordWebhook()
             end
         end)
+    else
+        print("⚠️ Неизвестный PlaceId:", currentPlaceId)
+        task.wait(10)
     end
 end
 
