@@ -1,6 +1,6 @@
 wait(40)
 while true do
-wait(10)
+wait(1)
 local args = {
 	"Slot1",
 	2
