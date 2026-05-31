@@ -1,1 +1,9 @@
-print("Hi")
+wait(40)
+while true do
+wait(10)
+local args = {
+	"Slot1",
+	2
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetElderAgeRemote"):InvokeServer(unpack(args))
+end
