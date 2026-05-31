@@ -6,4 +6,11 @@ local args = {
 	2
 }
 game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetElderAgeRemote"):InvokeServer(unpack(args))
+wait(1)
+local args = {
+	"Slot1",
+	false
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetFavoriteRemote"):InvokeServer(unpack(args))
+
 end
