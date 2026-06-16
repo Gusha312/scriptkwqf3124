@@ -1,0 +1,15 @@
+while true do
+wait(0.05)
+local args = {
+	0.5
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ProcessOreRemote"):InvokeServer(unpack(args))
+local args = {
+	"1"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("RepairProcessorRemote"):FireServer(unpack(args))
+local args = {
+	"2"
+}
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("RepairProcessorRemote"):FireServer(unpack(args))
+end
