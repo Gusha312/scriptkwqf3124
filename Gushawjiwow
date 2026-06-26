@@ -5,7 +5,63 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 ---------------------------------------------------------
--- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+-- СКРЫТИЕ ВСЕХ GUI + ФУНКЦИИ КЛИКОВ (ДОБАВЛЕНО)
+---------------------------------------------------------
+
+-- Список ScreenGui, которые НЕ будут скрываться (дополни своими)
+local essentialGuis = {
+    "Data",
+    "DailyLoginGui",
+    "UpdateLogGui",
+    "DialogueGui",
+    "SaveSelectionGui",
+    "DeathGui",
+    "PromptGui",
+    -- добавь другие важные GUI
+}
+
+local function hideUnwantedGuis()
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            local keep = false
+            for _, name in ipairs(essentialGuis) do
+                if gui.Name == name then
+                    keep = true
+                    break
+                end
+            end
+            if not keep then
+                gui.Enabled = false
+            end
+        end
+    end
+end
+
+hideUnwantedGuis()
+spawn(function()
+    while true do
+        hideUnwantedGuis()
+        wait(1)
+    end
+end)
+
+-- Функция клика по координатам (из скрипта фарма миссий)
+local function clickAtPosition(posX, posY)
+    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
+    wait(0.05)
+    VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
+end
+
+-- Клик в центре экрана
+local function click()
+    local screen = workspace.CurrentCamera.ViewportSize
+    clickAtPosition(screen.X/2, screen.Y/2)
+end
+
+---------------------------------------------------------
+-- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (оригинальные)
 ---------------------------------------------------------
 
 -- Клик в точку 100, 100 (гарантированно попадет в расширенную кнопку)
