@@ -44,23 +44,25 @@ spawn(function()
     end
 end)
 
--- Клик по координатам
-local function clickAtPosition(posX, posY)
+-- Функция клика по координатам
+local function clickAt(posX, posY)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
     wait(0.05)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
 end
 
--- Клик в центре экрана (основной способ)
-local function click()
-    local screen = workspace.CurrentCamera.ViewportSize
-    clickAtPosition(screen.X/2, screen.Y/2)
+-- Клик в центр элемента (GuiObject). Работает при любом размере окна!
+local function clickElement(element)
+    if not element or not element:IsA("GuiObject") then return end
+    local centerX = element.AbsolutePosition.X + element.AbsoluteSize.X / 2
+    local centerY = element.AbsolutePosition.Y + element.AbsoluteSize.Y / 2
+    clickAt(centerX, centerY)
 end
 
--- Несколько кликов подряд
-local function multiClick(count, delay)
+-- Несколько кликов по элементу с задержкой
+local function multiClickElement(element, count, delay)
     for i = 1, count do
-        click()
+        clickElement(element)
         if i < count then
             wait(delay or 0.3)
         end
@@ -68,34 +70,32 @@ local function multiClick(count, delay)
 end
 
 ---------------------------------------------------------
--- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ (без старых clickAndReset)
+-- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (переработаны)
 ---------------------------------------------------------
 
--- Проверка на всплывающие окна (Daily, Update, Dialogue)
+-- Проверка на всплывающие окна
 local function checkPopups()
     local pgui = player.PlayerGui
 
-    -- 1. Ежедневная награда
+    -- Ежедневная награда
     local daily = pgui:FindFirstChild("DailyLoginGui")
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
-        if btn then
-            -- Делаем 3 клика в центре (кнопка должна быть активна)
-            multiClick(3, 0.2)
+        if btn and btn.UpperLabel then
+            multiClickElement(btn.UpperLabel, 3, 0.2)
         end
     end
 
-    -- 2. Лог обновлений
+    -- Лог обновлений
     local log = pgui:FindFirstChild("UpdateLogGui")
     if log and log.Enabled then
         local closeBtn = log.ContainerFrame:FindFirstChild("CloseButton")
-        if closeBtn then
-            -- Одиночный клик
-            click()
+        if closeBtn and closeBtn.UpperLabel then
+            clickElement(closeBtn.UpperLabel)
         end
     end
 
-    -- 3. Диалоги (просто выключаем)
+    -- Диалоги (просто выключаем)
     local dialogue = pgui:FindFirstChild("DialogueGui")
     if dialogue and dialogue.Enabled then
         dialogue.Enabled = false
@@ -106,22 +106,25 @@ end
 local function pressPlaySequence()
     checkPopups()
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
-
-    -- Ждём полную загрузку интерфейса
-    wait(2)
     
-    -- Выбираем страницу 1 (клик в центр экрана)
-    click()
+    -- Страница 1
+    local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
+    if page1 then
+        clickElement(page1)
+    end
     wait(3.5)
     
-    -- Нажимаем PlayButton (3 клика для уверенности)
-    multiClick(3, 0.5)
+    -- Кнопка PlayButton
+    local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
+    local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
+    if playBtn then
+        multiClickElement(playBtn, 3, 0.5)
+    end
 end
 
 ---------------------------------------------------------
 -- ФОНОВЫЕ ПРОЦЕССЫ
 ---------------------------------------------------------
-
 task.spawn(function()
     while true do
         local promptGui = player.PlayerGui:FindFirstChild("PromptGui")
@@ -153,7 +156,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- ЧАСТЬ 1: ПОДГОТОВКА СЛОТОВ
+-- ПОДГОТОВКА СЛОТОВ
 ---------------------------------------------------------
 local args = {true, true}
 player:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
@@ -246,9 +249,11 @@ while true do
     -- ========== ОБРАБОТКА DeathGui ==========
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
-        -- Ждём появления кнопки Return и кликаем
-        wait(16)
-        multiClick(3, 0.5)  -- несколько кликов для надёжности
+        local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
+        if retBtn then
+            wait(16)
+            multiClickElement(retBtn, 3, 0.5)
+        end
     end
     
     task.wait(9)
