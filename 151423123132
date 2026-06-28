@@ -73,7 +73,7 @@ end
 
 -- [[ ИНИЦИАЛИЗАЦИЯ ]]
 print("Скрипт запущен. Ожидание 9 секунд...")
-task.wait(9)
+task.wait(5)
 
 -- Базовые действия (Remotes)
 pcall(function()
@@ -139,13 +139,13 @@ task.spawn(function()
         teleportTo(CFrame.new(-2800.70728, 847.391663, -1802.94763))
         task.wait(2)
         pcall(function() remotes.ActivateAbility:FireServer("Spite") end)
-        task.wait(7)
+        task.wait(2)
         for i=1,3 do remotes.OutOfBoundsSelfDamage:FireServer(25000) end
         
         -- 5. ВОЗВРАТ
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do task.wait(0.5) end
-        task.wait(5)
+        task.wait(3)
         
         pcall(function()
             local returnBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
