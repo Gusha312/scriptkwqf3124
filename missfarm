@@ -355,35 +355,6 @@ local function startMissionFarm()
         end
     end
     
-    -- Функция для поиска ближайшего Mud объекта
-    function findNearestMud()
-        local character = targetPlayer.Character
-        if not character then return nil end
-        
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if not humanoidRootPart then return nil end
-        
-        local playerPos = humanoidRootPart.Position
-        local nearestMud = nil
-        local nearestDistance = math.huge
-        
-        local mudFolder = workspace.Interactions.Mud
-        if mudFolder then
-            for _, mudObject in pairs(mudFolder:GetChildren()) do
-                if mudObject:IsA("Part") or mudObject:IsA("MeshPart") or mudObject:IsA("Model") then
-                    local mudPos = getObjectPosition(mudObject)
-                    local distance = (playerPos - mudPos).Magnitude
-                    if distance < nearestDistance then
-                        nearestDistance = distance
-                        nearestMud = mudObject
-                    end
-                end
-            end
-        end
-        
-        return nearestMud
-    end
-    
     -- Функция для поиска NPC для атаки
     function findNPCForAttack()
         -- Сначала пробуем найти Roots
@@ -474,32 +445,29 @@ local function startMissionFarm()
         return missionCompleted
     end
     
-    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ ConcealScent
+    -- УСКОРЕННОЕ ВЫПОЛНЕНИЕ МИССИИ ConcealScent (ОБНОВЛЕНО: без поиска Mud и телепорта)
     function completeConcealScentMission(regionName)
         print("🔄 Выполняем ConcealScent в регионе: " .. regionName)
         
         changeRegion(regionName)
         
+        -- Телепорт в зону (позиция для ConcealScent)
         teleportPlayer(concealScentPosition)
-        wait(1) -- Уменьшено
-        
+        wait(1)
         changeRegion(regionName)
         
         local missionCompleted = false
         local attempts = 0
         
-        while not missionCompleted and attempts < 40 do -- Уменьшено с 60 до 40
+        while not missionCompleted and attempts < 40 do
             attempts = attempts + 1
             
-            if attempts % 10 == 0 then -- Еда/вода каждые 10 попыток
+            if attempts % 10 == 0 then
                 useFoodAndWater()
             end
             
-            local nearestMud = findNearestMud()
-            if nearestMud then
-                local mudArgs = { nearestMud }
-                MudRemote:FireServer(unpack(mudArgs))
-            end
+            -- Вызываем Mud удалённо без аргументов – не нужно искать/телепортироваться к Mud!
+            MudRemote:FireServer()
             
             local regionFolder = regionMissions:FindFirstChild(regionName)
             if regionFolder then
@@ -513,7 +481,7 @@ local function startMissionFarm()
             end
             
             if not missionCompleted then
-                wait(0.5) -- Уменьшено с 1 до 0.5
+                wait(0.5)
             end
         end
         
