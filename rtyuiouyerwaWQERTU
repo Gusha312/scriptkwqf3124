@@ -1,6 +1,6 @@
 --[[ ===== НАСТРОЙКИ ===== ]]
 local IS_MAIN    = false
-local SERVER_URL = "http://http://87.199.204.174:8001"
+local SERVER_URL = "http://87.199.204.174:8001"
 --[[ ===================== ]]
 
 local TRADE_SLOTS     = 9
