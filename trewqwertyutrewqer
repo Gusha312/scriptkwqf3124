@@ -1,6 +1,6 @@
 --[[ ===== НАСТРОЙКИ ===== ]]
 local IS_MAIN    = false
-local SERVER_URL = "http://185.194.177.252:8002"
+local SERVER_URL = "http://87.199.204.174:8002"
 --[[ ===================== ]]
 
 local TRADE_SLOTS     = 9
@@ -346,17 +346,6 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
                             dataToSend["PALETTE_" .. pName] = math.floor(tonumber(val) or 0)
                         end
                     end
-                    -- Materials: PlayerGui.Data.MaterialPalettes
-                    local materialsFolder = data:FindFirstChild("MaterialPalettes")
-                    if materialsFolder then
-                        local materialsRes = httpGet(SERVER_URL .. "/api/materials")
-                        for _, mName in ipairs(materialsRes or {}) do
-                            local c = materialsFolder:FindFirstChild(mName)
-                            local val = c and c.Value or 0
-                            if type(val) == "boolean" then val = val and 1 or 0 end
-                            dataToSend["MATERIAL_" .. mName] = math.floor(tonumber(val) or 0)
-                        end
-                    end
                 end
             end
             if not STOPPED then
@@ -374,39 +363,6 @@ elseif not IS_MAIN and PlaceId == 5233782396 then
     end)
 
     print("[Twink] Статистика запущена, ожидаем команду сбора с сайта...")
-
-    -- Цикл проверки промокодов — срабатывает когда на сайте нажали "Ввести промокоды"
-    task.spawn(function()
-        local lastPromoTime = 0
-        while not STOPPED do
-            task.wait(5)
-            pcall(function()
-                local r = httpGet(SERVER_URL .. "/api/promo")
-                if not (r and r.codes and #r.codes > 0) then return end
-                if not r.sentAt or r.sentAt == lastPromoTime then return end
-                lastPromoTime = r.sentAt
-
-                print("[Twink] Получены промокоды:", #r.codes)
-                local redeemRemote = ReplicatedStorage:WaitForChild("Remotes")
-                    :WaitForChild("RedeemCodeRemote", 10)
-                if not redeemRemote then
-                    warn("[Twink] RedeemCodeRemote не найден!")
-                    return
-                end
-
-                for i, code in ipairs(r.codes) do
-                    local codeLower = string.lower(code)
-                    print("[Twink] Вводим промокод:", codeLower)
-                    local ok, result = pcall(function()
-                        return redeemRemote:InvokeServer(unpack({codeLower}))
-                    end)
-                    print("[Twink] Промокод", code, ok and "OK" or "ERR", tostring(result))
-                    if i < #r.codes then task.wait(5) end
-                end
-                print("[Twink] Все промокоды введены!")
-            end)
-        end
-    end)
 
     -- ШАГ 1: ждём команду телепорта
     local jobId = nil
@@ -595,14 +551,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         for _, n in ipairs(paletteNames) do print("  -", n) end
     end
 
-    local materialNames = {}
-    local materialsRes = httpGet(SERVER_URL .. "/api/materials")
-    if materialsRes and type(materialsRes) == "table" then
-        materialNames = materialsRes
-        print("[Twink14] Материалы загружены:", #materialNames)
-        for _, n in ipairs(materialNames) do print("  -", n) end
-    end
-
     local function getDataFolder()
         local d = player:FindFirstChild("Data")
         if d then return d, "player.Data" end
@@ -677,22 +625,6 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
             print("[Twink14][snapshot] SpecialPalettes папка не найдена")
         end
 
-        -- Materials: player.Data.MaterialPalettes
-        local materialsFolder = dataFolder:FindFirstChild("MaterialPalettes")
-        if materialsFolder then
-            for _, name in ipairs(materialNames) do
-                local c   = materialsFolder:FindFirstChild(name)
-                local val = c and c.Value or 0
-                if type(val) == "boolean" then val = val and 1 or 0 end
-                val = math.floor(tonumber(val) or 0)
-                result["MATERIAL_" .. name] = val
-                total += val
-                if val > 0 then print("[Twink14][snapshot] Material", name, "=", val) end
-            end
-        else
-            print("[Twink14][snapshot] MaterialPalettes папка не найдена")
-        end
-
         print("[Twink14][snapshot] Итого:", total)
         return result, total
     end
@@ -707,43 +639,35 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
         Формула: floor(total/100) + (остаток/100) + 0.01 если остаток == 0
         Важно: если остаток 0 — пишем 01 в конце
     ]]
-    -- Баг игры: если предметов > 150, передаём amount/100 с последней цифрой 1
-    -- 320 → 3.21, 151 → 1.51, 150 → 150, 149 → 149
     local function encodeAmount(total)
-        if total <= 150 then return total end
-        local hundreds  = math.floor(total / 100)
-        local remainder = total % 100
-        local lastDigit = remainder % 10
-        if lastDigit ~= 1 then
-            remainder = remainder - lastDigit + 1
-            if remainder <= 0 then remainder = 1 end
-        end
-        local result = tonumber(tostring(hundreds) .. "." .. string.format("%02d", remainder))
-        print(string.format("[encode] %d → %.4g", total, result))
-        return result
+        -- Просто возвращаем как есть, лимит 150 соблюдается через buildChunks
+        return total
     end
 
     local function buildChunks(snap)
         local allSlots = {}
 
-        -- Один слот на весь предмет с encodeAmount
+        -- Разбиваем по 150 на слот
         local function addSlot(itemType, name, snapKey, totalAmount)
             if totalAmount <= 0 then return end
-            local encoded = encodeAmount(totalAmount)
-            table.insert(allSlots, {
-                itemType   = itemType,
-                name       = name,
-                snapKey    = snapKey,
-                amount     = encoded,
-                realAmount = totalAmount
-            })
+            local remaining = totalAmount
+            while remaining > 0 do
+                local portion = math.min(remaining, AMOUNT_PER_SLOT)
+                table.insert(allSlots, {
+                    itemType   = itemType,
+                    name       = name,
+                    snapKey    = snapKey,
+                    amount     = portion,
+                    realAmount = portion
+                })
+                remaining -= portion
+            end
         end
 
         for _, name in ipairs(tokenNames)    do addSlot("Tokens",    name, name,               snap[name] or 0) end
         for _, name in ipairs(creatureNames) do addSlot("Creatures", name, name,               snap[name] or 0) end
         for _, name in ipairs(plushieNames)  do addSlot("Plushies",  name, "PLUSHIE_"..name,   snap["PLUSHIE_"..name] or 0) end
         for _, name in ipairs(paletteNames)  do addSlot("Palettes",  name, "PALETTE_"..name,   snap["PALETTE_"..name] or 0) end
-        for _, name in ipairs(materialNames) do addSlot("Materials", name, "MATERIAL_"..name,  snap["MATERIAL_"..name] or 0) end
 
         -- Сортируем по реальному количеству — больше → первее
         table.sort(allSlots, function(a, b)
