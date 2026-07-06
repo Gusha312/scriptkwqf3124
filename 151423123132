@@ -172,7 +172,7 @@ task.spawn(function()
             forceExpandAndClick(playBtn)
         end)
         
-        rwait(1.7, 2.8)
+        rwait(4, 7)
         
         -- 4. ГЕЙМПЛЕЙ — телепорт с рандомным смещением
         teleportTo(jitterCFrame(CFrame.new(-2800.70728, 847.391663, -1802.94763)))
