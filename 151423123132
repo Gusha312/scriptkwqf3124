@@ -47,9 +47,9 @@ local function forceExpandAndClick(button)
     end
 
     local viewportSize = Camera.ViewportSize
-    -- Координаты нижнего левого угла с отступом 10 пикселей (можно изменить)
-    local bottomLeftX = 10
-    local bottomLeftY = viewportSize.Y - 10
+    -- Координаты: правый край, по центру по вертикали, с отступом 10 пикселей
+    local targetX = viewportSize.X - 10
+    local targetY = viewportSize.Y / 2
 
     -- Рандомное число кликов (2-3)
     local clickCount = rint(2, 3)
@@ -63,8 +63,8 @@ local function forceExpandAndClick(button)
             task.wait()
         end
         
-        -- Координаты с дрожанием (вокруг нижнего левого угла)
-        local clickX, clickY = jitterPos(bottomLeftX, bottomLeftY)
+        -- Координаты с дрожанием (вокруг выбранной точки)
+        local clickX, clickY = jitterPos(targetX, targetY)
         
         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
         rwait(0.04, 0.12)
