@@ -5,15 +5,8 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Вспомогательный ScreenGui для переноса кнопок (чтобы не было обрезки)
-local clickGui = Instance.new("ScreenGui")
-clickGui.Name = "ClickHelperGui"
-clickGui.Parent = playerGui
-clickGui.Enabled = true
-clickGui.ResetOnSpawn = false
-
 ---------------------------------------------------------
--- СИСТЕМА КЛИКОВ (РАЗДУВАНИЕ + ПЕРЕНОС В ОТДЕЛЬНЫЙ SCREENGUI)
+-- СИСТЕМА КЛИКОВ (РАЗДУВАНИЕ + КЛИК В ЦЕНТР)
 ---------------------------------------------------------
 local function clickAtPosition(posX, posY)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
@@ -23,7 +16,7 @@ end
 
 local function click()
     local screen = workspace.CurrentCamera.ViewportSize
-    clickAtPosition(screen.X/2, screen.Y/2)
+    clickAtPosition(screen.X/2, screen.Y/2)   -- центр экрана
 end
 
 local function clickButtonEnhanced(button, buttonName)
@@ -31,30 +24,26 @@ local function clickButtonEnhanced(button, buttonName)
     
     print("✅ Раздуваю кнопку для клика: " .. (buttonName or "не указано"))
     
-    local originalParent = button.Parent
     local originalSize = button.Size
     local originalPosition = button.Position
     local originalAnchorPoint = button.AnchorPoint
     local originalZIndex = button.ZIndex
-    local originalVisible = button.Visible
     
-    button.Parent = clickGui
-    button.Visible = true
-    button.ZIndex = 99999
-    button.Size = UDim2.new(100, 0, 100, 0)
-    button.Position = UDim2.new(0.5, 0, 0.5, 0)
+    -- Растягиваем кнопку на весь экран и центрируем
+    button.Size = UDim2.new(100, 0, 100, 0)          -- 10000% размера
+    button.Position = UDim2.new(0.5, 0, 0.5, 0)      -- центр
     button.AnchorPoint = Vector2.new(0.5, 0.5)
+    button.ZIndex = 99999
     
-    wait(1.5)
-    click()
+    wait(1.5)   -- ждём обновления интерфейса
+    click()     -- клик в центр (попадает гарантированно)
     wait(0.5)
     
+    -- Возвращаем исходные параметры
     button.Size = originalSize
     button.Position = originalPosition
     button.AnchorPoint = originalAnchorPoint
     button.ZIndex = originalZIndex
-    button.Parent = originalParent
-    button.Visible = originalVisible
     
     return true
 end
