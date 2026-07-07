@@ -3,9 +3,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Вспомогательный ScreenGui для переноса кнопок (чтобы не было обрезки)
+local clickGui = Instance.new("ScreenGui")
+clickGui.Name = "ClickHelperGui"
+clickGui.Parent = playerGui
+clickGui.Enabled = true
+clickGui.ResetOnSpawn = false
 
 ---------------------------------------------------------
--- СИСТЕМА КЛИКОВ (РАЗДУВАНИЕ КНОПКИ + КЛИК В ЦЕНТР)
+-- СИСТЕМА КЛИКОВ (РАЗДУВАНИЕ + ПЕРЕНОС В ОТДЕЛЬНЫЙ SCREENGUI)
 ---------------------------------------------------------
 local function clickAtPosition(posX, posY)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
@@ -19,29 +27,36 @@ local function click()
 end
 
 local function clickButtonEnhanced(button, buttonName)
-    if button and button:IsA("GuiObject") then
-        print("✅ Раздуваю кнопку для клика: " .. (buttonName or "не указано"))
-        local originalSize = button.Size
-        local originalPosition = button.Position
-        local originalAnchorPoint = button.AnchorPoint
-        local originalZIndex = button.ZIndex
-        
-        button.Size = UDim2.new(100, 0, 100, 0)       -- огромный размер
-        button.Position = UDim2.new(0.5, 0, 0.5, 0)   -- в центр экрана
-        button.AnchorPoint = Vector2.new(0.5, 0.5)
-        button.ZIndex = 99999
-        
-        wait(1.5) 
-        click()   -- клик в центр (попадает гарантированно)
-        
-        wait(0.5)
-        button.Size = originalSize
-        button.Position = originalPosition
-        button.AnchorPoint = originalAnchorPoint
-        button.ZIndex = originalZIndex
-        return true
-    end
-    return false
+    if not (button and button:IsA("GuiObject")) then return false end
+    
+    print("✅ Раздуваю кнопку для клика: " .. (buttonName or "не указано"))
+    
+    local originalParent = button.Parent
+    local originalSize = button.Size
+    local originalPosition = button.Position
+    local originalAnchorPoint = button.AnchorPoint
+    local originalZIndex = button.ZIndex
+    local originalVisible = button.Visible
+    
+    button.Parent = clickGui
+    button.Visible = true
+    button.ZIndex = 99999
+    button.Size = UDim2.new(100, 0, 100, 0)
+    button.Position = UDim2.new(0.5, 0, 0.5, 0)
+    button.AnchorPoint = Vector2.new(0.5, 0.5)
+    
+    wait(1.5)
+    click()
+    wait(0.5)
+    
+    button.Size = originalSize
+    button.Position = originalPosition
+    button.AnchorPoint = originalAnchorPoint
+    button.ZIndex = originalZIndex
+    button.Parent = originalParent
+    button.Visible = originalVisible
+    
+    return true
 end
 
 ---------------------------------------------------------
@@ -49,8 +64,6 @@ end
 ---------------------------------------------------------
 local function checkPopups()
     local pgui = player.PlayerGui
-
-    -- Ежедневная награда
     local daily = pgui:FindFirstChild("DailyLoginGui")
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
@@ -59,7 +72,6 @@ local function checkPopups()
         end
     end
 
-    -- Лог обновлений
     local log = pgui:FindFirstChild("UpdateLogGui")
     if log and log.Enabled then
         local closeBtn = log.ContainerFrame:FindFirstChild("CloseButton")
@@ -70,7 +82,6 @@ local function checkPopups()
         end
     end
 
-    -- Диалоги
     local dialogue = pgui:FindFirstChild("DialogueGui")
     if dialogue and dialogue.Enabled then
         dialogue.Enabled = false
@@ -144,7 +155,7 @@ while true do
     task.wait(3)
     root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243)
 
-    local killGoal = 94
+    local killGoal = 150
     local killReached = false
     local deathGuiAppeared = false
 
@@ -197,7 +208,6 @@ while true do
         task.wait(15)
     end
 
-    -- Обработка DeathGui с раздуванием кнопки Return
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
         local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
