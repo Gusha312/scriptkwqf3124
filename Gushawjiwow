@@ -5,94 +5,97 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 ---------------------------------------------------------
--- ФУНКЦИИ КЛИКОВ (ЛЕВАЯ СЕРЕДИНА ЭКРАНА)
+-- СИСТЕМА КЛИКОВ (РАЗДУВАНИЕ КНОПКИ + КЛИК В ЦЕНТР)
 ---------------------------------------------------------
 local function clickAtPosition(posX, posY)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
-    task.wait(0.05)
+    wait(0.1)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
 end
 
 local function click()
     local screen = workspace.CurrentCamera.ViewportSize
-    clickAtPosition(screen.X * 0.25, screen.Y * 0.5)   -- левая середина
+    clickAtPosition(screen.X/2, screen.Y/2)
 end
 
-local function tripleClick()
-    for i = 1, 3 do
-        click()
-        task.wait(0.3)
+local function clickButtonEnhanced(button, buttonName)
+    if button and button:IsA("GuiObject") then
+        print("✅ Раздуваю кнопку для клика: " .. (buttonName or "не указано"))
+        local originalSize = button.Size
+        local originalPosition = button.Position
+        local originalAnchorPoint = button.AnchorPoint
+        local originalZIndex = button.ZIndex
+        
+        button.Size = UDim2.new(100, 0, 100, 0)       -- огромный размер
+        button.Position = UDim2.new(0.5, 0, 0.5, 0)   -- в центр экрана
+        button.AnchorPoint = Vector2.new(0.5, 0.5)
+        button.ZIndex = 99999
+        
+        wait(1.5) 
+        click()   -- клик в центр (попадает гарантированно)
+        
+        wait(0.5)
+        button.Size = originalSize
+        button.Position = originalPosition
+        button.AnchorPoint = originalAnchorPoint
+        button.ZIndex = originalZIndex
+        return true
     end
+    return false
 end
 
 ---------------------------------------------------------
--- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+-- ПРОВЕРКА ВСПЛЫВАЮЩИХ ОКОН
 ---------------------------------------------------------
-local function clickAndReset(element, isTriple)
-    if element and element:IsA("GuiObject") then
-        local oldSize = element.Size
-        element.Size = UDim2.new(0, 9999, 0, 9999)
-        task.wait(1.5)
-        
-        if isTriple then
-            tripleClick()
-        else
-            click()
-        end
-        
-        task.wait(3)
-        element.Size = oldSize
-    end
-end
-
 local function checkPopups()
     local pgui = player.PlayerGui
 
+    -- Ежедневная награда
     local daily = pgui:FindFirstChild("DailyLoginGui")
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
         if btn then
-            clickAndReset(btn.UpperLabel, true)
-            task.wait(1)
-            clickAndReset(btn.UpperLabel, true)
+            clickButtonEnhanced(btn.UpperLabel, "ClaimButton")
         end
     end
 
+    -- Лог обновлений
     local log = pgui:FindFirstChild("UpdateLogGui")
     if log and log.Enabled then
         local closeBtn = log.ContainerFrame:FindFirstChild("CloseButton")
         if closeBtn then
-            clickAndReset(closeBtn.UpperLabel, false)
+            clickButtonEnhanced(closeBtn.UpperLabel, "UpdateLogClose")
+        else
+            log.Enabled = false
         end
     end
 
+    -- Диалоги
     local dialogue = pgui:FindFirstChild("DialogueGui")
     if dialogue and dialogue.Enabled then
         dialogue.Enabled = false
     end
 end
 
+-- Последовательность входа в игру
 local function pressPlaySequence()
     checkPopups()
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
     
     local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:WaitForChild("1")
-    clickAndReset(page1)
+    clickButtonEnhanced(page1, "Page1")
     
-    task.wait(3.5)
+    wait(2)
     
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
     if playBtn then
-        clickAndReset(playBtn)
-        tak.wait(1)
-        clickAndReset(playBtn)
-        clickAndReset(playBtn)
+        clickButtonEnhanced(playBtn.UpperLabel, "PlayButton")
     end
 end
 
 ---------------------------------------------------------
--- ФОНОВЫЕ ПРОЦЕССЫ (убираем еду/воду)
+-- ФОНОВЫЙ ПРОЦЕСС (ОЧИСТКА МУСОРА)
 ---------------------------------------------------------
 task.spawn(function()
     while true do
@@ -106,7 +109,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- ЧАСТЬ 1: ПОДГОТОВКА СЛОТОВ
+-- ПОДГОТОВКА СЛОТОВ
 ---------------------------------------------------------
 local args = {true, true}
 player:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
@@ -141,7 +144,7 @@ while true do
     task.wait(3)
     root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243)
 
-    local killGoal = 94
+    local killGoal = 150
     local killReached = false
     local deathGuiAppeared = false
 
@@ -194,13 +197,13 @@ while true do
         task.wait(15)
     end
 
+    -- Обработка DeathGui с раздуванием кнопки Return
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
         local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
-        task.wait(18)
-        clickAndReset(retBtn)
-        task.wait(1)
-        clickAndReset(retBtn)
+        local retUpper = retBtn and (retBtn:FindFirstChild("UpperLabel") or retBtn)
+        task.wait(16)
+        clickButtonEnhanced(retUpper, "DeathReturn")
     end
     
     task.wait(9)
