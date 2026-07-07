@@ -5,7 +5,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 ---------------------------------------------------------
--- ФУНКЦИИ КЛИКОВ (ЦЕНТР ЭКРАНА)
+-- ФУНКЦИИ КЛИКОВ (ЛЕВАЯ СЕРЕДИНА ЭКРАНА)
 ---------------------------------------------------------
 local function clickAtPosition(posX, posY)
     VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
@@ -15,32 +15,29 @@ end
 
 local function click()
     local screen = workspace.CurrentCamera.ViewportSize
-    clickAtPosition(screen.X/2, screen.Y/2)
+    clickAtPosition(screen.X * 0.25, screen.Y * 0.5)   -- левая середина
 end
 
--- Тройной клик в центр экрана (с паузами)
 local function tripleClick()
     for i = 1, 3 do
-        click()                       -- нажатие и отпускание с маленькой задержкой внутри
-        task.wait(0.3)                -- пауза между полными кликами
+        click()
+        task.wait(0.3)
     end
 end
 
 ---------------------------------------------------------
 -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 ---------------------------------------------------------
-
--- Расширяет элемент, кликает в центр экрана, затем уменьшает обратно
 local function clickAndReset(element, isTriple)
     if element and element:IsA("GuiObject") then
         local oldSize = element.Size
-        element.Size = UDim2.new(0, 9999, 0, 9999)   -- делаем огромным, чтобы точно перекрыть экран
+        element.Size = UDim2.new(0, 9999, 0, 9999)
         task.wait(1.5)
         
         if isTriple then
             tripleClick()
         else
-            click()   -- обычный одиночный клик в центр
+            click()
         end
         
         task.wait(3)
@@ -48,20 +45,19 @@ local function clickAndReset(element, isTriple)
     end
 end
 
--- Проверка всплывающих окон (Daily, Update, Dialogue)
 local function checkPopups()
     local pgui = player.PlayerGui
 
-    -- 1. Ежедневная награда
     local daily = pgui:FindFirstChild("DailyLoginGui")
     if daily and daily.Enabled then
         local btn = daily.ContainerFrame.CurrencyFrame:FindFirstChild("ClaimButton")
         if btn then
-            clickAndReset(btn.UpperLabel, true)   -- тройной клик для надёжности
+            clickAndReset(btn.UpperLabel, true)
+            task.wait(1)
+            clickAndReset(btn.UpperLabel, true)
         end
     end
 
-    -- 2. Лог обновлений
     local log = pgui:FindFirstChild("UpdateLogGui")
     if log and log.Enabled then
         local closeBtn = log.ContainerFrame:FindFirstChild("CloseButton")
@@ -70,14 +66,12 @@ local function checkPopups()
         end
     end
 
-    -- 3. Диалоги (просто выключаем)
     local dialogue = pgui:FindFirstChild("DialogueGui")
     if dialogue and dialogue.Enabled then
         dialogue.Enabled = false
     end
 end
 
--- Последовательность выбора страницы и нажатия Play
 local function pressPlaySequence()
     checkPopups()
     local saveGui = player.PlayerGui:WaitForChild("SaveSelectionGui")
@@ -90,17 +84,16 @@ local function pressPlaySequence()
     local slot1Frame = saveGui.ContainerFrame.AllSlotsFrame.SlotsFrame:WaitForChild("1")
     local playBtn = slot1Frame.InnerFrame.CreatureFrame.ButtonsFrame:FindFirstChild("PlayButton")
     if playBtn then
-        -- Трижды кликаем Play для гарантии (кнопка расширится на весь экран)
         clickAndReset(playBtn)
+        tak.wait(1)
         clickAndReset(playBtn)
         clickAndReset(playBtn)
     end
 end
 
 ---------------------------------------------------------
--- ФОНОВЫЕ ПРОЦЕССЫ
+-- ФОНОВЫЕ ПРОЦЕССЫ (убираем еду/воду)
 ---------------------------------------------------------
-
 task.spawn(function()
     while true do
         local promptGui = player.PlayerGui:FindFirstChild("PromptGui")
@@ -109,25 +102,6 @@ task.spawn(function()
         end
         checkPopups()
         task.wait(0.5)
-    end
-end)
-
--- Еда и вода (без изменений)
-task.spawn(function()
-    while true do
-        task.wait(10)
-        local interactions = workspace:FindFirstChild("Interactions")
-        if interactions then
-            local foodFolder = interactions:FindFirstChild("Food")
-            local lakeFolder = interactions:FindFirstChild("Lakes")
-            for i = 1, 20 do
-                local food = foodFolder and foodFolder:GetChildren()[i]
-                local lake = lakeFolder and lakeFolder:GetChildren()[i]
-                if food then ReplicatedStorage.Remotes.Food:FireServer(food) end
-                task.wait(1.5)
-                if lake then ReplicatedStorage.Remotes.DrinkRemote:FireServer(lake) end
-            end
-        end
     end
 end)
 
@@ -163,13 +137,11 @@ while true do
     local char = player.Character or player.CharacterAdded:Wait()
     local root = char:WaitForChild("HumanoidRootPart")
     
-    -- ТП на точку фарма
     root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243) 
     task.wait(3)
     root.CFrame = CFrame.new(-2815.00513, 843.367737, -1788.24695, 0.446165711, -0.0295650568, -0.89446187, 0.0461312234, 0.998885274, -0.0100059379, 0.893760622, -0.0367983133, 0.447032243)
 
-    -- ========== ОЖИДАНИЕ СОБЫТИЯ (КИЛЛЫ ИЛИ СМЕРТЬ) ==========
-    local killGoal = 150
+    local killGoal = 94
     local killReached = false
     local deathGuiAppeared = false
 
@@ -225,8 +197,10 @@ while true do
     local deathGui = player.PlayerGui:WaitForChild("DeathGui", 30)
     if deathGui and deathGui.Enabled then
         local retBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return
-        task.wait(16)
-        clickAndReset(retBtn)   -- теперь клик идёт в центр экрана
+        task.wait(18)
+        clickAndReset(retBtn)
+        task.wait(1)
+        clickAndReset(retBtn)
     end
     
     task.wait(9)
