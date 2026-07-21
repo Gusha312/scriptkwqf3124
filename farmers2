@@ -1,45 +1,46 @@
--- Проверяем, что мы в нужном мире
+-- Проверяем мир
 if game.PlaceId ~= 5233782396 then
     warn("Скрипт работает только в мире 5233782396")
     return
 end
-wait(1)
--- Функция для отправки статистики на Discord
+
+-- Кешируем сервисы и ремоуты
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local remotes = ReplicatedStorage:WaitForChild("Remotes")
+local updateFavoritedRemote = player:WaitForChild("UpdateFavoritedRemote")
+
+-- Отправка статистики (асинхронно)
 local function sendStatsToWebhook()
-    local player = game:GetService("Players").LocalPlayer
-    local webhookUrl = "https://discord.com/api/webhooks/1459938883817963602/7Zx8FUG1QVz4F48u3NIR48eFpB0tyHklYBCdq2AnTajr2kHMG9Bic97ec_RaBz4pozdD"
-    
-    -- Получаем данные
+    local webhookUrl = "https://discord.com/api/webhooks/1508530836469846098/em2Go05h2GCawByNZkpTWLUa-8fN6yMcZaA-rDu_QgRPfycyVaX6669XN5VA8fvAMaXd"
     local username = player.Name
     local displayName = player.DisplayName
     
-    -- Получаем количество тикетов и очков (исправленные пути)
-    local tikets = 0
-    local tikitPoints = 0
+    local tikets, tikitPoints = 0, 0
     pcall(function()
-        tikets = player.PlayerGui.Data.Tikits.Value
-        tikitPoints = player.PlayerGui.Data.TikitPoints.Value
+        local data = player.PlayerGui.Data
+        tikets = data.Tikits.Value
+        tikitPoints = data.TikitPoints.Value
     end)
     
-    -- Получаем токены
-    local sweetGacha = 0
-    local mechaGacha = 0
-    local monsterGacha = 0
-    local explorerGacha = 0
-    local galaxyGacha = 0
-    
+    local sweetGacha, mechaGacha, monsterGacha, explorerGacha, galaxyGacha = 0,0,0,0,0
     pcall(function()
-        sweetGacha = player.PlayerGui.Data.Items.SweetExplorerGachaToken.Value
-        mechaGacha = player.PlayerGui.Data.Items.MutateExplorerGachaToken.Value
-        monsterGacha = player.PlayerGui.Data.Items.MonsterExplorerGachaToken.Value
-        explorerGacha = player.PlayerGui.Data.Items.ExplorerGachaToken.Value
-        galaxyGacha = player.PlayerGui.Data.Items.GalaxyExplorerGachaToken.Value
+        local items = player.PlayerGui.Data.Items
+        sweetGacha = items.SweetExplorerGachaToken.Value
+        mechaGacha = items.MutateExplorerGachaToken.Value
+        monsterGacha = items.MonsterExplorerGachaToken.Value
+        explorerGacha = items.ExplorerGachaToken.Value
+        galaxyGacha = items.GalaxyExplorerGachaToken.Value
     end)
     
-    -- Рассчитываем валюту (грибы)
-    local mushroomCurrency = (tikets * 800) + (sweetGacha * 40) + (monsterGacha * 60) + (mechaGacha * 10) + (explorerGacha * 10) + (galaxyGacha * 10)
+    -- Новый расчёт: 1 тикет = 250, все гача = 5
+    local totalGacha = sweetGacha + mechaGacha + monsterGacha + explorerGacha + galaxyGacha
+    local mushroomCurrency = (tikets * 250) + (totalGacha * 5)
     
-    -- Формируем сообщение
     local message = string.format([[
 **СТАТИСТИКА:**
 👤 **Ник аккаунта:** %s (@%s)
@@ -58,70 +59,51 @@ local function sendStatsToWebhook()
 💰 **Валюта акка:** %d 🍄 (грибов)
     ]], displayName, username, tikets, tikitPoints, sweetGacha, mechaGacha, monsterGacha, explorerGacha, galaxyGacha, mushroomCurrency)
     
-    -- Отправляем на вебхук
     pcall(function()
-        local http = game:GetService("HttpService")
-        local headers = {
-            ["Content-Type"] = "application/json"
-        }
-        local data = {
-            ["content"] = message
-        }
-        
         request({
             Url = webhookUrl,
             Method = "POST",
-            Headers = headers,
-            Body = http:JSONEncode(data)
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({content = message})
         })
     end)
 end
-wait(1)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimDailyLoginRemote"):FireServer()
-wait(0.7)
-local ohString1 = 'CreatureEditor'
-local ohString2 = 'Sochuri'
-game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
-wait(0.4)
 
-local args = {true, true}
-game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+-- Небольшая задержка перед стартом
+task.wait(0.1)
 
-wait(0.2)
+-- Ежедневный бонус
+remotes:WaitForChild("ClaimDailyLoginRemote"):FireServer()
+task.wait(0.3)
 
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
-wait(0.1)
+-- Первый блок конвертации
+remotes:WaitForChild("SetTutorialStageRemote"):InvokeServer("CreatureEditor", "Sochuri")
+task.wait(0.15)
+updateFavoritedRemote:FireServer(true, true)
+task.wait(0.1)
+remotes:WaitForChild("ConvertSpeciesRemote"):InvokeServer("Sochuri", 1)
+task.wait(0.1)
 
-local ohString1 = 'CreatureEditor'
-local ohString2 = 'Sochuri'
-game:GetService('ReplicatedStorage').Remotes.SetTutorialStageRemote:InvokeServer(ohString1, ohString2)
-wait(0.4)
+-- Второй блок конвертации (если нужен)
+remotes:WaitForChild("SetTutorialStageRemote"):InvokeServer("CreatureEditor", "Sochuri")
+task.wait(0.15)
+updateFavoritedRemote:FireServer(true, true)
+task.wait(0.1)
+remotes:WaitForChild("ConvertSpeciesRemote"):InvokeServer("Sochuri", 1)
+task.wait(0.1)
 
-local args = {true, true}
-game:GetService('Players').LocalPlayer:WaitForChild('UpdateFavoritedRemote'):FireServer(unpack(args))
+-- Спавн / деспавн
+remotes:WaitForChild("SpawnRemote"):InvokeServer("Slot1")
+task.wait(0.1)
+remotes:WaitForChild("GetSpawnedTokenRemote"):InvokeServer()
+task.wait(0.1)
+remotes:WaitForChild("DespawnRemote"):InvokeServer()
 
-wait(0.2)
+-- Отправляем статистику без ожидания
+task.spawn(sendStatsToWebhook)
 
-local ohString1 = 'Sochuri'
-local ohNumber2 = 1
-game:GetService('ReplicatedStorage').Remotes.ConvertSpeciesRemote:InvokeServer(ohString1, ohNumber2)
-wait(0.1)
-local args = {"Slot1"}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SpawnRemote"):InvokeServer(unpack(args))
-wait(0.1)
-
-game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-wait(0.2)
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DespawnRemote"):InvokeServer()
-sendStatsToWebhook()
-wait(1)
-
--- Бесконечный цикл телепортации (остается в том же мире)
+-- Бесконечный цикл телепортации
 while true do
-    wait(0.5)
-    local TeleportService = game:GetService('TeleportService')
-    local placeId = 5233782396
-    TeleportService:Teleport(placeId)
+    task.wait(0.5)
+    TeleportService:Teleport(5233782396)
 end
