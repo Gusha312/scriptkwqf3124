@@ -4,7 +4,7 @@ if game.PlaceId ~= 5233782396 then
     return
 end
 
--- Кешируем сервисы и ремоуты
+-- Кешируем сервисы
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
@@ -14,7 +14,7 @@ local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local updateFavoritedRemote = player:WaitForChild("UpdateFavoritedRemote")
 
--- Отправка статистики (асинхронно)
+-- Отправка статистики с логированием
 local function sendStatsToWebhook()
     local webhookUrl = "https://discord.com/api/webhooks/1508530836469846098/em2Go05h2GCawByNZkpTWLUa-8fN6yMcZaA-rDu_QgRPfycyVaX6669XN5VA8fvAMaXd"
     local username = player.Name
@@ -37,7 +37,6 @@ local function sendStatsToWebhook()
         galaxyGacha = items.GalaxyExplorerGachaToken.Value
     end)
     
-    -- Новый расчёт: 1 тикет = 250, все гача = 5
     local totalGacha = sweetGacha + mechaGacha + monsterGacha + explorerGacha + galaxyGacha
     local mushroomCurrency = (tikets * 250) + (totalGacha * 5)
     
@@ -59,17 +58,34 @@ local function sendStatsToWebhook()
 💰 **Валюта акка:** %d 🍄 (грибов)
     ]], displayName, username, tikets, tikitPoints, sweetGacha, mechaGacha, monsterGacha, explorerGacha, galaxyGacha, mushroomCurrency)
     
-    pcall(function()
-        request({
+    -- Отправка с обработкой ошибок
+    local success, err = pcall(function()
+        local data = {
+            content = message
+        }
+        local json = HttpService:JSONEncode(data)
+        local response = request({
             Url = webhookUrl,
             Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = HttpService:JSONEncode({content = message})
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = json
         })
+        -- Проверяем статус ответа
+        if response and response.StatusCode ~= 204 and response.StatusCode ~= 200 then
+            warn("Webhook ответил с кодом: " .. tostring(response.StatusCode))
+        else
+            print("Webhook отправлен успешно")
+        end
     end)
+    
+    if not success then
+        warn("Ошибка отправки вебхука: " .. tostring(err))
+    end
 end
 
--- Небольшая задержка перед стартом
+-- Небольшая задержка
 task.wait(0.1)
 
 -- Ежедневный бонус
@@ -99,8 +115,15 @@ remotes:WaitForChild("GetSpawnedTokenRemote"):InvokeServer()
 task.wait(0.1)
 remotes:WaitForChild("DespawnRemote"):InvokeServer()
 
--- Отправляем статистику без ожидания
-task.spawn(sendStatsToWebhook)
+-- Отправляем статистику (синхронно, чтобы точно отправить, но это может задержать на пару секунд)
+-- Можно попробовать асинхронно, но для надежности сделаем синхронно с таймаутом?
+-- Запускаем в отдельном потоке, но дадим время на выполнение, перед циклом поставим задержку.
+task.spawn(function()
+    sendStatsToWebhook()
+end)
+
+-- Даем время на отправку (1-2 секунды)
+task.wait(1.5)
 
 -- Бесконечный цикл телепортации
 while true do
