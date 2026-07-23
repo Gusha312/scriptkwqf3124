@@ -1,5 +1,6 @@
+wait(5)
 -- ============================================================
---  СКРИПТ ФАРМА СЛОТОВ С ЗАПИСЬЮ ВСЕХ КЛИКОВ (ПО ЦЕНТРУ)
+--  СКРИПТ ФАРМА СЛОТОВ С ЗАПИСЬЮ КЛИКОВ (ЧУТЬ НИЖЕ ЦЕНТРА)
 --  Нажмите F9, чтобы увидеть историю кликов в консоли.
 -- ============================================================
 
@@ -56,7 +57,7 @@ local function jitterPos(x, y)
     return x + rng:NextNumber(-4, 4), y + rng:NextNumber(-4, 4)
 end
 
--- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (КЛИК ПО ЦЕНТРУ) ==========
+-- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (КЛИК ЧУТЬ НИЖЕ ЦЕНТРА) ==========
 local function forceExpandAndClick(button)
     if not button then return end
     
@@ -77,9 +78,14 @@ local function forceExpandAndClick(button)
     end
 
     local viewportSize = Camera.ViewportSize
-    -- === ИЗМЕНЕНИЕ: кликаем по центру экрана ===
-    local targetX = viewportSize.X / 2
-    local targetY = viewportSize.Y / 2
+    -- Центр экрана
+    local centerX = viewportSize.X / 2
+    local centerY = viewportSize.Y / 2
+    
+    -- Смещение вниз на 30-80 пикселей (рандомное)
+    local offsetY = rnum(30, 80)
+    local targetX = centerX
+    local targetY = centerY + offsetY
 
     local clickCount = rint(2, 3)
     
@@ -164,7 +170,7 @@ rwait(1.6, 2.8)
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     while true do
-        -- 0. Закрытие мешающих GUI (клики по центру)
+        -- 0. Закрытие мешающих GUI
         pcall(function()
             local logGui = LocalPlayer.PlayerGui:FindFirstChild("UpdateLogGui")
             if logGui and logGui.Enabled then
@@ -187,7 +193,7 @@ task.spawn(function()
             LocalPlayer.PlayerGui.PromptGui.Enabled = false
         end
 
-        -- 2. Выбор слота (клик по центру)
+        -- 2. Выбор слота
         pcall(function()
             local slotBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
             forceExpandAndClick(slotBtn)
@@ -195,7 +201,7 @@ task.spawn(function()
         
         rwait(1.2, 2.1)
         
-        -- 3. Кнопка PLAY (клик по центру)
+        -- 3. Кнопка PLAY
         pcall(function()
             local playBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
             forceExpandAndClick(playBtn)
@@ -203,7 +209,7 @@ task.spawn(function()
         
         rwait(1.7, 2.8)
         
-        -- 4. Геймплей (телепорт, способность, урон – кликов нет)
+        -- 4. Геймплей
         teleportTo(jitterCFrame(CFrame.new(-2800.70728, 847.391663, -1802.94763)))
         rwait(1.7, 2.6)
         pcall(function() remotes.ActivateAbility:FireServer("Spite") end)
@@ -216,7 +222,7 @@ task.spawn(function()
             rwait(0.05, 0.15)
         end
         
-        -- 5. Ожидание смерти и клик по Return (по центру)
+        -- 5. Ожидание смерти и клик по Return
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do rwait(0.4, 0.7) end
         
@@ -233,4 +239,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Скрипт запущен. Все клики – по центру экрана. Нажмите F9 для вывода истории.")
+print("✅ Скрипт запущен. Клики – чуть ниже центра (смещение 30-80 пикселей). Нажмите F9 для вывода истории.")
