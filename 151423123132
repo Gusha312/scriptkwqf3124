@@ -1,9 +1,9 @@
 wait(5)
 -- ============================================================
---  СКРИПТ ФАРМА СЛОТОВ С ЗАПИСЬЮ КЛИКОВ
---  КЛИКИ ТОЧНО В ЦЕНТР + СМЕЩЕНИЕ ВНИЗ (БЕЗ ДРОЖАНИЯ)
---  КАЖДЫЙ КЛИК ПОВТОРЯЕТСЯ 3 РАЗА ДЛЯ НАДЁЖНОСТИ
---  Нажмите F9 для вывода истории кликов в консоль.
+--  СКРИПТ ФАРМА СЛОТОВ С ГАРАНТИРОВАННЫМИ КЛИКАМИ
+--  КЛИКИ ПО ЦЕНТРУ + СМЕЩЕНИЕ ВНИЗ (БЕЗ ДРОЖАНИЯ)
+--  КАЖДЫЙ КЛИК ПОВТОРЯЕТСЯ 3 РАЗА, ПРИ НЕУДАЧЕ – ПОВТОР
+--  Нажмите F9 для вывода истории кликов.
 -- ============================================================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,8 +12,10 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- ========== НАСТРОЙКА ТОЧКИ КЛИКА ==========
-local OFFSET_Y = 50   -- Смещение вниз от центра (пиксели). Можете изменить.
+-- ========== НАСТРОЙКИ ==========
+local OFFSET_Y = 50          -- смещение вниз от центра (пиксели)
+local CLICK_COUNT = 3        -- сколько кликов за одно нажатие
+local MAX_RETRIES = 3        -- сколько раз пробовать, если кнопка не найдена
 
 -- ========== ГЛОБАЛЬНАЯ ИСТОРИЯ КЛИКОВ ==========
 _clickHistory = {}
@@ -34,7 +36,7 @@ function printClickHistory()
     print("")
 end
 
--- Вывод истории по нажатию F9
+-- Вывод истории по F9
 game:GetService("UserInputService").InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.F9 then
         printClickHistory()
@@ -58,64 +60,81 @@ local function rnum(min, max)
     return rng:NextNumber(min, max)
 end
 
--- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (ТОЧНЫЕ КООРДИНАТЫ, 3 КЛИКА) ==========
-local function forceExpandAndClick(button)
-    if not button then return end
-    
+-- ========== УЛУЧШЕННАЯ ФУНКЦИЯ КЛИКА ==========
+local function forceExpandAndClick(button, retryCount)
+    retryCount = retryCount or 0
+    if retryCount >= MAX_RETRIES then
+        print("❌ Не удалось найти кнопку после " .. MAX_RETRIES .. " попыток")
+        return false
+    end
+
+    if not button then
+        print("⚠️ Кнопка отсутствует (попытка " .. (retryCount+1) .. "/" .. MAX_RETRIES .. ")")
+        task.wait(0.5)
+        return false
+    end
+
+    -- Убедимся, что кнопка всё ещё существует и активна
+    if not button.Parent then
+        print("⚠️ Кнопка удалена из иерархии")
+        return false
+    end
+
+    print("✅ Начинаем клик по кнопке: " .. button.Name)
+
     local oldSize = button.Size
     local oldPos = button.Position
     local oldZ = button.ZIndex
     local oldAnchor = button.AnchorPoint
 
+    local viewportSize = Camera.ViewportSize
+    local targetX = viewportSize.X / 2
+    local targetY = viewportSize.Y / 2 + OFFSET_Y
+
+    -- Раздувание с фиксированным большим размером
     local function applyMassive()
         button.AnchorPoint = Vector2.new(0.5, 0.5)
-        local randSize = rint(7000000, 9999999)
-        button.Size = UDim2.new(0, randSize, 0, randSize)
+        button.Size = UDim2.new(0, 9999999, 0, 9999999)  -- максимальный размер
         button.Position = UDim2.new(0.5, 0, 0.5, 0)
-        button.ZIndex = rint(900000, 9999999)
+        button.ZIndex = 9999999
         for _, child in pairs(button:GetChildren()) do
             if child:IsA("UIAspectRatioConstraint") then child.Enabled = false end
         end
     end
 
-    local viewportSize = Camera.ViewportSize
-    -- ТОЧНЫЕ КООРДИНАТЫ: центр X, центр Y + смещение вниз
-    local targetX = viewportSize.X / 2
-    local targetY = viewportSize.Y / 2 + OFFSET_Y
-
-    -- === ИЗМЕНЕНИЕ: теперь всегда 3 клика ===
-    local clickCount = 3
-    
-    for i = 1, clickCount do
-        local holdTime = rnum(0.3, 0.55)
+    -- Удерживаем раздувание и кликаем
+    for i = 1, CLICK_COUNT do
+        -- Раздуваем и держим
+        local holdTime = rnum(0.4, 0.7)  -- увеличенное время удержания
         local t1 = tick()
         while tick() - t1 < holdTime do
             applyMassive()
             task.wait()
         end
-        
-        -- БЕЗ ДРОЖАНИЯ – используем точные координаты
-        local clickX = targetX
-        local clickY = targetY
-        
-        -- Запись клика
+
+        -- Клик
+        local clickX, clickY = targetX, targetY
         addClickToHistory(clickX, clickY)
-        
+        print(string.format("  Клик #%d: (%.1f, %.1f)", i, clickX, clickY))
+
         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
-        rwait(0.04, 0.12)
+        rwait(0.06, 0.15)  -- чуть больше задержка
         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
-        
-        if i < clickCount then
-            rwait(0.3, 0.55)
+
+        if i < CLICK_COUNT then
+            rwait(0.4, 0.7)  -- увеличенная пауза между кликами
         end
     end
 
-    rwait(0.25, 0.45)
-    
+    -- Восстанавливаем исходное состояние
+    rwait(0.3, 0.6)
     button.AnchorPoint = oldAnchor
     button.Size = oldSize
     button.Position = oldPos
     button.ZIndex = oldZ
+
+    print("✅ Клик завершён")
+    return true
 end
 
 -- ========== ТЕЛЕПОРТЫ ==========
@@ -165,20 +184,30 @@ pcall(function()
 end)
 rwait(1.6, 2.8)
 
--- ========== ОСНОВНОЙ ЦИКЛ ФАРМА ==========
+-- ========== ОСНОВНОЙ ЦИКЛ С ПОВТОРНЫМИ ПОПЫТКАМИ ==========
 task.spawn(function()
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     while true do
-        -- 0. Закрытие мешающих GUI
+        -- 0. Закрытие мешающих GUI (с повторами)
         pcall(function()
             local logGui = LocalPlayer.PlayerGui:FindFirstChild("UpdateLogGui")
             if logGui and logGui.Enabled then
-                forceExpandAndClick(logGui.ContainerFrame.CloseButton.UpperLabel)
+                local btn = logGui.ContainerFrame.CloseButton.UpperLabel
+                if not forceExpandAndClick(btn) then
+                    print("⚠️ Повторная попытка закрыть UpdateLogGui")
+                    task.wait(1)
+                    forceExpandAndClick(btn)  -- повтор
+                end
             end
             
             local dayGui = LocalPlayer.PlayerGui:FindFirstChild("DailyLoginGui")
             if dayGui and dayGui.Enabled then
-                forceExpandAndClick(dayGui.ContainerFrame.CurrencyFrame.CloseButton.UpperLabel)
+                local btn = dayGui.ContainerFrame.CurrencyFrame.CloseButton.UpperLabel
+                if not forceExpandAndClick(btn) then
+                    print("⚠️ Повторная попытка закрыть DailyLoginGui")
+                    task.wait(1)
+                    forceExpandAndClick(btn)
+                end
             end
         end)
 
@@ -192,18 +221,26 @@ task.spawn(function()
             LocalPlayer.PlayerGui.PromptGui.Enabled = false
         end
 
-        -- 2. Выбор слота
+        -- 2. Выбор слота (с повтором)
         pcall(function()
             local slotBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.PagesFrame["1"]
-            forceExpandAndClick(slotBtn)
+            if not forceExpandAndClick(slotBtn) then
+                print("⚠️ Повторная попытка выбрать слот")
+                task.wait(1)
+                forceExpandAndClick(slotBtn)
+            end
         end)
         
         rwait(1.2, 2.1)
         
-        -- 3. Кнопка PLAY
+        -- 3. Кнопка PLAY (с повтором)
         pcall(function()
             local playBtn = LocalPlayer.PlayerGui.SaveSelectionGui.ContainerFrame.AllSlotsFrame.SlotsFrame["1"].InnerFrame.CreatureFrame.ButtonsFrame.PlayButton.UpperLabel
-            forceExpandAndClick(playBtn)
+            if not forceExpandAndClick(playBtn) then
+                print("⚠️ Повторная попытка нажать PLAY")
+                task.wait(1)
+                forceExpandAndClick(playBtn)
+            end
         end)
         
         rwait(1.7, 2.8)
@@ -221,7 +258,7 @@ task.spawn(function()
             rwait(0.05, 0.15)
         end
         
-        -- 5. Ожидание смерти и клик по Return
+        -- 5. Ожидание смерти и клик по Return (с повтором)
         local deathGui = LocalPlayer.PlayerGui:WaitForChild("DeathGui")
         while not deathGui.Enabled do rwait(0.4, 0.7) end
         
@@ -231,11 +268,15 @@ task.spawn(function()
         
         pcall(function()
             local returnBtn = deathGui.ContainerFrame.BottomFrame.ButtonsFrame.Return.UpperLabel
-            forceExpandAndClick(returnBtn)
+            if not forceExpandAndClick(returnBtn) then
+                print("⚠️ Повторная попытка нажать Return")
+                task.wait(1)
+                forceExpandAndClick(returnBtn)
+            end
         end)
         
         rwait(1.7, 3)
     end
 end)
 
-print("✅ Скрипт запущен. Клики: точные (центр+" .. OFFSET_Y .. "), по 3 раза за вызов. Нажмите F9 для истории.")
+print("✅ Скрипт запущен. Клики усилены: повторы, увеличенные задержки, отладка. Нажмите F9 для истории.")
