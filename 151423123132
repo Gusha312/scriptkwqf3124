@@ -2,6 +2,7 @@ wait(5)
 -- ============================================================
 --  СКРИПТ ФАРМА СЛОТОВ С ЗАПИСЬЮ КЛИКОВ
 --  КЛИКИ ТОЧНО В ЦЕНТР + СМЕЩЕНИЕ ВНИЗ (БЕЗ ДРОЖАНИЯ)
+--  КАЖДЫЙ КЛИК ПОВТОРЯЕТСЯ 3 РАЗА ДЛЯ НАДЁЖНОСТИ
 --  Нажмите F9 для вывода истории кликов в консоль.
 -- ============================================================
 
@@ -40,7 +41,7 @@ game:GetService("UserInputService").InputBegan:Connect(function(input)
     end
 end)
 
--- ========== РАНДОМАЙЗЕР (только для задержек и телепортов) ==========
+-- ========== РАНДОМАЙЗЕР (только для задержек) ==========
 local rng = Random.new(tick() + math.random(1, 99999))
 
 local function rwait(min, max)
@@ -57,7 +58,7 @@ local function rnum(min, max)
     return rng:NextNumber(min, max)
 end
 
--- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (ТОЧНЫЕ КООРДИНАТЫ) ==========
+-- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (ТОЧНЫЕ КООРДИНАТЫ, 3 КЛИКА) ==========
 local function forceExpandAndClick(button)
     if not button then return end
     
@@ -82,7 +83,8 @@ local function forceExpandAndClick(button)
     local targetX = viewportSize.X / 2
     local targetY = viewportSize.Y / 2 + OFFSET_Y
 
-    local clickCount = rint(2, 3)
+    -- === ИЗМЕНЕНИЕ: теперь всегда 3 клика ===
+    local clickCount = 3
     
     for i = 1, clickCount do
         local holdTime = rnum(0.3, 0.55)
@@ -236,4 +238,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Скрипт запущен. Клики точные: центр X, центр Y+" .. OFFSET_Y .. " (без дрожания). Нажмите F9 для истории.")
+print("✅ Скрипт запущен. Клики: точные (центр+" .. OFFSET_Y .. "), по 3 раза за вызов. Нажмите F9 для истории.")
