@@ -1,7 +1,8 @@
 wait(5)
 -- ============================================================
---  СКРИПТ ФАРМА СЛОТОВ С ЗАПИСЬЮ КЛИКОВ (ЧУТЬ НИЖЕ ЦЕНТРА)
---  Нажмите F9, чтобы увидеть историю кликов в консоли.
+--  СКРИПТ ФАРМА СЛОТОВ С ЗАПИСЬЮ КЛИКОВ
+--  КЛИКИ ТОЧНО В ЦЕНТР + СМЕЩЕНИЕ ВНИЗ (БЕЗ ДРОЖАНИЯ)
+--  Нажмите F9 для вывода истории кликов в консоль.
 -- ============================================================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,6 +10,9 @@ local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+
+-- ========== НАСТРОЙКА ТОЧКИ КЛИКА ==========
+local OFFSET_Y = 50   -- Смещение вниз от центра (пиксели). Можете изменить.
 
 -- ========== ГЛОБАЛЬНАЯ ИСТОРИЯ КЛИКОВ ==========
 _clickHistory = {}
@@ -36,7 +40,7 @@ game:GetService("UserInputService").InputBegan:Connect(function(input)
     end
 end)
 
--- ========== РАНДОМАЙЗЕР ==========
+-- ========== РАНДОМАЙЗЕР (только для задержек и телепортов) ==========
 local rng = Random.new(tick() + math.random(1, 99999))
 
 local function rwait(min, max)
@@ -53,11 +57,7 @@ local function rnum(min, max)
     return rng:NextNumber(min, max)
 end
 
-local function jitterPos(x, y)
-    return x + rng:NextNumber(-4, 4), y + rng:NextNumber(-4, 4)
-end
-
--- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (КЛИК ЧУТЬ НИЖЕ ЦЕНТРА) ==========
+-- ========== ФУНКЦИЯ КЛИКА С РАЗДУВАНИЕМ (ТОЧНЫЕ КООРДИНАТЫ) ==========
 local function forceExpandAndClick(button)
     if not button then return end
     
@@ -78,14 +78,9 @@ local function forceExpandAndClick(button)
     end
 
     local viewportSize = Camera.ViewportSize
-    -- Центр экрана
-    local centerX = viewportSize.X / 2
-    local centerY = viewportSize.Y / 2
-    
-    -- Смещение вниз на 30-80 пикселей (рандомное)
-    local offsetY = rnum(30, 80)
-    local targetX = centerX
-    local targetY = centerY + offsetY
+    -- ТОЧНЫЕ КООРДИНАТЫ: центр X, центр Y + смещение вниз
+    local targetX = viewportSize.X / 2
+    local targetY = viewportSize.Y / 2 + OFFSET_Y
 
     local clickCount = rint(2, 3)
     
@@ -97,9 +92,11 @@ local function forceExpandAndClick(button)
             task.wait()
         end
         
-        local clickX, clickY = jitterPos(targetX, targetY)
+        -- БЕЗ ДРОЖАНИЯ – используем точные координаты
+        local clickX = targetX
+        local clickY = targetY
         
-        -- ЗАПИСЫВАЕМ КАЖДЫЙ КЛИК
+        -- Запись клика
         addClickToHistory(clickX, clickY)
         
         VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
@@ -239,4 +236,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Скрипт запущен. Клики – чуть ниже центра (смещение 30-80 пикселей). Нажмите F9 для вывода истории.")
+print("✅ Скрипт запущен. Клики точные: центр X, центр Y+" .. OFFSET_Y .. " (без дрожания). Нажмите F9 для истории.")
