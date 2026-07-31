@@ -17,6 +17,6 @@ while true do
     end
 
     -- Пауза от 1 до 3 минут (60–180 секунд)
-    local waitTime = math.random(60, 180)
+    local waitTime = math.random(6, 18)
     wait(waitTime)
 end
