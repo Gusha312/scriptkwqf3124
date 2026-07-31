@@ -1,16 +1,22 @@
-wait(40)
+wait(20)
+-- Скрипт для автовыполнения форджа (Forage) с рандомным числом
 while true do
-wait(1)
-local args = {
-	"Slot1",
-	2
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetElderAgeRemote"):InvokeServer(unpack(args))
-wait(1)
-local args = {
-	"Slot1",
-	false
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SetFavoriteRemote"):InvokeServer(unpack(args))
+    -- Генерируем случайное число от 1 до 50
+    local randomValue = math.random(1, 50)
+    local args = { randomValue }
 
+    -- Безопасный вызов (защита от ошибок)
+    local success, result = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(args))
+    end)
+
+    if not success then
+        warn("Ошибка при вызове InvokeServer: ", result)
+    else
+        print("Отправлено число: " .. randomValue)
+    end
+
+    -- Пауза от 1 до 3 минут (60–180 секунд)
+    local waitTime = math.random(60, 180)
+    wait(waitTime)
 end
