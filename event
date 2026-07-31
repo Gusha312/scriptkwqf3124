@@ -1,27 +1,86 @@
 wait(20)
--- Скрипт для автовыполнения форджа (Forage) с рандомным числом
+-- Скрипт для автоматического выполнения двух удалённых действий
+-- с интервалом от 1 до 3 минут
+
+local function getNearestLake()
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then
+        warn("Игрок или его персонаж не найден")
+        return nil
+    end
+
+    local character = player.Character
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then
+        warn("HumanoidRootPart не найден")
+        return nil
+    end
+
+    local playerPos = rootPart.Position
+    local lakesFolder = workspace:FindFirstChild("Interactions") and workspace.Interactions:FindFirstChild("Lakes")
+    if not lakesFolder then
+        warn("Папка Lakes не найдена")
+        return nil
+    end
+
+    local nearestLake = nil
+    local minDist = math.huge
+
+    -- Перебираем всех детей папки Lakes
+    for _, child in ipairs(lakesFolder:GetChildren()) do
+        -- Проверяем, есть ли у объекта свойство Position (или PrimaryPart)
+        local position = child:FindFirstChild("Position") or child:FindFirstChild("PrimaryPart")
+        if position then
+            local lakePos = position.Position
+            local dist = (playerPos - lakePos).Magnitude
+            if dist < minDist then
+                minDist = dist
+                nearestLake = child
+            end
+        end
+    end
+
+    if not nearestLake then
+        warn("Не найдено ни одного озера с позицией")
+    end
+    return nearestLake
+end
+
+-- Главный цикл
 while true do
-    -- Генерируем случайное число от 1 до 50
+    -- 1. Вызов CompleteForageableRemote с рандомным числом от 1 до 50
     local randomValue = math.random(1, 50)
-    local args = { randomValue }
+    local argsForage = { randomValue }
 
-    -- Безопасный вызов (защита от ошибок)
-    local success, result = pcall(function()
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(args))
-    local args = {
-	workspace:WaitForChild("Interactions"):WaitForChild("Lakes"):WaitForChild("Lake")
-   }
-   game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PalmSproutDelivery"):InvokeServer(unpack(args))
-
+    local success1, err1 = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(argsForage))
     end)
 
-    if not success then
-        warn("Ошибка при вызове InvokeServer: ", result)
+    if success1 then
+        print("[Forage] Отправлено число: " .. randomValue)
     else
-        print("Отправлено число: " .. randomValue)
+        warn("[Forage] Ошибка: " .. tostring(err1))
+    end
+
+    -- 2. Вызов PalmSproutDelivery с ближайшим озером
+    local nearestLake = getNearestLake()
+    if nearestLake then
+        local argsSprout = { nearestLake }
+        local success2, err2 = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PalmSproutDelivery"):InvokeServer(unpack(argsSprout))
+        end)
+
+        if success2 then
+            print("[Sprout] Отправлено озеро: " .. nearestLake.Name)
+        else
+            warn("[Sprout] Ошибка: " .. tostring(err2))
+        end
+    else
+        warn("[Sprout] Пропуск – ближайшее озеро не найдено")
     end
 
     -- Пауза от 1 до 3 минут (60–180 секунд)
     local waitTime = math.random(6, 18)
+    print("Ожидание " .. waitTime .. " секунд до следующего цикла...")
     wait(waitTime)
 end
