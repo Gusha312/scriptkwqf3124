@@ -8,6 +8,11 @@ while true do
     -- Безопасный вызов (защита от ошибок)
     local success, result = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CompleteForageableRemote"):InvokeServer(unpack(args))
+    local args = {
+	workspace:WaitForChild("Interactions"):WaitForChild("Lakes"):WaitForChild("Lake")
+   }
+   game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("PalmSproutDelivery"):InvokeServer(unpack(args))
+
     end)
 
     if not success then
