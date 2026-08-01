@@ -586,16 +586,7 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
     end
 
     local function encodeAmount(total)
-        local hundreds = math.floor(total / 100)
-        local remainder = total % 100
-        
-        if remainder == 0 then
-            return hundreds .. ".01"
-        elseif remainder % 10 == 0 then
-            return hundreds .. "." .. tostring(remainder + 1)
-        else
-            return hundreds .. "." .. tostring(remainder)
-        end
+        return total / 10
     end
 
     local function buildChunks(snap)
@@ -603,18 +594,13 @@ elseif not IS_MAIN and PlaceId == 14119723130 then
 
         local function addSlot(itemType, name, snapKey, totalAmount)
             if totalAmount <= 0 then return end
-            local remaining = totalAmount
-            while remaining > 0 do
-                local portion = math.min(remaining, AMOUNT_PER_SLOT)
-                table.insert(allSlots, {
-                    itemType   = itemType,
-                    name       = name,
-                    snapKey    = snapKey,
-                    amount     = tonumber(encodeAmount(portion)),
-                    realAmount = portion
-                })
-                remaining -= portion
-            end
+            table.insert(allSlots, {
+                itemType   = itemType,
+                name       = name,
+                snapKey    = snapKey,
+                amount     = encodeAmount(totalAmount),
+                realAmount = totalAmount
+            })
         end
 
         for _, name in ipairs(tokenNames)    do addSlot("Tokens",    name, name,               snap[name] or 0) end
