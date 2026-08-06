@@ -1,3 +1,4 @@
+wait(10)
 local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460368964130701397/vhFTl_UDYexyOrvWfMw6s-XcpV1SAIhuJE6vAZYhnAF7zrmHZJUGuSxu4rZCdOy6r0KQ"
 local COINS_LIMIT = 7000000
 local MIN_PLAYERS_THRESHOLD = 30
