@@ -1,8 +1,9 @@
-wait(10)
+wait(20)
 local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460368964130701397/vhFTl_UDYexyOrvWfMw6s-XcpV1SAIhuJE6vAZYhnAF7zrmHZJUGuSxu4rZCdOy6r0KQ"
 local COINS_LIMIT = 7000000
 local MIN_PLAYERS_THRESHOLD = 30
 local CHECK_INTERVAL = 150
+local MAX_FAILED_ATTEMPTS = 5
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,7 +14,6 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local localPlayer = Players.LocalPlayer
-local currentPlaceId = game.PlaceId
 local NORMAL_WORLD_ID = 5233782396
 local TRADE_WORLD_ID = 14119723130
 
@@ -101,44 +101,75 @@ local function findBestServer()
     end
 
     local data = HttpService:JSONDecode(response)
-    if not data or not data.data then return nil end
+    if not data or not data.data then 
+        print("⚠️ Нет данных о серверах")
+        return nil 
+    end
+
+    print(string.format("📊 Найдено %d серверов в торговом мире", #data.data))
 
     table.sort(data.data, function(a, b)
         return a.playing > b.playing
     end)
 
-    local balancedServers = {}
-    for i = 2, math.min(5, #data.data) do
-        table.insert(balancedServers, data.data[i])
+    local serversToTry = {}
+    for i = 1, math.min(2, #data.data) do
+        if data.data[i] then
+            table.insert(serversToTry, data.data[i])
+            print(string.format("✅ Топ-%d: %d игроков, ID: %s", i, data.data[i].playing, data.data[i].id))
+        end
     end
 
-    if #balancedServers > 0 then
-        local selectedServer = balancedServers[math.random(1, #balancedServers)]
-        print(string.format("✅ Выбран сервер: %s игроков, ID: %s", selectedServer.playing, selectedServer.id))
-        return selectedServer.id
+    if #serversToTry > 0 then
+        print("🎯 Готово к попытке входа на " .. #serversToTry .. " крупные серверы")
+        return serversToTry
     else
-        print("⚠️ Не удалось найти подходящий сервер (список пуст или недостаточно серверов).")
+        print("⚠️ Не удалось найти подходящие серверы.")
         return nil
     end
 end
 
-local function joinServerById(jobId)
-    if not jobId then
-        warn("Нет ID сервера для подключения.")
+local failedAttempts = 0
+
+local function tryJoinServers(serverList)
+    if not serverList or #serverList == 0 then
+        warn("Нет серверов для подключения.")
         return false
     end
-    local success, err = pcall(function()
-        TeleportService:TeleportToPlaceInstance(TRADE_WORLD_ID, jobId, localPlayer)
-    end)
-    if not success then
-        warn("Ошибка телепортации на сервер: " .. tostring(err))
-        return false
+
+    for i, server in ipairs(serverList) do
+        print(string.format("🔄 Попытка подключения: Заходу на сервер с %s игроками, ID: %s", server.playing, server.id))
+        
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(TRADE_WORLD_ID, server.id, localPlayer)
+        end)
+        
+        if success then
+            print("✅ Отправлена команда телепортации на сервер!")
+            failedAttempts = 0
+            return true
+        else
+            warn("Не удалось зайти на сервер: " .. tostring(err))
+            failedAttempts = failedAttempts + 1
+            print("⚠️ Неудачных попыток: " .. failedAttempts .. "/" .. MAX_FAILED_ATTEMPTS)
+            
+            if failedAttempts >= MAX_FAILED_ATTEMPTS then
+                print("💥 Не удалось зайти 5 раз подряд. Кикаю себя из игры...")
+                localPlayer:Kick("Не удалось подключиться к серверу после 5 попыток")
+                return false
+            end
+            
+            if i < #serverList then
+                task.wait(2)
+            end
+        end
     end
-    return true
+    
+    return false
 end
 
 local function claimStallsForever()
-    if currentPlaceId == NORMAL_WORLD_ID then return end
+    if game.PlaceId == NORMAL_WORLD_ID then return end
     
     local MarketRemotes = ReplicatedStorage:WaitForChild("Remotes")
     local ClaimStallRemote = MarketRemotes:WaitForChild("ClaimStall")
@@ -170,7 +201,7 @@ local function serverPlayerCheck()
         task.wait(CHECK_INTERVAL)
         local playerCount = #Players:GetPlayers()
         
-        if currentPlaceId == TRADE_WORLD_ID and playerCount <= MIN_PLAYERS_THRESHOLD then
+        if game.PlaceId == TRADE_WORLD_ID and playerCount <= MIN_PLAYERS_THRESHOLD then
             print("📉 Мало игроков (" .. playerCount .. "). Ухожу в обычный мир...")
             sendDiscordWebhook("⚠️ Сервер пустеет (" .. playerCount .. " чел). Рестарт сервера...")
             task.wait(1)
@@ -193,7 +224,7 @@ local function main()
     setFpsCap(MAX_FPS)
     setupAntiAFK()
 
-    if currentPlaceId == NORMAL_WORLD_ID then
+    if game.PlaceId == NORMAL_WORLD_ID then
         local currentCoins = 0
         pcall(function() currentCoins = localPlayer.Data.Coins.Value end)
         
@@ -203,12 +234,27 @@ local function main()
         else
             task.wait(8)
             
-            local bestServerId = findBestServer()
-            if bestServerId then
-                joinServerById(bestServerId)
-            else
-                print("⚠️ Не удалось найти лучший сервер, иду на обычный сервер торгового мира.")
-                TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
+            while failedAttempts < MAX_FAILED_ATTEMPTS do
+                local serverList = findBestServer()
+                if serverList then
+                    print("🎯 Пытаюсь зайти на топ крупные серверы...")
+                    if tryJoinServers(serverList) then
+                        break
+                    end
+                else
+                    print("⚠️ Не удалось получить список серверов.")
+                    failedAttempts = failedAttempts + 1
+                end
+                
+                if failedAttempts < MAX_FAILED_ATTEMPTS then
+                    print("⏳ Жду 5 секунд перед повторной попыткой...")
+                    task.wait(5)
+                end
+            end
+            
+            if failedAttempts >= MAX_FAILED_ATTEMPTS then
+                print("💥 Не удалось подключиться. Кикаю себя...")
+                localPlayer:Kick("Не удалось подключиться к крупным серверам после 5 попыток")
             end
         end
     else
