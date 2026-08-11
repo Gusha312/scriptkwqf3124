@@ -3,6 +3,8 @@ local DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1460368964130701397/vh
 local COINS_LIMIT = 7000000
 local MIN_PLAYERS_THRESHOLD = 30
 local CHECK_INTERVAL = 150
+local MAX_RETRIES = 3                -- максимум попыток перехода в торговый мир
+local RETRY_DELAY = 8               -- пауза между попытками
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -89,6 +91,7 @@ local function sendDiscordWebhook(customMessage)
     end)
 end
 
+-- Получение JobId лучшего сервера через API (возвращает nil, если не удалось)
 local function findBestServer()
     local url = "https://games.roblox.com/v1/games/" .. TRADE_WORLD_ID .. "/servers/Public?limit=100"
     local success, response = pcall(function()
@@ -96,32 +99,32 @@ local function findBestServer()
     end)
     
     if not success then
-        warn("Не удалось получить список серверов:", response)
+        warn("❌ Ошибка HTTP-запроса к API серверов: " .. tostring(response))
         return nil
     end
 
     local data = HttpService:JSONDecode(response)
-    if not data or not data.data then return nil end
-
-    table.sort(data.data, function(a, b)
-        return a.playing > b.playing
-    end)
-
-    local balancedServers = {}
-    for i = 2, math.min(5, #data.data) do
-        table.insert(balancedServers, data.data[i])
-    end
-
-    if #balancedServers > 0 then
-        local selectedServer = balancedServers[math.random(1, #balancedServers)]
-        print(string.format("✅ Выбран сервер: %s игроков, ID: %s", selectedServer.playing, selectedServer.id))
-        return selectedServer.id
-    else
-        print("⚠️ Не удалось найти подходящий сервер (список пуст или недостаточно серверов).")
+    if not data or not data.data then
+        warn("⚠️ API вернул пустой список серверов")
         return nil
     end
+
+    -- Сортируем по убыванию игроков
+    table.sort(data.data, function(a, b) return a.playing > b.playing end)
+
+    -- Берём один из слотов 2..5 (не самый полный, чтобы избежать переполнения, но и не пустой)
+    local topCount = math.min(5, #data.data)
+    if topCount < 2 then
+        warn("⚠️ Недостаточно серверов для выбора (нужно хотя бы 2)")
+        return nil
+    end
+
+    local selectedServer = data.data[math.random(2, topCount)]
+    print(string.format("✅ Выбран сервер: %s игроков, ID: %s", selectedServer.playing, selectedServer.id))
+    return selectedServer.id
 end
 
+-- Телепорт на сервер по JobId
 local function joinServerById(jobId)
     if not jobId then
         warn("Нет ID сервера для подключения.")
@@ -131,7 +134,7 @@ local function joinServerById(jobId)
         TeleportService:TeleportToPlaceInstance(TRADE_WORLD_ID, jobId, localPlayer)
     end)
     if not success then
-        warn("Ошибка телепортации на сервер: " .. tostring(err))
+        warn("Ошибка телепортации: " .. tostring(err))
         return false
     end
     return true
@@ -201,45 +204,41 @@ local function main()
             sendDiscordWebhook("🛑 Лимит 7М достигнут. Бот в простое.")
             return
         else
-            local maxRetries = 3
-            for attempt = 1, maxRetries do
-                task.wait(8) -- небольшая пауза перед попыткой
-                print("🔄 Попытка зайти на торговый сервер " .. attempt .. "/" .. maxRetries)
-                local bestServerId = findBestServer()
-                if bestServerId then
-                    joinServerById(bestServerId)
+            for attempt = 1, MAX_RETRIES do
+                task.wait(RETRY_DELAY)
+                print("🔄 Попытка получить JobId и зайти в торговый мир " .. attempt .. "/" .. MAX_RETRIES)
+                
+                local jobId = findBestServer()
+                if jobId then
+                    -- Успешно получили JobId — пробуем подключиться
+                    joinServerById(jobId)
                 else
-                    print("⚠️ Не удалось найти лучший сервер, иду на обычный сервер торгового мира.")
-                    pcall(function()
-                        TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
-                    end)
+                    print("❌ Не удалось получить JobId (попытка " .. attempt .. "), пропускаем переход без ID")
                 end
-                -- ждём, чтобы телепорт успел выполниться (если выполнится, скрипт перестанет работать)
+                
+                -- Ждём, пока сработает телепорт или станет ясно, что мы остались
                 task.wait(15)
                 if game.PlaceId ~= NORMAL_WORLD_ID then
-                    -- успешно перешли в другой мир, выходим из цикла
-                    break
+                    return -- успешно ушли из обычного мира, main() завершится
                 end
-                -- если всё ещё здесь, значит попытка провалилась
-                if attempt < maxRetries then
-                    print("❌ Не удалось перезайти. Повторная попытка через 5 сек...")
+                
+                if attempt < MAX_RETRIES then
+                    print("⚠️ Всё ещё в обычном мире. Следующая попытка через 5 сек...")
                     task.wait(5)
                 end
             end
-            -- после всех попыток проверяем, покинули ли мы обычный мир
-            if game.PlaceId == NORMAL_WORLD_ID then
-                sendDiscordWebhook("❌ После 3 попыток не удалось зайти на торговый сервер. Кикаемся.")
-                -- попытка кикнуть себя (работает в большинстве эксплойтов)
-                local kickSuccess = pcall(function()
-                    localPlayer:Kick("Не удалось присоединиться к серверу")
-                end)
-                if not kickSuccess then
-                    -- запасной вариант – перезайти в эту же игру (переподключение)
-                    TeleportService:Teleport(game.PlaceId)
-                end
-            end
+            
+            -- После всех попыток мы всё ещё в NORMAL_WORLD_ID -> кик
+            sendDiscordWebhook("❌ После " .. MAX_RETRIES .. " попыток не удалось получить JobId и зайти. Кикаемся.")
+            pcall(function()
+                localPlayer:Kick("Не удалось подключиться к серверу")
+            end)
+            -- Запасной вариант, если Kick не сработал
+            task.wait(2)
+            TeleportService:Teleport(game.PlaceId) -- переподключение
         end
     else
+        -- Мы уже в торговом мире
         sendDiscordWebhook()
         task.spawn(claimStallsForever)
         task.spawn(serverPlayerCheck)
