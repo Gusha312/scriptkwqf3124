@@ -201,14 +201,42 @@ local function main()
             sendDiscordWebhook("🛑 Лимит 7М достигнут. Бот в простое.")
             return
         else
-            task.wait(8)
-            
-            local bestServerId = findBestServer()
-            if bestServerId then
-                joinServerById(bestServerId)
-            else
-                print("⚠️ Не удалось найти лучший сервер, иду на обычный сервер торгового мира.")
-                TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
+            local maxRetries = 3
+            for attempt = 1, maxRetries do
+                task.wait(8) -- небольшая пауза перед попыткой
+                print("🔄 Попытка зайти на торговый сервер " .. attempt .. "/" .. maxRetries)
+                local bestServerId = findBestServer()
+                if bestServerId then
+                    joinServerById(bestServerId)
+                else
+                    print("⚠️ Не удалось найти лучший сервер, иду на обычный сервер торгового мира.")
+                    pcall(function()
+                        TeleportService:Teleport(TRADE_WORLD_ID, localPlayer)
+                    end)
+                end
+                -- ждём, чтобы телепорт успел выполниться (если выполнится, скрипт перестанет работать)
+                task.wait(15)
+                if game.PlaceId ~= NORMAL_WORLD_ID then
+                    -- успешно перешли в другой мир, выходим из цикла
+                    break
+                end
+                -- если всё ещё здесь, значит попытка провалилась
+                if attempt < maxRetries then
+                    print("❌ Не удалось перезайти. Повторная попытка через 5 сек...")
+                    task.wait(5)
+                end
+            end
+            -- после всех попыток проверяем, покинули ли мы обычный мир
+            if game.PlaceId == NORMAL_WORLD_ID then
+                sendDiscordWebhook("❌ После 3 попыток не удалось зайти на торговый сервер. Кикаемся.")
+                -- попытка кикнуть себя (работает в большинстве эксплойтов)
+                local kickSuccess = pcall(function()
+                    localPlayer:Kick("Не удалось присоединиться к серверу")
+                end)
+                if not kickSuccess then
+                    -- запасной вариант – перезайти в эту же игру (переподключение)
+                    TeleportService:Teleport(game.PlaceId)
+                end
             end
         end
     else
