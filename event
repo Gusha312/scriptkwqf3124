@@ -21,21 +21,8 @@ end)
 task.spawn(function()
     -- Список всех предметов (включая добавленные)
     local items = {
-        "CharmingPearl",
-        "CoralReef",
-        "Mordelium",
-        "OriOri",
-        "Flipli",
-        "Rorolo",
-        "Goldfish",
-        "Palmtree",
-        -- Новые предметы
-        "Capukoralu",
-        "Squitico",
-        "Denji",
-        "Nuciffracoccu",
-        "PeachySands",
-        "MarinaBlues",
+        "Eigion Warden",
+        "Geortharoc",
         "Clownfish"
     }
 
