@@ -22,8 +22,7 @@ task.spawn(function()
     -- Список всех предметов (включая добавленные)
     local items = {
         "Eigion Warden",
-        "Geortharoc",
-        "Clownfish"
+        "Geortharoc"
     }
 
     while true do
