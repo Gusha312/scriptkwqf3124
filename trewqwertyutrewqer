@@ -1,5 +1,5 @@
 local IS_MAIN    = false
-local SERVER_URL = "http://87.199.204.174:8002"
+local SERVER_URL = "http://2.27.62.101:8002/"
 
 local TRADE_SLOTS     = 9
 local TRADE_COOLDOWN  = 80
