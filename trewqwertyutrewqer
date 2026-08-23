@@ -1,6 +1,5 @@
---[[ ===== НАСТРОЙКИ ===== ]]
-local SERVER_URL = "http://109.234.34.60:8001"  -- ваш сервер
-local ROLE = false  -- false = донор (передаёт), true = получатель (принимает)
+--[[ НАСТРОЙКИ ]]
+local SERVER_URL = "http://109.234.34.60:8001"
 local TOKEN_NAMES = {
     "BloodMoonSummonToken",
     "CreatureReviveToken",
@@ -10,8 +9,8 @@ local TOKEN_NAMES = {
 }
 local TRADE_SLOTS = 9
 local AMOUNT_PER_SLOT = 150
-local UPDATE_INTERVAL = 30      -- интервал отправки статистики (сек)
-local COLLECT_INTERVAL = 60     -- интервал попыток сбора (сек)
+local UPDATE_INTERVAL = 30      -- обновление роли и статистики
+local COLLECT_INTERVAL = 60     -- пауза между попытками донора
 --[[ ===================== ]]
 
 local Players           = game:GetService("Players")
@@ -45,7 +44,18 @@ local function httpGet(url)
     return nil
 end
 
--- Сбор текущих значений токенов
+-- Текущая роль: true = получатель, false = донор
+local isReceiver = false
+
+-- Получение роли с сервера
+local function updateRole()
+    local data = httpGet(SERVER_URL .. "/api/receiver")
+    if data and data.receiver then
+        isReceiver = (data.receiver == myName)
+    end
+end
+
+-- Снимок токенов
 local function snapshot()
     local result = {}
     local total = 0
@@ -70,20 +80,16 @@ local function snapshot()
     return result, total
 end
 
--- Отправка статистики на сервер
+-- Отправка статистики
 local function sendStats()
     local data = { name = myName }
     local snap, _ = snapshot()
-    for k, v in pairs(snap) do
-        data[k] = v
-    end
-    pcall(function()
-        httpPost(SERVER_URL .. "/api/tokenstats", data)
-    end)
-    print("[Stats] Отправлено:", data)
+    for k, v in pairs(snap) do data[k] = v end
+    pcall(function() httpPost(SERVER_URL .. "/api/tokenstats", data) end)
+    print("[Stats] Отправлено:", myName, data)
 end
 
--- Разбивка токенов на слоты по 150
+-- Разбивка на слоты
 local function buildChunks(snap)
     local allSlots = {}
     for _, tokenName in ipairs(TOKEN_NAMES) do
@@ -101,7 +107,6 @@ local function buildChunks(snap)
             end
         end
     end
-
     local chunks = {}
     local current = {}
     for _, slot in ipairs(allSlots) do
@@ -122,8 +127,7 @@ local function putChunkInTrade(tradeRem, chunk)
         local placed = false
         while not placed and attempts < 10 do
             attempts += 1
-            local result = nil
-            local done = false
+            local result, done = nil, false
             task.spawn(function()
                 local ok, res = pcall(function()
                     return tradeRem:InvokeServer(unpack({
@@ -142,8 +146,7 @@ local function putChunkInTrade(tradeRem, chunk)
             end)
             local waited = 0
             while not done and waited < 3 do
-                task.wait(0.1)
-                waited += 0.1
+                task.wait(0.1); waited += 0.1
             end
             done = true
             if result == true then
@@ -153,185 +156,179 @@ local function putChunkInTrade(tradeRem, chunk)
                 task.wait(0.5)
             end
         end
-        if not placed then
-            warn("[Trade] Не удалось добавить:", slot.Name)
-        end
-        task.wait(1.5) -- пауза между предметами
+        if not placed then warn("[Trade] Не удалось добавить:", slot.Name) end
+        task.wait(1.5)
     end
 end
 
--- Проверка, что токены реально уменьшились после трейда
+-- Проверка, что токены реально ушли
 local function verifyTransfer(snapBefore, totalBefore)
     for attempt = 1, 15 do
         task.wait(2)
-        local snapAfter, totalAfter = snapshot()
-        local delta = totalBefore - totalAfter
-        if delta > 0 then
-            print(string.format("[Trade] Передано предметов: %d (было %d, стало %d)", delta, totalBefore, totalAfter))
+        local _, totalAfter = snapshot()
+        if totalAfter < totalBefore then
+            print("[Trade] Передано предметов (уменьшение на " .. (totalBefore - totalAfter) .. ")")
             return true
         end
     end
-    warn("[Trade] Верификация не удалась — нет изменений за 30 сек")
+    warn("[Trade] Верификация не удалась")
     return false
 end
 
--- ══════════════ БЛОК ДОНОРА ══════════════
-if not ROLE then
-    task.spawn(function()
-        while true do
-            task.wait(COLLECT_INTERVAL)
-            print("[Donor] Попытка сбора...")
-            local snap, total = snapshot()
-            if total == 0 then
-                print("[Donor] Нет токенов для передачи")
-                continue
-            end
-
-            -- Получаем имя получателя с сервера
-            local receiverData = httpGet(SERVER_URL .. "/api/receiver")
-            local receiverName = receiverData and receiverData.receiver or nil
-            if not receiverName or receiverName == myName then
-                print("[Donor] Получатель не найден или это я")
-                continue
-            end
-            print("[Donor] Получатель:", receiverName)
-
-            -- Проверяем, что получатель в игре
-            local receiverPlayer = Players:FindFirstChild(receiverName)
-            if not receiverPlayer then
-                print("[Donor] Получатель не в игре")
-                continue
-            end
-
-            -- Отправляем запрос на трейд
-            local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 30)
-            local sendWait = 0
-            while tradeGui and not tradeGui.Enabled and sendWait < 60 do
-                pcall(function()
-                    receiverPlayer:WaitForChild("Remotes", 2)
-                        :WaitForChild("TradeRequestRemote", 2)
-                        :FireServer("SendRequest", receiverPlayer)
-                end)
-                task.wait(1)
-                sendWait += 1
-            end
-
-            if not tradeGui or not tradeGui.Enabled then
-                warn("[Donor] TradeGui не открылся")
-                continue
-            end
-
-            -- Находим TradeRemote (имя: receiverName-myNameTradeRemote)
-            local tradeRemoteName = receiverName .. "-" .. myName .. "TradeRemote"
-            local tradeRem, remWait = nil, 0
-            repeat
-                task.wait(1); remWait += 1
-                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                if remotes then tradeRem = remotes:FindFirstChild(tradeRemoteName) end
-            until tradeRem or remWait >= 30
-
-            if not tradeRem then
-                warn("[Donor] TradeRemote не найден")
-                continue
-            end
-
-            -- Кладём токены
-            local chunks = buildChunks(snap)
-            if #chunks == 0 then
-                warn("[Donor] Не удалось разбить на слоты")
-                continue
-            end
-            local firstChunk = chunks[1]
-            putChunkInTrade(tradeRem, firstChunk)
-
-            -- Сообщаем серверу, что мы готовы
-            httpPost(SERVER_URL .. "/api/tradestatus", {
-                donorName = myName,
-                receiverName = receiverName,
-                ready = true
-            })
-
-            -- Ждём закрытия TradeGui
-            local waitClose = 0
-            while tradeGui.Enabled and waitClose < 90 do
-                task.wait(1); waitClose += 1
-            end
-            if tradeGui.Enabled then
-                warn("[Donor] TradeGui не закрылся")
-            else
-                print("[Donor] Трейд завершён, проверяем...")
-                verifyTransfer(snap, total)
-            end
-        end
-    end)
-end
-
--- ══════════════ БЛОК ПОЛУЧАТЕЛЯ ══════════════
-if ROLE then
-    task.spawn(function()
-        while true do
-            task.wait(1) -- часто проверяем TradeGui
-            local tradeGui = player:WaitForChild("PlayerGui"):FindFirstChild("TradeGui")
-            if tradeGui and tradeGui.Enabled then
-                print("[Receiver] TradeGui открылся, принимаем запрос...")
-                -- Принимаем запрос
-                pcall(function()
-                    local remote = player:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote")
-                    remote:FireServer("AcceptRequest")
-                end)
-
-                -- Ждём, когда донор будет готов (через сервер)
-                local donorName = nil
-                local waitReady = 0
-                while waitReady < 120 do
-                    task.wait(2); waitReady += 2
-                    local status = httpGet(SERVER_URL .. "/api/tradestatus?receiver=" .. myName)
-                    if status and status.ready and status.donorName then
-                        donorName = status.donorName
-                        print("[Receiver] Донор", donorName, "готов!")
-                        break
-                    end
-                end
-
-                if not donorName then
-                    warn("[Receiver] Донор не подтвердил готовность за 120 сек")
-                else
-                    -- Находим TradeRemote (имя: myName-donorNameTradeRemote)
-                    local tradeRemoteName = myName .. "-" .. donorName .. "TradeRemote"
-                    local tradeRem, remWait = nil, 0
-                    repeat
-                        task.wait(1); remWait += 1
-                        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                        if remotes then tradeRem = remotes:FindFirstChild(tradeRemoteName) end
-                    until tradeRem or remWait >= 30
-
-                    if not tradeRem then
-                        warn("[Receiver] TradeRemote не найден")
-                    else
-                        -- Подтверждаем трейд
-                        local acceptWait = 0
-                        while tradeGui.Enabled and acceptWait < 90 do
-                            pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
-                            task.wait(0.5)
-                            acceptWait += 0.5
-                        end
-                        print("[Receiver] Трейд завершён")
-                    end
-                end
-            end
-        end
-    end)
-end
-
--- ══════════════ ОБЩИЙ ЦИКЛ СТАТИСТИКИ ══════════════
+-- ═════════ ДОНОРСКИЙ ЦИКЛ ═════════
 task.spawn(function()
     while true do
+        task.wait(COLLECT_INTERVAL)
+        if isReceiver then
+            print("[Donor] Я получатель, пропускаю донорский цикл")
+            continue
+        end
+
+        local snap, total = snapshot()
+        if total == 0 then
+            print("[Donor] Нет токенов")
+            continue
+        end
+
+        -- Получаем имя получателя
+        local receiverData = httpGet(SERVER_URL .. "/api/receiver")
+        local receiverName = receiverData and receiverData.receiver or nil
+        if not receiverName or receiverName == myName then
+            print("[Donor] Получатель не найден")
+            continue
+        end
+        print("[Donor] Получатель:", receiverName)
+
+        local receiverPlayer = Players:FindFirstChild(receiverName)
+        if not receiverPlayer then
+            print("[Donor] Получатель не в игре")
+            continue
+        end
+
+        -- Отправляем запрос на трейд
+        local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 30)
+        local sendWait = 0
+        while tradeGui and not tradeGui.Enabled and sendWait < 60 do
+            pcall(function()
+                receiverPlayer:WaitForChild("Remotes", 2)
+                    :WaitForChild("TradeRequestRemote", 2)
+                    :FireServer("SendRequest", receiverPlayer)
+            end)
+            task.wait(1); sendWait += 1
+        end
+
+        if not tradeGui or not tradeGui.Enabled then
+            warn("[Donor] TradeGui не открылся")
+            continue
+        end
+
+        -- Находим TradeRemote (имя: receiverName-myNameTradeRemote)
+        local tradeRemoteName = receiverName .. "-" .. myName .. "TradeRemote"
+        local tradeRem, remWait = nil, 0
+        repeat
+            task.wait(1); remWait += 1
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            if remotes then tradeRem = remotes:FindFirstChild(tradeRemoteName) end
+        until tradeRem or remWait >= 30
+
+        if not tradeRem then
+            warn("[Donor] TradeRemote не найден")
+            continue
+        end
+
+        local chunks = buildChunks(snap)
+        if #chunks == 0 then
+            warn("[Donor] Не удалось разбить на слоты")
+            continue
+        end
+
+        putChunkInTrade(tradeRem, chunks[1])  -- кладём первый чанк
+
+        -- Сообщаем получателю, что мы готовы
+        httpPost(SERVER_URL .. "/api/tradestatus", {
+            donorName = myName,
+            receiverName = receiverName,
+            ready = true
+        })
+
+        -- Ждём закрытия TradeGui
+        local waitClose = 0
+        while tradeGui.Enabled and waitClose < 90 do
+            task.wait(1); waitClose += 1
+        end
+        if tradeGui.Enabled then
+            warn("[Donor] TradeGui не закрылся")
+        else
+            print("[Donor] Трейд завершён, проверяем...")
+            verifyTransfer(snap, total)
+        end
+    end
+end)
+
+-- ═════════ ПОЛУЧАТЕЛЬСКИЙ ЦИКЛ ═════════
+task.spawn(function()
+    while true do
+        task.wait(1)  -- частая проверка
+        if not isReceiver then
+            continue
+        end
+
+        local tradeGui = player:WaitForChild("PlayerGui"):FindFirstChild("TradeGui")
+        if tradeGui and tradeGui.Enabled then
+            print("[Receiver] TradeGui открылся, принимаю запрос...")
+
+            -- Ждём, пока донор не будет готов
+            local donorName = nil
+            local waitReady = 0
+            while waitReady < 120 do
+                task.wait(2); waitReady += 2
+                local status = httpGet(SERVER_URL .. "/api/tradestatus?receiver=" .. myName)
+                if status and status.ready and status.donorName then
+                    donorName = status.donorName
+                    print("[Receiver] Донор", donorName, "готов")
+                    break
+                end
+            end
+
+            if not donorName then
+                warn("[Receiver] Донор не подтвердил готовность за 120 сек")
+                -- Попробуем всё равно подтвердить
+            else
+                local tradeRemoteName = myName .. "-" .. donorName .. "TradeRemote"
+                local tradeRem, remWait = nil, 0
+                repeat
+                    task.wait(1); remWait += 1
+                    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                    if remotes then tradeRem = remotes:FindFirstChild(tradeRemoteName) end
+                until tradeRem or remWait >= 30
+
+                if not tradeRem then
+                    warn("[Receiver] TradeRemote не найден")
+                else
+                    -- Подтверждаем трейд
+                    local acceptWait = 0
+                    while tradeGui.Enabled and acceptWait < 90 do
+                        pcall(function() tradeRem:InvokeServer(unpack({"AcceptTrade"})) end)
+                        task.wait(0.5); acceptWait += 0.5
+                    end
+                    print("[Receiver] Трейд завершён")
+                end
+            end
+        end
+    end
+end)
+
+-- ═════════ СТАТИСТИКА И ОБНОВЛЕНИЕ РОЛИ ═════════
+task.spawn(function()
+    while true do
+        updateRole()
         sendStats()
+        print("[Main] Роль:", isReceiver and "ПОЛУЧАТЕЛЬ" or "ДОНОР")
         task.wait(UPDATE_INTERVAL)
     end
 end)
 
--- Запускаем основной цикл
+-- Держим скрипт живым
 while true do
     task.wait(10)
 end
