@@ -1,27 +1,23 @@
--- ═══════════════════════════════════════════════════════════════
--- Скрипт только для сбора статистики (без трейдов, телепортов)
--- ═══════════════════════════════════════════════════════════════
+-- ============================================================
+--  КЛИЕНТСКИЙ СКРИПТ ДЛЯ СБОРА СТАТИСТИКИ (ROBLOX)
+--  Отправляет POST-запросы на ваш сервер каждые 5 секунд.
+-- ============================================================
 
-local SERVER_URL = "http://109.234.34.60:3000"  -- адрес вашего сервера
+local SERVER_URL = "http://109.234.34.60:3000"   -- адрес вашего сервера
 
-local PlaceId = game.PlaceId
--- Можно оставить проверку на нужное место (опционально)
-local validPlaces = { [5233782396] = true }      -- только мир сбора статистики
-if not validPlaces[PlaceId] then return end
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
 
-task.wait(5)  -- небольшая задержка перед стартом
-
-local Players           = game:GetService("Players")
-local HttpService       = game:GetService("HttpService")
-local player            = Players.LocalPlayer
-local myName            = player.Name
-
--- Выбор функции запроса (поддержка разных исполнителей)
+-- Выбираем функцию запроса (поддержка разных исполнителей)
 local requestFunc = syn and syn.request or http_request or request
+if not requestFunc then
+    warn("Не найдена функция для HTTP-запросов! Скрипт не работает.")
+    return
+end
 
 -- Вспомогательная функция POST
 local function httpPost(url, data)
-    if not requestFunc then return nil end
     local ok, res = pcall(function()
         return requestFunc({
             Url = url,
@@ -33,99 +29,84 @@ local function httpPost(url, data)
     return ok and res or nil
 end
 
--- Вспомогательная функция GET (используется для получения списков предметов)
-local function httpGet(url)
-    if not requestFunc then return nil end
-    local ok, res = pcall(function()
-        return requestFunc({ Url = url, Method = "GET" })
-    end)
-    if ok and res and res.Body then
-        local ok2, d = pcall(function() return HttpService:JSONDecode(res.Body) end)
-        if ok2 then return d end
+-- Функция для безопасного получения числового значения из объекта
+local function getNumericValue(obj)
+    if not obj then return 0 end
+    if obj:IsA("BoolValue") then
+        return obj.Value and 1 or 0
+    elseif obj:IsA("NumberValue") or obj:IsA("IntValue") then
+        return obj.Value
+    else
+        return 0
     end
-    return nil
 end
 
--- Загружаем с сервера названия отслеживаемых предметов
-local tokenNames = {}
-local tokensRes = httpGet(SERVER_URL .. "/api/tokens")
-if tokensRes and type(tokensRes) == "table" then tokenNames = tokensRes end
-
-local creatureNames = {}
-local creaturesRes = httpGet(SERVER_URL .. "/api/creatures")
-if creaturesRes and type(creaturesRes) == "table" then creatureNames = creaturesRes end
-
-local plushieNames = {}
-local plushiesRes = httpGet(SERVER_URL .. "/api/plushies")
-if plushiesRes and type(plushiesRes) == "table" then plushieNames = plushiesRes end
-
-local paletteNames = {}
-local palettesRes = httpGet(SERVER_URL .. "/api/palettes")
-if palettesRes and type(palettesRes) == "table" then paletteNames = palettesRes end
-
--- Основной цикл сбора статистики (отправка каждые 5 секунд)
+-- Основной цикл сбора и отправки
 task.spawn(function()
     while true do
-        local dataToSend = { name = myName }
+        local dataToSend = { name = player.Name }
 
         local pg = player:FindFirstChild("PlayerGui")
         if pg then
             local data = pg:FindFirstChild("Data")
             if data then
-                -- Токены (Items)
+                -- === 1. Основные значения Coins и TimePoints ===
+                local coins = data:FindFirstChild("Coins")
+                if coins then dataToSend.Coins = getNumericValue(coins) end
+
+                local timePoints = data:FindFirstChild("TimePoints")
+                if timePoints then dataToSend.TimePoints = getNumericValue(timePoints) end
+
+                -- === 2. Токены (папка Items) ===
                 local items = data:FindFirstChild("Items")
                 if items then
-                    for _, n in ipairs(tokenNames) do
-                        local t = items:FindFirstChild(n)
-                        dataToSend[n] = (t and (t:IsA("NumberValue") or t:IsA("IntValue"))) and t.Value or 0
+                    for _, child in ipairs(items:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend["TOKEN_" .. child.Name] = val
+                        end
                     end
                 end
 
-                -- Существа (Unlocks)
+                -- === 3. Существа (папка Unlocks) ===
                 local unlocks = data:FindFirstChild("Unlocks")
                 if unlocks then
-                    for _, cName in ipairs(creatureNames) do
-                        local c = unlocks:FindFirstChild(cName)
-                        dataToSend[cName] = (c and (c:IsA("NumberValue") or c:IsA("IntValue"))) and c.Value or 0
+                    for _, child in ipairs(unlocks:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend[child.Name] = val   -- без префикса (как есть)
+                        end
                     end
                 end
 
-                -- Плюши (Plushies)
-                local plushiesFolder = data:FindFirstChild("Plushies")
-                if plushiesFolder then
-                    for _, pName in ipairs(plushieNames) do
-                        local c = plushiesFolder:FindFirstChild(pName)
-                        local val = c and c.Value or 0
-                        if type(val) == "boolean" then val = val and 1 or 0 end
-                        dataToSend["PLUSHIE_" .. pName] = math.floor(tonumber(val) or 0)
+                -- === 4. Плюши (папка Plushies) ===
+                local plushies = data:FindFirstChild("Plushies")
+                if plushies then
+                    for _, child in ipairs(plushies:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend["PLUSHIE_" .. child.Name] = val
+                        end
                     end
                 end
 
-                -- Палитры (SpecialPalettes)
-                local palettesFolder = data:FindFirstChild("SpecialPalettes")
-                if palettesFolder then
-                    for _, pName in ipairs(paletteNames) do
-                        local c = palettesFolder:FindFirstChild(pName)
-                        local val = c and c.Value or 0
-                        if type(val) == "boolean" then val = val and 1 or 0 end
-                        dataToSend["PALETTE_" .. pName] = math.floor(tonumber(val) or 0)
+                -- === 5. Палитры (проверяем обе возможные папки) ===
+                local palettes = data:FindFirstChild("SpecialPalettes") or data:FindFirstChild("MaterialPalettes")
+                if palettes then
+                    for _, child in ipairs(palettes:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend["PALETTE_" .. child.Name] = val
+                        end
                     end
                 end
             end
         end
 
-        -- Отправка данных на сервер
-        pcall(function()
-            requestFunc({
-                Url = SERVER_URL,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode(dataToSend)
-            })
-        end)
-
-        task.wait(5)   -- интервал отправки
+        -- Отправляем данные на сервер
+        httpPost(SERVER_URL, dataToSend)
+        task.wait(5)   -- интервал отправки (5 секунд)
     end
 end)
 
--- Скрипт завершён – статистика собирается в фоне.
+print("Скрипт сбора статистики запущен. Отправка каждые 5 секунд.")
