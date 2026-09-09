@@ -134,7 +134,7 @@ spawn(function()
         -- 1. Фикс 300 миссий
         pcall(function()
             local missions = pGui.Data.Slot1.DeathStats.MissionsCompleted.Value
-            if missions >= 300 then
+            if missions >= 187 then
                 print("🏆 300 миссий! Ресет через OutOfBounds...")
                 remotes.OutOfBoundsSelfDamage:FireServer(25000)
             end
