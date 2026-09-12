@@ -1,5 +1,10 @@
 while true do 
 wait(120)
+local ohString1 = "Acona"
+local ohNumber2 = 1
+
+game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
+wait(5)
 local ohString1 = "BreathOfLife"
 local ohNumber2 = 1
 
