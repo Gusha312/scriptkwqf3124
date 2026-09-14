@@ -1,35 +1,23 @@
---[[ ===== НАСТРОЙКИ ===== ]]
-local IS_MAIN    = false
-local SERVER_URL = "http://109.234.34.60:3000"
---[[ ===================== ]]
+-- ============================================================
+--  КЛИЕНТСКИЙ СКРИПТ ДЛЯ СБОРА СТАТИСТИКИ (ROBLOX)
+--  Отправляет POST-запросы на ваш сервер каждые 5 секунд.
+-- ============================================================
 
-local TRADE_SLOTS     = 9
-local AMOUNT_PER_SLOT = 150
-local DELETE_SECRET   = "agushann_delete_2025"
+local SERVER_URL = "http://109.234.34.60:3000"   -- адрес вашего сервера
 
-local PlaceId     = game.PlaceId
-local validPlaces = { [5233782396] = true, [14119723130] = true }
-if not validPlaces[PlaceId] then
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+
+-- Выбираем функцию запроса (поддержка разных исполнителей)
+local requestFunc = syn and syn.request or http_request or request
+if not requestFunc then
+    warn("Не найдена функция для HTTP-запросов! Скрипт не работает.")
     return
 end
 
-task.wait(5)
-
-local Players           = game:GetService("Players")
-local HttpService       = game:GetService("HttpService")
-local TeleportService   = game:GetService("TeleportService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player            = Players.LocalPlayer
-local myName            = player.Name
-local requestFunc       = syn and syn.request or http_request or request
-
--- =========================
---  HTTP хелперы
--- =========================
+-- Вспомогательная функция POST
 local function httpPost(url, data)
-    if not requestFunc then
-        return nil
-    end
     local ok, res = pcall(function()
         return requestFunc({
             Url = url,
@@ -38,751 +26,87 @@ local function httpPost(url, data)
             Body = HttpService:JSONEncode(data)
         })
     end)
-    if ok then
-        return res
-    end
-    return nil
+    return ok and res or nil
 end
 
-local function httpGet(url)
-    if not requestFunc then
-        return nil
-    end
-    local ok, res = pcall(function()
-        return requestFunc({ Url = url, Method = "GET" })
-    end)
-    if not ok or not res or not res.Body then
-        return nil
-    end
-    local ok2, d = pcall(function()
-        return HttpService:JSONDecode(res.Body)
-    end)
-    if ok2 then
-        return d
-    end
-    return nil
-end
-
--- =========================
---  Чёрный список
--- =========================
-local blacklistSet = {}
-
-local function loadBlacklist()
-    local list = httpGet(SERVER_URL .. "/api/blacklist")
-    if list and type(list) == "table" then
-        blacklistSet = {}
-        for _, n in ipairs(list) do
-            blacklistSet[tostring(n):lower()] = true
-        end
+-- Функция для безопасного получения числового значения из объекта
+local function getNumericValue(obj)
+    if not obj then return 0 end
+    if obj:IsA("BoolValue") then
+        return obj.Value and 1 or 0
+    elseif obj:IsA("NumberValue") or obj:IsA("IntValue") then
+        return obj.Value
+    else
+        return 0
     end
 end
 
-local function isBlacklisted(name)
-    if not name then
-        return false
-    end
-    return blacklistSet[tostring(name):lower()] == true
-end
-
-loadBlacklist()
-
+-- Основной цикл сбора и отправки
 task.spawn(function()
     while true do
-        task.wait(60)
-        loadBlacklist()
+        local dataToSend = { name = player.Name }
+
+        local pg = player:FindFirstChild("PlayerGui")
+        if pg then
+            local data = pg:FindFirstChild("Data")
+            if data then
+                -- === 1. Основные значения Coins и TimePoints ===
+                local coins = data:FindFirstChild("Coins")
+                if coins then dataToSend.Coins = getNumericValue(coins) end
+
+                local timePoints = data:FindFirstChild("TimePoints")
+                if timePoints then dataToSend.TimePoints = getNumericValue(timePoints) end
+
+                -- === 2. Токены (папка Items) ===
+                local items = data:FindFirstChild("Items")
+                if items then
+                    for _, child in ipairs(items:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend["TOKEN_" .. child.Name] = val
+                        end
+                    end
+                end
+
+                -- === 3. Существа (папка Unlocks) ===
+                local unlocks = data:FindFirstChild("Unlocks")
+                if unlocks then
+                    for _, child in ipairs(unlocks:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend[child.Name] = val   -- без префикса (как есть)
+                        end
+                    end
+                end
+
+                -- === 4. Плюши (папка Plushies) ===
+                local plushies = data:FindFirstChild("Plushies")
+                if plushies then
+                    for _, child in ipairs(plushies:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend["PLUSHIE_" .. child.Name] = val
+                        end
+                    end
+                end
+
+                -- === 5. Палитры (проверяем обе возможные папки) ===
+                local palettes = data:FindFirstChild("SpecialPalettes") or data:FindFirstChild("MaterialPalettes")
+                if palettes then
+                    for _, child in ipairs(palettes:GetChildren()) do
+                        local val = getNumericValue(child)
+                        if val > 0 then
+                            dataToSend["PALETTE_" .. child.Name] = val
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Отправляем данные на сервер
+        httpPost(SERVER_URL, dataToSend)
+        task.wait(5)   -- интервал отправки (5 секунд)
     end
 end)
 
--- =========================
---  Трейд-мир
--- =========================
-local function isTradeWorldOpen()
-    local r = httpGet(SERVER_URL .. "/api/tradeworld")
-    if r and r.open == true then
-        return true, r
-    end
-    return false, r
-end
-
--- =========================
---  ПРЕФИКСЫ ПАПОК
--- =========================
-local function getPrefix(folderName)
-    if folderName == "Items" then
-        return "TOKEN_"
-    elseif folderName == "Plushies" then
-        return "PLUSHIE_"
-    elseif folderName == "SpecialPalettes" then
-        return "PALETTE_"
-    end
-    return ""
-end
-
-local function readValue(child)
-    local v = child.Value
-    if type(v) == "boolean" then
-        if v then
-            return 1
-        end
-        return 0
-    end
-    v = tonumber(v)
-    if not v then
-        return 0
-    end
-    return math.floor(v)
-end
-
--- ═══════════════════════════════════════════
---  ОСНОВНОЙ — 14119723130
--- ═══════════════════════════════════════════
-if IS_MAIN and PlaceId == 14119723130 then
-
-    -- антиАФК
-    task.spawn(function()
-        local VU = game:GetService("VirtualUser")
-        while true do
-            task.wait(15)
-            pcall(function()
-                VU:CaptureController()
-                VU:ClickButton2(Vector2.new(0, 0))
-            end)
-        end
-    end)
-
-    -- отправляем jobId
-    task.spawn(function()
-        while true do
-            local jid = tostring(game.JobId or "")
-            httpPost(SERVER_URL .. "/api/mainjobid", { jobId = jid, name = myName })
-            task.wait(5)
-        end
-    end)
-
-    httpPost(SERVER_URL .. "/api/tradeopen", { name = myName, open = true })
-
-    -- основной цикл обработки
-    task.spawn(function()
-        while true do
-            local ranOk, errMsg = pcall(function()
-
-                -- 1. Получаем следующего из выборки
-                local nx = httpGet(SERVER_URL .. "/api/collect/next")
-                if not nx or not nx.name or nx.name == "" then
-                    task.wait(5)
-                    return
-                end
-
-                local twinkName = nx.name
-                print("[Main] Взят из выборки:", twinkName)
-
-                -- 2. Ждём появления в игре
-                local twinkPlayer = nil
-                local waited = 0
-                while not twinkPlayer and waited < 200 do
-                    twinkPlayer = Players:FindFirstChild(twinkName)
-                    if not twinkPlayer then
-                        task.wait(2)
-                        waited = waited + 2
-                    end
-                end
-
-                if not twinkPlayer then
-                    print("[Main] Твинк не появился")
-                    httpPost(SERVER_URL .. "/api/collect/done", { name = twinkName })
-                    task.wait(3)
-                    return
-                end
-
-                print("[Main] Твинк появился, ждём загрузки...")
-                task.wait(5)
-
-                local tradeGuiMain = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 30)
-                if not tradeGuiMain then
-                    warn("[Main] TradeGui не найден!")
-                    httpPost(SERVER_URL .. "/api/collect/done", { name = twinkName })
-                    return
-                end
-
-                local tradeRemoteName = myName .. "-" .. twinkName .. "TradeRemote"
-
-                -- локальная функция одного трейда
-                local function doOneTrade()
-                    pcall(function()
-                        httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = false, name = twinkName })
-                    end)
-
-                    -- шлём SendRequest
-                    local sendWait = 0
-                    while not tradeGuiMain.Enabled and sendWait < 200 do
-                        local stillHere = Players:FindFirstChild(twinkName)
-                        if not stillHere then
-                            print("[Main] Твинк вылетел во время SendRequest")
-                            return false
-                        end
-                        pcall(function()
-                            player:WaitForChild("Remotes"):WaitForChild("TradeRequestRemote"):FireServer("SendRequest", stillHere)
-                        end)
-                        task.wait(1)
-                        sendWait = sendWait + 1
-                    end
-
-                    if not tradeGuiMain.Enabled then
-                        print("[Main] TradeGui не открылся")
-                        return false
-                    end
-
-                    -- ищем TradeRemote
-                    local tradeRem = nil
-                    local remWait = 0
-                    while not tradeRem and remWait < 200 do
-                        task.wait(1)
-                        remWait = remWait + 1
-                        if not Players:FindFirstChild(twinkName) then
-                            print("[Main] Твинк вылетел пока ждали TradeRemote")
-                            return false
-                        end
-                        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                        if remotes then
-                            tradeRem = remotes:FindFirstChild(tradeRemoteName)
-                        end
-                    end
-
-                    if not tradeRem then
-                        print("[Main] TradeRemote не найден")
-                        return false
-                    end
-
-                    -- AcceptTrade цикл
-                    task.spawn(function()
-                        local t = 0
-                        while tradeGuiMain.Enabled and t < 200 do
-                            pcall(function()
-                                tradeRem:InvokeServer(unpack({"AcceptTrade"}))
-                            end)
-                            task.wait(0.5)
-                            t = t + 0.5
-                        end
-                    end)
-
-                    -- ждём закрытия GUI
-                    local closeWait = 0
-                    while tradeGuiMain.Enabled and closeWait < 200 do
-                        task.wait(0.5)
-                        closeWait = closeWait + 0.5
-                    end
-
-                    -- подтверждаем закрытие 2 сек
-                    local confirm = 0
-                    while confirm < 2 do
-                        task.wait(0.5)
-                        if tradeGuiMain.Enabled then
-                            confirm = 0
-                        else
-                            confirm = confirm + 0.5
-                        end
-                    end
-                    return true
-                end
-
-                -- 3. Принимаем трейды, пока твинк в игре
-                local maxTrades = 50
-                local done = 0
-                while done < maxTrades do
-                    if not Players:FindFirstChild(twinkName) then
-                        break
-                    end
-                    local okTrade = doOneTrade()
-                    done = done + 1
-                    if not okTrade then
-                        break
-                    end
-                    task.wait(3)
-                end
-
-                httpPost(SERVER_URL .. "/api/collect/done", { name = twinkName })
-                print("[Main] Готово с", twinkName)
-                task.wait(8)
-            end)
-
-            if not ranOk then
-                warn("[Main] ОШИБКА:", tostring(errMsg))
-                task.wait(5)
-            end
-        end
-    end)
-
--- ═══════════════════════════════════════════
---  ТВИНК — 5233782396 (статистика + ТП по выборке)
--- ═══════════════════════════════════════════
-elseif not IS_MAIN and PlaceId == 5233782396 then
-
-    local STOPPED = false
-    player.OnTeleport:Connect(function(state)
-        if state == Enum.TeleportState.InProgress or state == Enum.TeleportState.Started then
-            STOPPED = true
-        end
-    end)
-
-    -- GUI трейд-мир → на сервер
-    task.spawn(function()
-        local last = nil
-        while not STOPPED do
-            local okCheck, isOpen = pcall(function()
-                return game:GetService("Players").LocalPlayer.PlayerGui
-                    .RealmsGui.ContainerFrame.ScrollingFrame
-                    .Trade.TeleportButton.LockedLabel.Visible == false
-            end)
-            if okCheck and isOpen ~= last then
-                last = isOpen
-                httpPost(SERVER_URL .. "/api/tradeworld/game", { open = isOpen })
-            end
-            task.wait(3)
-        end
-    end)
-
-    -- статистика
-    task.spawn(function()
-        local folders = { "Items", "Unlocks", "Plushies", "SpecialPalettes" }
-        while not STOPPED do
-            local dataToSend = { name = myName }
-            local pg = player:FindFirstChild("PlayerGui")
-            if pg then
-                local data = pg:FindFirstChild("Data")
-                if data then
-                    for _, folderName in ipairs(folders) do
-                        local folder = data:FindFirstChild(folderName)
-                        if folder then
-                            local prefix = getPrefix(folderName)
-                            for _, child in ipairs(folder:GetChildren()) do
-                                if not isBlacklisted(child.Name) then
-                                    local v = readValue(child)
-                                    if v > 0 then
-                                        dataToSend[prefix .. child.Name] = v
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            if not STOPPED then
-                pcall(function()
-                    requestFunc({
-                        Url = SERVER_URL,
-                        Method = "POST",
-                        Headers = { ["Content-Type"] = "application/json" },
-                        Body = HttpService:JSONEncode(dataToSend)
-                    })
-                end)
-            end
-            task.wait(5)
-        end
-    end)
-
-    -- ждём попадания в выборку → ТП
-    print("[Twink] Ожидаем попадания в выборку...")
-    while not STOPPED do
-        task.wait(10)
-        if STOPPED then
-            break
-        end
-
-        local selected = httpGet(SERVER_URL .. "/api/collect/selected")
-        if selected and type(selected) == "table" then
-            local iAmSelected = false
-            for _, n in ipairs(selected) do
-                if n == myName then
-                    iAmSelected = true
-                    break
-                end
-            end
-
-            if iAmSelected then
-                local info = httpGet(SERVER_URL .. "/api/mainjobid")
-                if info and info.jobId and info.jobId ~= "" then
-                    print("[Twink] В выборке! ТП к main:", info.jobId)
-                    pcall(function()
-                        TeleportService:TeleportToPlaceInstance(14119723130, info.jobId)
-                    end)
-                    task.wait(30)
-                else
-                    print("[Twink] В выборке, но main не готов")
-                end
-            end
-        end
-    end
-
--- ═══════════════════════════════════════════
---  ТВИНК — 14119723130 (передача предметов)
--- ═══════════════════════════════════════════
-elseif not IS_MAIN and PlaceId == 14119723130 then
-
-    -- проверка выборки
-    local selected = httpGet(SERVER_URL .. "/api/collect/selected")
-    local inList = false
-    if selected and type(selected) == "table" then
-        for _, n in ipairs(selected) do
-            if n == myName then
-                inList = true
-                break
-            end
-        end
-    end
-    if not inList then
-        warn("[Twink14] Не в выборке — выходим")
-        return
-    end
-
-    -- проверка трейд-мира
-    local tradeOpen = false
-    local waitOpen = 0
-    while not tradeOpen and waitOpen < 120 do
-        local r = httpGet(SERVER_URL .. "/api/tradeworld")
-        if r and r.open == true then
-            tradeOpen = true
-        else
-            task.wait(10)
-            waitOpen = waitOpen + 10
-        end
-    end
-
-    if not tradeOpen then
-        warn("[Twink14] Трейд-мир закрыт — выходим")
-        httpPost(SERVER_URL .. "/api/collect/done", { name = myName })
-        return
-    end
-
-    -- антиАФК
-    task.spawn(function()
-        local VU = game:GetService("VirtualUser")
-        while true do
-            task.wait(15)
-            pcall(function()
-                VU:CaptureController()
-                VU:ClickButton2(Vector2.new(0, 0))
-            end)
-        end
-    end)
-
-    local mainInfo = httpGet(SERVER_URL .. "/api/mainjobid")
-    local mainName = ""
-    if mainInfo and mainInfo.name then
-        mainName = mainInfo.name
-    end
-    if mainName == "" then
-        warn("[Twink14] main не найден")
-        return
-    end
-
-    local tradeRemoteName = mainName .. "-" .. myName .. "TradeRemote"
-
-    -- ключ → имя категории
-    local function keyToItemType(k)
-        if k:sub(1, 9) == "PLUSHIE_" then
-            return "Plushies"
-        end
-        if k:sub(1, 8) == "PALETTE_" then
-            return "Palettes"
-        end
-        if k:sub(1, 6) == "TOKEN_" then
-            return "Tokens"
-        end
-        return "Creatures"
-    end
-
-    local function keyToName(k)
-        local t = keyToItemType(k)
-        if t == "Plushies" then
-            return k:sub(10)
-        end
-        if t == "Palettes" then
-            return k:sub(9)
-        end
-        if t == "Tokens" then
-            return k:sub(7)
-        end
-        return k
-    end
-
-    -- snapshot: обходим 4 папки
-    local snapshotFolders = { "Items", "Unlocks", "Plushies", "SpecialPalettes" }
-
-    local function snapshot()
-        local res = {}
-        local total = 0
-        local d = player:FindFirstChild("Data")
-        if not d then
-            return res, 0
-        end
-        for _, fn in ipairs(snapshotFolders) do
-            local folder = d:FindFirstChild(fn)
-            if folder then
-                local prefix = getPrefix(fn)
-                for _, c in ipairs(folder:GetChildren()) do
-                    if not isBlacklisted(c.Name) then
-                        local v = readValue(c)
-                        if v > 0 then
-                            res[prefix .. c.Name] = v
-                            total = total + v
-                        end
-                    end
-                end
-            end
-        end
-        return res, total
-    end
-
-    -- строим чанки
-    local function buildChunks(snap)
-        local all = {}
-        for k, amt in pairs(snap) do
-            local rem = amt
-            while rem > 0 do
-                local p = math.min(rem, AMOUNT_PER_SLOT)
-                table.insert(all, {
-                    itemType = keyToItemType(k),
-                    name = keyToName(k),
-                    snapKey = k,
-                    amount = p,
-                    realAmount = p
-                })
-                rem = rem - p
-            end
-        end
-        table.sort(all, function(a, b)
-            return a.realAmount > b.realAmount
-        end)
-        local chunks = {}
-        local cur = {}
-        for _, s in ipairs(all) do
-            if #cur >= TRADE_SLOTS then
-                table.insert(chunks, cur)
-                cur = {}
-            end
-            table.insert(cur, s)
-        end
-        if #cur > 0 then
-            table.insert(chunks, cur)
-        end
-        return chunks
-    end
-
-    -- кладём чанк в трейд
-    local function putChunk(tradeRem, chunk)
-        for _, s in ipairs(chunk) do
-            local placed = false
-            local att = 0
-            while not placed and att < 10 do
-                att = att + 1
-                local res = nil
-                local doneFlag = false
-                task.spawn(function()
-                    local okP, r = pcall(function()
-                        return tradeRem:InvokeServer(unpack({"AddTradeItem", {
-                            Overwrite = true,
-                            ItemType = s.itemType,
-                            Name = s.name,
-                            Amount = s.amount
-                        }}))
-                    end)
-                    if not doneFlag then
-                        if okP then
-                            res = r
-                        else
-                            res = nil
-                        end
-                        doneFlag = true
-                    end
-                end)
-                local w = 0
-                while not doneFlag and w < 3 do
-                    task.wait(0.1)
-                    w = w + 0.1
-                end
-                doneFlag = true
-                if res == true then
-                    placed = true
-                else
-                    task.wait(0.5)
-                end
-            end
-            task.wait(1.5)
-        end
-    end
-
-    -- ждём Data
-    local waited = 0
-    while not player:FindFirstChild("Data") and waited < 180 do
-        task.wait(3)
-        waited = waited + 3
-    end
-
-    local snapBefore, total = snapshot()
-    local w2 = 0
-    while total == 0 and w2 < 60 do
-        task.wait(3)
-        w2 = w2 + 3
-        snapBefore, total = snapshot()
-    end
-
-    if total == 0 then
-        httpPost(SERVER_URL .. "/api/collect/done", { name = myName })
-        return
-    end
-
-    local tradeNum = 1
-    local failStreak = 0
-
-    while true do
-        local curSnap, curTotal = snapshot()
-        if curTotal == 0 then
-            break
-        end
-
-        local chunks = buildChunks(curSnap)
-        if #chunks == 0 then
-            break
-        end
-        local chunk = chunks[1]
-
-        -- ждём TradeGui
-        local tradeGui = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 60)
-
-        local reqRemote = nil
-        pcall(function()
-            local mp = Players:FindFirstChild(mainName)
-            if mp then
-                reqRemote = mp:WaitForChild("Remotes", 5):WaitForChild("TradeRequestRemote", 5)
-            end
-        end)
-
-        local stop = false
-        task.spawn(function()
-            while not stop and tradeGui and not tradeGui.Enabled do
-                pcall(function()
-                    if reqRemote then
-                        reqRemote:FireServer("AcceptRequest")
-                    else
-                        local mp = Players:FindFirstChild(mainName)
-                        if mp then
-                            mp:WaitForChild("Remotes", 2):WaitForChild("TradeRequestRemote", 2):FireServer("AcceptRequest")
-                        end
-                    end
-                end)
-                task.wait(0.3)
-            end
-        end)
-
-        local accW = 0
-        while tradeGui and not tradeGui.Enabled and accW < 60 do
-            task.wait(0.5)
-            accW = accW + 0.5
-        end
-        stop = true
-
-        if not tradeGui or not tradeGui.Enabled then
-            failStreak = failStreak + 1
-            if failStreak >= 5 then
-                httpPost(SERVER_URL .. "/api/collect/done", { name = myName })
-                player:Kick("Ошибка: трейд не открылся")
-                return
-            end
-            task.wait(3)
-        else
-            -- ищем TradeRemote
-            local tradeRem = nil
-            local remW = 0
-            while not tradeRem and remW < 30 do
-                task.wait(1)
-                remW = remW + 1
-                local r = ReplicatedStorage:FindFirstChild("Remotes")
-                if r then
-                    tradeRem = r:FindFirstChild(tradeRemoteName)
-                end
-            end
-
-            if tradeRem then
-                putChunk(tradeRem, chunk)
-                task.spawn(function()
-                    pcall(function()
-                        tradeRem:InvokeServer(unpack({"AcceptTrade"}))
-                    end)
-                end)
-                httpPost(SERVER_URL .. "/api/tradestatus", { twinkReady = true, name = myName })
-
-                local closeW = 0
-                while tradeGui.Enabled and closeW < 90 do
-                    task.wait(1)
-                    closeW = closeW + 1
-                end
-            end
-
-            -- верификация
-            local expected = 0
-            for _, s in ipairs(chunk) do
-                expected = expected + s.realAmount
-            end
-
-            local verified = false
-            for _ = 1, 15 do
-                task.wait(2)
-                local after = snapshot()
-                local delta = 0
-                for _, s in ipairs(chunk) do
-                    local before = snapBefore[s.snapKey] or 0
-                    local now = after[s.snapKey] or 0
-                    delta = delta + (before - now)
-                end
-                if delta > 0 then
-                    verified = true
-                    snapBefore = after
-                    break
-                end
-            end
-
-            if verified then
-                failStreak = 0
-                tradeNum = tradeNum + 1
-            else
-                failStreak = failStreak + 1
-                if failStreak >= 5 then
-                    httpPost(SERVER_URL .. "/api/collect/done", { name = myName })
-                    player:Kick("Ошибка: 5 трейдов подряд не прошли")
-                    return
-                end
-                task.wait(3)
-            end
-        end
-
-        -- если ещё есть предметы — давим AcceptRequest
-        local _, nextTotal = snapshot()
-        if nextTotal > 0 then
-            local tg2 = player:WaitForChild("PlayerGui"):WaitForChild("TradeGui", 5)
-            local wn = 0
-            while wn < 90 do
-                if tg2 and tg2.Enabled then
-                    break
-                end
-                pcall(function()
-                    local mp = Players:FindFirstChild(mainName)
-                    if mp then
-                        mp:WaitForChild("Remotes", 2):WaitForChild("TradeRequestRemote", 2):FireServer("AcceptRequest")
-                    end
-                end)
-                task.wait(0.5)
-                wn = wn + 0.5
-            end
-        end
-    end
-
-    local _, rem = snapshot()
-    httpPost(SERVER_URL .. "/api/collect/done", { name = myName })
-
-    if rem == 0 then
-        player:Kick("Я всё передал")
-    else
-        player:Kick("Осталось: " .. tostring(rem))
-    end
-end
+print("Скрипт сбора статистики запущен. Отправка каждые 5 секунд.")
