@@ -1,44 +1,41 @@
-while true do 
-wait(120)
-local ohString1 = "Acona"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "BreathOfLife"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "WitheredTea"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "ForestDweller"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "TreeBark"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "DragonScale"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "MTL_DecayingLeaf"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-local ohString1 = "RejuvenatingTea"
-local ohNumber2 = 1
-
-game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
-wait(5)
-game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+while true do
+    wait(120)
+    
+    -- Покупка предметов
+    local items = {
+        "Acona",
+        "BreathOfLife",
+        "WitheredTea",
+        "ForestDweller",
+        "TreeBark",
+        "DragonScale",
+        "MTL_DecayingLeaf",
+        "RejuvenatingTea",
+    }
+    
+    for _, itemName in ipairs(items) do
+        game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(itemName, 1)
+        wait(5)
+    end
+    
+    game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
+    
+    -- Цикл с CorruptedFungus
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local remote = ReplicatedStorage.Remotes.LEGO2026CorruptedFungus
+    
+    for fungus = 1, 5 do
+        local ohString2 = "CorruptedFungus" .. fungus
+        for i = 1, 20 do
+            remote:FireServer(tostring(i), ohString2)
+            local delay = 0.5 + math.random() * 0.5
+            delay = math.floor(delay * 1000 + 0.5) / 1000
+            task.wait(delay)
+        end
+    end
+    
+    -- КД между завершёнными циклами: от 20 до 60 секунд
+    local cooldown = 20 + math.random() * 40
+    print(string.format("Цикл завершён. КД: %.2f сек", cooldown))
+    task.wait(cooldown)
 end
