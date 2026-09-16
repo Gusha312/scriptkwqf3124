@@ -11,6 +11,7 @@ while true do
         "DragonScale",
         "MTL_DecayingLeaf",
         "RejuvenatingTea",
+        "Arc Dragon Of Life",
     }
     
     for _, itemName in ipairs(items) do
