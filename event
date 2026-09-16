@@ -10,6 +10,11 @@ local ohNumber2 = 1
 
 game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
 wait(5)
+local ohString1 = "WitheredTea"
+local ohNumber2 = 1
+
+game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(ohString1, ohNumber2)
+wait(5)
 local ohString1 = "ForestDweller"
 local ohNumber2 = 1
 
