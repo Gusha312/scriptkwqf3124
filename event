@@ -1,45 +1,86 @@
-while true do
-    wait(120)
-    
-    -- Покупка предметов
-    local items = {
-        "Acona",
-        "BreathOfLife",
-        "WitheredTea",
-        "ForestDweller",
-        "TreeBark",
-        "DragonScale",
-        "MTL_DecayingLeaf",
-        "RejuvenatingTea",
-        "Arc Dragon Of Life",
-        "Stirring",
-        "Decayed",
-        "Rejuvenated",
-    }
-    
-    for _, itemName in ipairs(items) do
-        game:GetService("ReplicatedStorage").Remotes.PurchaseEventItemRemote:InvokeServer(itemName, 1)
-        wait(5)
-    end
-    
-    game:GetService("ReplicatedStorage").Remotes.GetSpawnedTokenRemote:InvokeServer()
-    
-    -- Цикл с CorruptedFungus
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local remote = ReplicatedStorage.Remotes.LEGO2026CorruptedFungus
-    
-    for fungus = 1, 5 do
-        local ohString2 = "CorruptedFungus" .. fungus
-        for i = 1, 20 do
-            remote:FireServer(tostring(i), ohString2)
-            local delay = 0.5 + math.random() * 0.5
-            delay = math.floor(delay * 1000 + 0.5) / 1000
-            task.wait(delay)
+wait(30)
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local remote = ReplicatedStorage.Remotes.Lore2026CollectRecollection
+local nodes = Workspace.Interactions.LoreEvent26.MemoryCrystalNodes
+
+local PLAYER_NAME   = "Sotharkuz"
+local REQUEST_DELAY = 1     -- сек между запросами
+local CYCLE_DELAY   = 30    -- сек между циклами
+
+-- Собираем актуальный список BasePart каждый цикл (объекты и CFrame могут меняться)
+local function collectParts()
+    local list = {}
+    for _, obj in ipairs(nodes:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            table.insert(list, obj)
         end
     end
-    
-    -- КД между завершёнными циклами: от 20 до 60 секунд
-    local cooldown = 20 + math.random() * 40
-    print(string.format("Цикл завершён. КД: %.2f сек", cooldown))
-    task.wait(cooldown)
+    return list
+end
+
+local function makeKey(cf)
+    local pos = cf.Position
+    local x = math.floor(pos.X + 0.5)
+    local z = math.floor(pos.Z + 0.5)
+    return x .. "_" .. z
+end
+
+local cycle = 0
+while true do
+    cycle += 1
+    print(string.format("=== Цикл #%d | %s ===", cycle, os.date("%H:%M:%S")))
+
+    local parts = collectParts()
+    print("Найдено BasePart:", #parts)
+
+    -- Дубликаты ключей в рамках ОДНОГО цикла пропускаем, но между циклами — нет
+    local seen = {}
+    local sent, skipped = 0, 0
+
+    for i, obj in ipairs(parts) do
+        -- Проверяем, что объект ещё существует (мог удалиться во время цикла)
+        if not obj.Parent then
+            print(string.format("  [%d/%d] %s — удалён, пропуск", i, #parts, obj.Name))
+            skipped += 1
+            continue
+        end
+
+        local okCF, cf = pcall(function() return obj.CFrame end)
+        if not okCF or not cf then
+            skipped += 1
+            continue
+        end
+
+        local key = makeKey(cf)
+
+        if seen[key] then
+            print(string.format("  [%d/%d] %s | key=%s — дубликат в цикле", i, #parts, obj.Name, key))
+            skipped += 1
+            continue
+        end
+        seen[key] = true
+
+        print(string.format("  [%d/%d] %s | %.3f, %.3f, %.3f | key=%s",
+            i, #parts, obj.Name, cf.Position.X, cf.Position.Y, cf.Position.Z, key))
+
+        local ok, err = pcall(function()
+            remote:InvokeServer(PLAYER_NAME, key)
+        end)
+
+        if ok then
+            sent += 1
+        else
+            warn("    -> ошибка вызова:", err)
+            skipped += 1
+        end
+
+        task.wait(REQUEST_DELAY)
+    end
+
+    print(string.format("Цикл #%d завершён. Отправлено: %d | Пропущено: %d", cycle, sent, skipped))
+    print(string.format("Ждём %d сек до следующего цикла...", CYCLE_DELAY))
+
+    task.wait(CYCLE_DELAY)
 end
