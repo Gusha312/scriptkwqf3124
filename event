@@ -12,6 +12,9 @@ while true do
         "MTL_DecayingLeaf",
         "RejuvenatingTea",
         "Arc Dragon Of Life",
+        "Stirring",
+        "Decayed",
+        "Rejuvenated",
     }
     
     for _, itemName in ipairs(items) do
