@@ -5,9 +5,27 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local remote = ReplicatedStorage.Remotes.Lore2026CollectRecollection
 local nodes = Workspace.Interactions.LoreEvent26.MemoryCrystalNodes
 
+local purchaseRemote = ReplicatedStorage.Remotes.PurchaseEventItemRemote
+
 local PLAYER_NAME   = "Sotharkuz"
 local REQUEST_DELAY = 1     -- сек между запросами
 local CYCLE_DELAY   = 30    -- сек между циклами
+
+-- Отдельный цикл для покупки ивентовых предметов
+local PURCHASE_REQUEST_DELAY = 1     -- сек между запросами покупки
+local PURCHASE_CYCLE_DELAY   = 120   -- сек между циклами покупки
+
+local PURCHASE_ITEMS = {
+    "Inkpujin",
+    "Urzuk",
+    "SIG_BorealsBane",
+    "SIG_EigionsPupil",
+    "SIG_AncestralOrigin",
+    "CorruptAnomaly",
+    "MTL_Ice",
+}
+
+local PURCHASE_AMOUNT = 1
 
 -- Собираем актуальный список BasePart каждый цикл (объекты и CFrame могут меняться)
 local function collectParts()
@@ -27,60 +45,108 @@ local function makeKey(cf)
     return x .. "_" .. z
 end
 
-local cycle = 0
-while true do
-    cycle += 1
-    print(string.format("=== Цикл #%d | %s ===", cycle, os.date("%H:%M:%S")))
+-- ============================================================
+-- ЦИКЛ #1: Отправка координат кристаллов
+-- ============================================================
+local function loreLoop()
+    local cycle = 0
+    while true do
+        cycle += 1
+        print(string.format("=== [LORE] Цикл #%d | %s ===", cycle, os.date("%H:%M:%S")))
 
-    local parts = collectParts()
-    print("Найдено BasePart:", #parts)
+        local parts = collectParts()
+        print("[LORE] Найдено BasePart:", #parts)
 
-    -- Дубликаты ключей в рамках ОДНОГО цикла пропускаем, но между циклами — нет
-    local seen = {}
-    local sent, skipped = 0, 0
+        -- Дубликаты ключей в рамках ОДНОГО цикла пропускаем, но между циклами — нет
+        local seen = {}
+        local sent, skipped = 0, 0
 
-    for i, obj in ipairs(parts) do
-        -- Проверяем, что объект ещё существует (мог удалиться во время цикла)
-        if not obj.Parent then
-            print(string.format("  [%d/%d] %s — удалён, пропуск", i, #parts, obj.Name))
-            skipped += 1
-            continue
+        for i, obj in ipairs(parts) do
+            -- Проверяем, что объект ещё существует (мог удалиться во время цикла)
+            if not obj.Parent then
+                print(string.format("  [%d/%d] %s — удалён, пропуск", i, #parts, obj.Name))
+                skipped += 1
+                continue
+            end
+
+            local okCF, cf = pcall(function() return obj.CFrame end)
+            if not okCF or not cf then
+                skipped += 1
+                continue
+            end
+
+            local key = makeKey(cf)
+
+            if seen[key] then
+                print(string.format("  [%d/%d] %s | key=%s — дубликат в цикле", i, #parts, obj.Name, key))
+                skipped += 1
+                continue
+            end
+            seen[key] = true
+
+            print(string.format("  [%d/%d] %s | %.3f, %.3f, %.3f | key=%s",
+                i, #parts, obj.Name, cf.Position.X, cf.Position.Y, cf.Position.Z, key))
+
+            local ok, err = pcall(function()
+                remote:InvokeServer(PLAYER_NAME, key)
+            end)
+
+            if ok then
+                sent += 1
+            else
+                warn("    -> ошибка вызова:", err)
+                skipped += 1
+            end
+
+            task.wait(REQUEST_DELAY)
         end
 
-        local okCF, cf = pcall(function() return obj.CFrame end)
-        if not okCF or not cf then
-            skipped += 1
-            continue
-        end
+        print(string.format("[LORE] Цикл #%d завершён. Отправлено: %d | Пропущено: %d", cycle, sent, skipped))
+        print(string.format("[LORE] Ждём %d сек до следующего цикла...", CYCLE_DELAY))
 
-        local key = makeKey(cf)
-
-        if seen[key] then
-            print(string.format("  [%d/%d] %s | key=%s — дубликат в цикле", i, #parts, obj.Name, key))
-            skipped += 1
-            continue
-        end
-        seen[key] = true
-
-        print(string.format("  [%d/%d] %s | %.3f, %.3f, %.3f | key=%s",
-            i, #parts, obj.Name, cf.Position.X, cf.Position.Y, cf.Position.Z, key))
-
-        local ok, err = pcall(function()
-            remote:InvokeServer(PLAYER_NAME, key)
-        end)
-
-        if ok then
-            sent += 1
-        else
-            warn("    -> ошибка вызова:", err)
-            skipped += 1
-        end
-
-        task.wait(REQUEST_DELAY)
+        task.wait(CYCLE_DELAY)
     end
-
-    print(string.format("Цикл #%d завершён. Отправлено: %d | Пропущено: %d", cycle, sent, skipped))
-    print(string.format("Ждём %d сек до следующего цикла...", CYCLE_DELAY))
-
-    task.wait(CYCLE_DELAY)
 end
+
+-- ============================================================
+-- ЦИКЛ #2: Покупка ивентовых предметов
+-- ============================================================
+local function purchaseLoop()
+    local cycle = 0
+    while true do
+        cycle += 1
+        print(string.format("=== [PURCHASE] Цикл #%d | %s ===", cycle, os.date("%H:%M:%S")))
+
+        local sent, failed = 0, 0
+
+        for i, itemName in ipairs(PURCHASE_ITEMS) do
+            print(string.format("  [%d/%d] Покупка: %s x%d",
+                i, #PURCHASE_ITEMS, itemName, PURCHASE_AMOUNT))
+
+            local ok, err = pcall(function()
+                purchaseRemote:InvokeServer(itemName, PURCHASE_AMOUNT)
+            end)
+
+            if ok then
+                sent += 1
+            else
+                warn(string.format("    -> ошибка покупки %s:", itemName), err)
+                failed += 1
+            end
+
+            task.wait(PURCHASE_REQUEST_DELAY)
+        end
+
+        print(string.format("[PURCHASE] Цикл #%d завершён. Успешно: %d | Ошибок: %d",
+            cycle, sent, failed))
+        print(string.format("[PURCHASE] Ждём %d сек до следующего цикла...", PURCHASE_CYCLE_DELAY))
+
+        task.wait(PURCHASE_CYCLE_DELAY)
+    end
+end
+
+-- ============================================================
+-- Запуск обоих циклов параллельно
+-- ============================================================
+task.spawn(loreLoop)
+task.spawn(purchaseLoop)
