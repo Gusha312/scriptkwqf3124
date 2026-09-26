@@ -1,82 +1,77 @@
+wait(20)
+-- ============================================================================
+--  ПОЛНЫЙ ПРОХОДЧИК ВСЕХ МИРОВ (С БЕЗОПАСНЫМ СБОРОМ ДЛЯ PREHISTORIC)
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")        -- [ИЗМЕНЕНИЕ]
+local VirtualInputManager = game:GetService("VirtualInputManager")  -- [ИЗМЕНЕНИЕ]
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
 -- ------------------------------------------------------------
---  ОСНОВНОЙ ЦИКЛ ПЕРЕХОДА МЕЖДУ МИРАМИ
+--  ХУК ДЛЯ ОГРАНИЧЕНИЯ MOBDAMAGEREMOTE (5 СЕКУНД)
 -- ------------------------------------------------------------
-local function main()
-    print("[СКРИПТ] Запуск прохождения миров")
-    repeat task.wait(2) until pcall(function() return player.Data.Worlds end)
-
-    local targetWorld = nil
-    for i = #worldsOrder, 1, -1 do
-        local w = worldsOrder[i]
-        if isWorldUnlocked(w) and not isWorldComplete(w) then
-            targetWorld = w
-            print("[СТАРТ] Цель — открытый непройденный мир: " .. w)
-            break
-        end
-    end
-    if not targetWorld then
-        for i = #worldsOrder, 1, -1 do
-            local w = worldsOrder[i]
-            if isWorldUnlocked(w) then
-                targetWorld = w
-                print("[СТАРТ] Все открытые миры пройдены, идём в последний открытый: " .. w)
-                break
-            end
-        end
-    end
-    if not targetWorld then
-        local w = worldsOrder[1]
-        print("[СТАРТ] Ничего не открыто, ждём " .. w)
-        while not isWorldUnlocked(w) do task.wait(5) end
-        targetWorld = w
-    end
-
-    if game.PlaceId ~= worldPlaceIds[targetWorld] then teleportToWorld(targetWorld) end
-
-    local currentIndex = nil
-    for i = 1, #worldsOrder do
-        if worldsOrder[i] == targetWorld then currentIndex = i; break end
-    end
-    if not currentIndex then error("Не удалось найти индекс мира") end
-
-    while currentIndex <= #worldsOrder do
-        local currentWorld = worldsOrder[currentIndex]
-        local nextWorld = worldsOrder[currentIndex + 1]
-        if game.PlaceId ~= worldPlaceIds[currentWorld] then teleportToWorld(currentWorld) end
-
-        -- Проходим мир (Prehistoric обрабатывается внутри completeWorldFully)
-        if currentWorld == "Prehistoric" or not isWorldComplete(currentWorld) then
-            completeWorldFully(currentWorld, nextWorld)
+local oldHook
+local lastMobDamageTick = 0
+oldHook = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if (method == "FireServer" or method == "fireServer") and tostring(self) == "MobDamageRemote" and self:IsDescendantOf(ReplicatedStorage) then
+        if tick() - lastMobDamageTick >= 5 then
+            lastMobDamageTick = tick()
+            return oldHook(self, ...)
         else
-            print("[МИР] " .. currentWorld .. " уже пройден")
-        end
-
-        if not nextWorld then break end
-
-        if isWorldUnlocked(nextWorld) then
-            print("[ОТКРЫТИЕ] Мир " .. nextWorld .. " уже открыт!")
-        else
-            print(string.format("[ОЖИДАНИЕ] Ждём открытия мира %s (проверка каждые 5 сек)", nextWorld))
-            while not isWorldUnlocked(nextWorld) do
-                task.wait(5)
-            end
-            print("[ОТКРЫТИЕ] Мир " .. nextWorld .. " открылся!")
-        end
-
-        currentIndex = currentIndex + 1
-        local goWorld = worldsOrder[currentIndex]
-        print("[ПЕРЕХОД] Телепорт в новый мир: " .. goWorld)
-        if game.PlaceId ~= worldPlaceIds[goWorld] then
-            teleportToWorld(goWorld)
+            return nil
         end
     end
-    print("[СКРИПТ] Все миры пройдены!")
+    return oldHook(self, ...)
+end)
+
+-- ------------------------------------------------------------
+--  НАСТРОЙКИ МИРОВ
+-- ------------------------------------------------------------
+local worldsOrder = {"Grassland", "Jungle", "Volcano", "Tundra", "Ocean", "Desert", "Fantasy", "Wasterland", "Prehistoric"}
+local worldPlaceIds = {
+    Grassland = 3475419198, Jungle = 3475422608, Volcano = 3487210751,
+    Tundra = 3623549100, Ocean = 3737848045, Desert = 3752680052,
+    Fantasy = 4174118306, Wasterland = 4728805070, Prehistoric = 4869039553
+}
+local params = {harvestTarget = 50, chestTarget = 3, eggTarget = 5, killMobsTarget = 15, spendTimeSeconds = 7 * 60 + 30}
+local hasBossAndSpend = {
+    Grassland = false, Jungle = true, Volcano = true, Tundra = true, Ocean = true,
+    Desert = true, Fantasy = true, Wasterland = true, Prehistoric = true
+}
+
+-- ------------------------------------------------------------
+--  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+-- ------------------------------------------------------------
+local function waitForCharacter()
+    local char = player.Character
+    if not char or not char.Parent then char = player.CharacterAdded:Wait() end
+    return char
+end
+local function getHRP()
+    return waitForCharacter():WaitForChild("HumanoidRootPart")
 end
 
 -- ------------------------------------------------------------
---  ЗАПУСК
+--  ПОЛЁТ НА ПРОГРУЗКУ КАРТЫ
 -- ------------------------------------------------------------
-local success, err = pcall(main)
-if not success then
-    warn("[ОШИБКА] " .. tostring(err))
-end
+local FLY_DIRS = {
+    Vector3.new(0, 0, -1),
+    Vector3.new(0, 0,  1),
+    Vector3.new(-1, 0, 0),
+    Vector3.new(1, 0,  0),
+}
+
+local function flyRandom(distance, steps)
+    distance = distance or 120
+    steps = steps or 6
+    local hrp = getHRP()
+    local dir = FLY_DIRS[math.random(1, #FLY_DIRS)]
+    local stepDist = distance / steps
+    for _ = 1, steps do
+        hrp.CFrame = hrp.CFrame + dir * stepDist
+        task.wait(0.2)
