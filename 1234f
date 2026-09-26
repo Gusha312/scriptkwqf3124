@@ -1,6 +1,6 @@
 wait(20)
 -- ============================================================================
---  ПОЛНЫЙ ПРОХОДЧИК ВСЕХ МИРОВ (С БЕЗОПАСНЫМ СБОРОМ ДЛЯ PREHISTORIC)
+--  ПОЛНЫЙ ПРОХОДЧИК ВСЕХ МИРОВ (С БЕЗОПАСНЫМ СБОРОМ ДЛЯ PREHISTORIC И ИСПРАВЛЕНИЕМ DESERT)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -43,6 +43,26 @@ local hasBossAndSpend = {
     Grassland = false, Jungle = true, Volcano = true, Tundra = true, Ocean = true,
     Desert = true, Fantasy = true, Wasterland = true, Prehistoric = true
 }
+
+-- ============================================================================
+--  ЗАПОМИНАНИЕ ПОЗИЦИИ ДЛЯ DESERT – ДОБАВЛЕНО [ИЗМЕНЕНИЕ]
+-- ============================================================================
+local desertSafePosition = nil
+
+local function recordDesertPosition()
+    local hrp = getHRP()
+    desertSafePosition = hrp.CFrame
+    print("[DESERT] Позиция записана:", desertSafePosition.Position)
+end
+
+local function teleportToDesertSafePosition()
+    if desertSafePosition then
+        local hrp = getHRP()
+        hrp.CFrame = desertSafePosition
+        print("[DESERT] Телепорт на сохранённую позицию")
+        task.wait(1)
+    end
+end
 
 -- ------------------------------------------------------------
 --  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -770,9 +790,9 @@ local function universalEggMission(worldName, needed)
     print("[EGG] Завершено")
 end
 
--- ------------------------------------------------------------
---  МОБЫ (KILLMOBS)
--- ------------------------------------------------------------
+-- ============================================================================
+--  МОБЫ (KILLMOBS) С ИСПРАВЛЕНИЕМ ДЛЯ DESERT – ДОБАВЛЕНО [ИЗМЕНЕНИЕ]
+-- ============================================================================
 local function universalKillMobsMission(worldName)
     local missions = getMissionsFolder(worldName)
     if not missions then return end
@@ -783,6 +803,13 @@ local function universalKillMobsMission(worldName)
     print(string.format("[KILLMOBS] %s: нужно %d мобов", worldName, target))
     local hrp = getHRP()
     local char = waitForCharacter()
+    
+    -- ИСПРАВЛЕНИЕ ДЛЯ DESERT: записываем позицию в начале
+    if worldName == "Desert" then
+        recordDesertPosition()
+        print("[DESERT FIX] Записана начальная позиция для мобов")
+    end
+    
     local function getPlaySound()
         local dragons = char:FindFirstChild("Dragons")
         if not dragons then return nil end
@@ -813,6 +840,7 @@ local function universalKillMobsMission(worldName)
         end
         return mobs
     end
+    
     while progress.Value < target do
         local mobs = getMobsInRadius(50)
         if #mobs == 0 then
@@ -832,17 +860,27 @@ local function universalKillMobsMission(worldName)
                 task.wait(0.3)
             else
                 print("[KILLMOBS] Мобов нет — летим искать")
-                flyUntilFound(function()
-                    local fld = workspace:FindFirstChild("MobFolder")
-                    if not fld then return nil end
-                    for _, m in ipairs(fld:GetChildren()) do
-                        local root = m:FindFirstChild(m.Name)
-                        if root and root:FindFirstChild("Health") and root.Health.Value > 0 then
-                            return root
+                
+                -- ИСПРАВЛЕНИЕ ДЛЯ DESERT: телепортируемся на сохранённую позицию и ждём 20 сек
+                if worldName == "Desert" and desertSafePosition then
+                    print("[KILLMOBS] DESERT MODE: телепорт на сохранённую позицию и ожидание 20 сек")
+                    teleportToDesertSafePosition()
+                    task.wait(20)
+                    print("[KILLMOBS] DESERT MODE: ожидание завершено, продолжаем поиск")
+                else
+                    -- Для других миров - обычный полёт
+                    flyUntilFound(function()
+                        local fld = workspace:FindFirstChild("MobFolder")
+                        if not fld then return nil end
+                        for _, m in ipairs(fld:GetChildren()) do
+                            local root = m:FindFirstChild(m.Name)
+                            if root and root:FindFirstChild("Health") and root.Health.Value > 0 then
+                                return root
+                            end
                         end
-                    end
-                    return nil
-                end, 30)
+                        return nil
+                    end, 30)
+                end
             end
         else
             for _, m in ipairs(mobs) do
@@ -856,9 +894,9 @@ local function universalKillMobsMission(worldName)
     print("[KILLMOBS] Готово")
 end
 
--- ------------------------------------------------------------
+-- ============================================================================
 --  БОСС
--- ------------------------------------------------------------
+-- ============================================================================
 local ok_vim, VIM = pcall(function() return game:GetService("VirtualInputManager") end)
 if not ok_vim then VIM = nil end
 
@@ -1318,9 +1356,9 @@ local function universalSpendTimeMission(worldName, nextWorld)
     print("[SPENDTIME] Время ожидания истекло")
 end
 
--- ------------------------------------------------------------
+-- ============================================================================
 --  ГЛАВНАЯ ФУНКЦИЯ ДЛЯ ВЫПОЛНЕНИЯ МИССИЙ В МИРЕ
--- ------------------------------------------------------------
+-- ============================================================================
 local function completeWorldMissions(worldName, nextWorld)
     print("\n========== МИР " .. worldName .. " ==========")
     universalHarvestMission(worldName)
@@ -1348,9 +1386,9 @@ local function waitForMissionsData(worldName, timeout)
     return false
 end
 
--- ------------------------------------------------------------
+-- ============================================================================
 --  ПРОХОД МИРА ПОЛНОСТЬЮ (С ОСОБОЙ ОБРАБОТКОЙ PREHISTORIC)  [ИЗМЕНЕНИЕ]
--- ------------------------------------------------------------
+-- ============================================================================
 local function completeWorldFully(worldName, nextWorld)
     -- Специальная обработка для Prehistoric – используем безопасный сбор
     if worldName == "Prehistoric" then
@@ -1396,9 +1434,9 @@ local function completeWorldFully(worldName, nextWorld)
     print("[МИР] " .. worldName .. " завершён")
 end
 
--- ------------------------------------------------------------
+-- ============================================================================
 --  ОСНОВНОЙ ЦИКЛ ПЕРЕХОДА МЕЖДУ МИРАМИ
--- ------------------------------------------------------------
+-- ============================================================================
 local function main()
     print("[СКРИПТ] Запуск прохождения миров")
     repeat task.wait(2) until pcall(function() return player.Data.Worlds end)
@@ -1471,9 +1509,9 @@ local function main()
     print("[СКРИПТ] Все миры пройдены!")
 end
 
--- ------------------------------------------------------------
+-- ============================================================================
 --  ЗАПУСК
--- ------------------------------------------------------------
+-- ============================================================================
 local success, err = pcall(main)
 if not success then
     warn("[ОШИБКА] " .. tostring(err))
