@@ -582,31 +582,25 @@ local function universalTreasureMission(worldName)
 
     while progress.Value < target and not questDone and chest.Value ~= true do
         local chestsList = getAllChests()
+
         if #chestsList == 0 then
-            print("[TREASURE] Нет сундуков — телепорт к еде + полёт на прогрузку")
-            teleportToAnyFood(worldName)
-            task.wait(3)
-            chestsList = getAllChests()
-            if #chestsList == 0 then
-                flyUntilFound(function()
-                    local found = getAllChests()
-                    return (#found > 0) and found or nil
-                end, 30)
-            end
+            print("[TREASURE] Нет сундуков — летим на прогрузку")
+            flyUntilFound(function()
+                local found = getAllChests()
+                return (#found > 0) and found or nil
+            end, 50)
+            task.wait(2)
         else
-            local chestsList = getAllChests()
-            for _, c in ipairs(chestsList) do
-                if progress.Value >= target or questDone or chest.Value == true then break end
-                if not c or not c.Parent then continue end
+            -- Берём первый сундук из списка
+            local chest_obj = chestsList[1]
 
-                local num = tonumber(c.Name) or tonumber(string.match(c.Name, "%d+"))
-                if not num then continue end
-
-                print(string.format("[TREASURE] Сундук #%d: телепорт", num))
-                teleportToChest(c)
+            if chest_obj and chest_obj.Parent then
+                print(string.format("[TREASURE] Найден сундук, телепорт"))
+                teleportToChest(chest_obj)
 
                 local progressBefore = progress.Value
-                print(string.format("[TREASURE] Сундук #%d: используем OpenChestRemote", num))
+                print(string.format("[TREASURE] Открываем сундук (было %d/%d)", progressBefore, target))
+
                 setBreathFire(true)
                 task.wait(0.2)
 
@@ -621,19 +615,23 @@ local function universalTreasureMission(worldName)
 
                 -- Проверяем, увеличился ли прогресс
                 if progress.Value > progressBefore then
-                    print(string.format("[TREASURE] Сундук #%d: успешно! Прогресс %d/%d", num, progress.Value, target))
+                    print(string.format("[TREASURE] Успешно! Прогресс %d/%d", progress.Value, target))
                 else
-                    print(string.format("[TREASURE] Сундук #%d: нет прогресса", num))
+                    print("[TREASURE] Нет прогресса")
                 end
 
                 -- Удаляем сундук
-                if c and c.Parent then
-                    c:Destroy()
+                if chest_obj and chest_obj.Parent then
+                    chest_obj:Destroy()
+                    print("[TREASURE] Сундук удалён")
                 end
 
                 task.wait(0.5)
+            else
+                task.wait(1)
             end
         end
+
         task.wait(1)
     end
 
