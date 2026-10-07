@@ -30,6 +30,32 @@ local worldPlaceIds = {
     Fantasy = 4174118306, Wasterland = 4728805070, Prehistoric = 4869039553
 }
 local params = {harvestTarget = 50, chestTarget = 3, eggTarget = 5, killMobsTarget = 15, spendTimeSeconds = 7 * 60 + 30}
+
+-- ЧЁРНЫЙ СПИСОК ЕДЫ (Prehistoric): эту еду не фармим
+local blacklistedCFrames = {
+    Vector3.new(-819.596069, 330.706512, -86.8510437),
+    Vector3.new(-256.833496, 419.179352, -897.405762),
+    Vector3.new(-724.562744, 28.387001, 610.656982),
+}
+local BLACKLIST_RADIUS = 10 -- допуск по расстоянию (studs)
+
+local function isBlacklistedFood(part, worldName)
+    if worldName ~= "Prehistoric" then return false end
+    local positions = {}
+    local okP, pos = pcall(function() return part.Position end)
+    if okP and pos then table.insert(positions, pos) end
+    local node = part.Parent
+    if node and node:IsA("Model") then
+        local okPiv, piv = pcall(function() return node:GetPivot().Position end)
+        if okPiv and piv then table.insert(positions, piv) end
+    end
+    for _, p in ipairs(positions) do
+        for _, banned in ipairs(blacklistedCFrames) do
+            if (p - banned).Magnitude <= BLACKLIST_RADIUS then return true end
+        end
+    end
+    return false
+end
 local hasBossAndSpend = {
     Grassland = false, Jungle = true, Volcano = true, Tundra = true, Ocean = true,
     Desert = true, Fantasy = true, Wasterland = true, Prehistoric = true
@@ -296,7 +322,7 @@ local function universalHarvestMission(worldName)
                 if folder then
                     for _, node in ipairs(folder:GetChildren()) do
                         local bp = node:FindFirstChild("BillboardPart")
-                        if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 then return bp end
+                        if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
                     end
                 end
             end
@@ -306,7 +332,7 @@ local function universalHarvestMission(worldName)
             if folder then
                 for _, node in ipairs(folder:GetChildren()) do
                     local bp = node:FindFirstChild("BillboardPart")
-                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 then return bp end
+                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
                 end
             end
         end
@@ -388,7 +414,7 @@ local function safeHarvestMission(worldName)
                 if folder then
                     for _, node in ipairs(folder:GetChildren()) do
                         local bp = node:FindFirstChild("BillboardPart")
-                        if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 then return bp end
+                        if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
                     end
                 end
             end
@@ -398,7 +424,7 @@ local function safeHarvestMission(worldName)
             if folder then
                 for _, node in ipairs(folder:GetChildren()) do
                     local bp = node:FindFirstChild("BillboardPart")
-                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 then return bp end
+                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
                 end
             end
         end
