@@ -468,45 +468,6 @@ local function safeHarvestMission(worldName)
     print("[SAFE HARVEST] Готово")
 end
 
--- ТЕЛЕПОРТ К ЕДЕ
-local foodTeleportIndex = 0
-
-local function teleportToAnyFood(worldName)
-    local nodes = workspace.Interactions.Nodes
-    local allParts = {}
-    local worldNodes = nodes:FindFirstChild(worldName) or nodes:FindFirstChild(dataNameFor(worldName))
-    if worldNodes then
-        for _, cat in ipairs({"Food", "Resources"}) do
-            local folder = worldNodes:FindFirstChild(cat)
-            if folder then
-                for _, node in ipairs(folder:GetChildren()) do
-                    local bp = node:FindFirstChild("BillboardPart")
-                    if bp then table.insert(allParts, bp) end
-                end
-            end
-        end
-    end
-    if #allParts == 0 then
-        for _, cat in ipairs({"Food", "Resources"}) do
-            local folder = nodes:FindFirstChild(cat)
-            if folder then
-                for _, node in ipairs(folder:GetChildren()) do
-                    local bp = node:FindFirstChild("BillboardPart")
-                    if bp then table.insert(allParts, bp) end
-                end
-            end
-        end
-    end
-    if #allParts == 0 then return false end
-    foodTeleportIndex = (foodTeleportIndex % #allParts) + 1
-    local targetPart = allParts[foodTeleportIndex]
-    local hrp = getHRP()
-    hrp.CFrame = targetPart.CFrame * CFrame.new(0, 5, 0)
-    print(string.format("[TELEPORT] Телепорт к еде #%d/%d для прогрузки карты", foodTeleportIndex, #allParts))
-    task.wait(1)
-    return true
-end
-
 -- СУНДУКИ (TREASURE)
 local function universalTreasureMission(worldName)
     local missions = getMissionsFolder(worldName)
@@ -524,13 +485,16 @@ local function universalTreasureMission(worldName)
         return
     end
     print(string.format("[TREASURE] %s: нужно %d сундуков (сейчас %d)", worldName, target, progress.Value))
+
     local char = waitForCharacter()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then
         warn("[TREASURE] Нет HumanoidRootPart")
         return
     end
-    local openRemote = player.PlayerGui.PlayerDataGui.Data:WaitForChild("Remotes"):WaitForChild("OpenChestRemote")
+
+    local openRemote = player:WaitForChild("Remotes"):WaitForChild("OpenChestRemote")
+
     local function setBreathFire(on)
         local dragons = char:FindFirstChild("Dragons")
         if not dragons then return end
@@ -541,19 +505,20 @@ local function universalTreasureMission(worldName)
         local breathRemote = remotes:FindFirstChild("BreathFireRemote")
         if breathRemote then breathRemote:FireServer(on) end
     end
+
     local function getAllChests()
         local result = {}
         local treasureFolder = workspace:FindFirstChild("Interactions")
             and workspace.Interactions:FindFirstChild("Nodes")
             and workspace.Interactions.Nodes:FindFirstChild("Treasure")
-        if not treasureFolder then
-            return result
-        end
+        if not treasureFolder then return result end
+
         for _, obj in ipairs(treasureFolder:GetChildren()) do
             table.insert(result, obj)
         end
         return result
     end
+
     local function teleportToChest(obj)
         local cframe = nil
         if obj:IsA("BasePart") then
@@ -568,43 +533,32 @@ local function universalTreasureMission(worldName)
         end
         if cframe then
             hrp.CFrame = cframe * CFrame.new(0, 5, 0)
+            print("[TREASURE] Телепорт к сундуку:", obj.Name)
         end
         task.wait(2)
     end
 
-    local questDone = false
-    chest:GetPropertyChangedSignal("Value"):Connect(function()
-        if chest.Value == true then
-            questDone = true
-            print("[TREASURE] Сервер подтвердил завершение квеста")
-        end
-    end)
-
-    while progress.Value < target and not questDone and chest.Value ~= true do
+    while progress.Value < target and chest.Value ~= true do
         local chestsList = getAllChests()
 
         if #chestsList == 0 then
-            print("[TREASURE] Нет сундуков — летим на прогрузку")
+            print("[TREASURE] Нет сундуков, ищу...")
             flyUntilFound(function()
-                local found = getAllChests()
-                return (#found > 0) and found or nil
+                return (#getAllChests() > 0) and getAllChests() or nil
             end, 50)
             task.wait(2)
         else
-            -- Берём первый сундук из списка
             local chest_obj = chestsList[1]
 
             if chest_obj and chest_obj.Parent then
-                print(string.format("[TREASURE] Найден сундук, телепорт"))
+                print(string.format("[TREASURE] Сундук #%s: телепорт", chest_obj.Name))
                 teleportToChest(chest_obj)
 
-                local progressBefore = progress.Value
-                print(string.format("[TREASURE] Открываем сундук (было %d/%d)", progressBefore, target))
-
+                print(string.format("[TREASURE] Сундук #%s: используем запросы 1-5", chest_obj.Name))
                 setBreathFire(true)
                 task.wait(0.2)
 
-                -- Вызываем OpenChestRemote 5 раз с разными параметрами
+                -- Вызываем OpenChestRemote от 1 до 5
                 for i = 1, 5 do
                     pcall(function() openRemote:InvokeServer(i, false) end)
                     task.wait(0.2)
@@ -613,17 +567,10 @@ local function universalTreasureMission(worldName)
                 setBreathFire(false)
                 task.wait(1)
 
-                -- Проверяем, увеличился ли прогресс
-                if progress.Value > progressBefore then
-                    print(string.format("[TREASURE] Успешно! Прогресс %d/%d", progress.Value, target))
-                else
-                    print("[TREASURE] Нет прогресса")
-                end
+                print(string.format("[TREASURE] Прогресс: %d/%d", progress.Value, target))
 
-                -- Удаляем сундук
                 if chest_obj and chest_obj.Parent then
                     chest_obj:Destroy()
-                    print("[TREASURE] Сундук удалён")
                 end
 
                 task.wait(0.5)
@@ -635,9 +582,7 @@ local function universalTreasureMission(worldName)
         task.wait(1)
     end
 
-    if progress.Value >= target or chest.Value == true then
-        print("[TREASURE] Выполнено!")
-    end
+    print("[TREASURE] Квест завершён!")
 end
 
 -- ЯЙЦА (EGG)
