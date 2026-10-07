@@ -531,7 +531,6 @@ local function universalTreasureMission(worldName)
         return
     end
     local openRemote = player.PlayerGui.PlayerDataGui.Data:WaitForChild("Remotes"):WaitForChild("OpenChestRemote")
-    local dropsRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TreasureChestDropsRemote")
     local function setBreathFire(on)
         local dragons = char:FindFirstChild("Dragons")
         if not dragons then return end
@@ -548,7 +547,6 @@ local function universalTreasureMission(worldName)
             and workspace.Interactions:FindFirstChild("Nodes")
             and workspace.Interactions.Nodes:FindFirstChild("Treasure")
         if not treasureFolder then
-            warn("[TREASURE] Папка Treasure не найдена в Nodes")
             return result
         end
         for _, obj in ipairs(treasureFolder:GetChildren()) do
@@ -570,17 +568,8 @@ local function universalTreasureMission(worldName)
         end
         if cframe then
             hrp.CFrame = cframe * CFrame.new(0, 5, 0)
-            print("[TREASURE] Телепорт к сундуку:", obj.Name)
-        else
-            warn("[TREASURE] Не удалось найти позицию для:", obj.Name)
         end
-        task.wait(0.5)
-    end
-
-    local dataFolderName = dataNameFor(worldName)
-    local chestsList = getAllChests()
-    if #chestsList == 0 then
-        print("[TREASURE] Сундуки не найдены сразу, основной цикл будет искать через еду")
+        task.wait(2)
     end
 
     local questDone = false
@@ -592,7 +581,7 @@ local function universalTreasureMission(worldName)
     end)
 
     while progress.Value < target and not questDone and chest.Value ~= true do
-        chestsList = getAllChests()
+        local chestsList = getAllChests()
         if #chestsList == 0 then
             print("[TREASURE] Нет сундуков — телепорт к еде + полёт на прогрузку")
             teleportToAnyFood(worldName)
@@ -603,39 +592,54 @@ local function universalTreasureMission(worldName)
                     local found = getAllChests()
                     return (#found > 0) and found or nil
                 end, 30)
-                chestsList = getAllChests()
             end
         else
+            local chestsList = getAllChests()
             for _, c in ipairs(chestsList) do
                 if progress.Value >= target or questDone or chest.Value == true then break end
                 if not c or not c.Parent then continue end
+
                 local num = tonumber(c.Name) or tonumber(string.match(c.Name, "%d+"))
-                if not num then
-                    warn("[TREASURE] Не удалось получить id сундука:", c.Name)
-                    continue
-                end
-                print("[TREASURE] Обработка сундука #" .. num)
+                if not num then continue end
+
+                print(string.format("[TREASURE] Сундук #%d: телепорт", num))
                 teleportToChest(c)
-                task.wait(1)
+
+                local progressBefore = progress.Value
+                print(string.format("[TREASURE] Сундук #%d: используем OpenChestRemote", num))
                 setBreathFire(true)
                 task.wait(0.2)
+
+                -- Вызываем OpenChestRemote 5 раз с разными параметрами
                 for i = 1, 5 do
                     pcall(function() openRemote:InvokeServer(i, false) end)
-                    task.wait(0.1)
+                    task.wait(0.2)
                 end
-                task.wait(1)
+
                 setBreathFire(false)
+                task.wait(1)
+
+                -- Проверяем, увеличился ли прогресс
+                if progress.Value > progressBefore then
+                    print(string.format("[TREASURE] Сундук #%d: успешно! Прогресс %d/%d", num, progress.Value, target))
+                else
+                    print(string.format("[TREASURE] Сундук #%d: нет прогресса", num))
+                end
+
+                -- Удаляем сундук
                 if c and c.Parent then
                     c:Destroy()
-                    print("[TREASURE] Сундук #" .. num .. " удалён")
                 end
-                task.wait(0.3)
-                print(string.format("[TREASURE] Прогресс: %d/%d", progress.Value, target))
+
+                task.wait(0.5)
             end
         end
         task.wait(1)
     end
-    print("[TREASURE] Выполнено")
+
+    if progress.Value >= target or chest.Value == true then
+        print("[TREASURE] Выполнено!")
+    end
 end
 
 -- ЯЙЦА (EGG)
