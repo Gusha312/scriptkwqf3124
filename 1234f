@@ -624,18 +624,6 @@ local function universalTreasureMission(worldName)
                     task.wait(0.1)
                 end
                 task.wait(1)
-                local dataChest = nil
-                pcall(function()
-                    dataChest = player.PlayerGui.PlayerDataGui.Data.TreasureChests[dataFolderName][tostring(num)]
-                end)
-                if dataChest then
-                    for _, stage in ipairs({1, 2, 3, 4, 4}) do
-                        pcall(function() dropsRemote:FireServer(dataChest, stage) end)
-                        task.wait(0.2)
-                    end
-                else
-                    warn(string.format("[TREASURE] Нет данных для сундука #%d", num))
-                end
                 setBreathFire(false)
                 if c and c.Parent then
                     c:Destroy()
