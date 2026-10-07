@@ -808,18 +808,21 @@ local function universalKillMobsMission(worldName)
         return true
     end
 
+    local MOB_RESPAWN_WAIT = 10 -- сек ожидания после каждого телепорта (мобы появляются не сразу)
     local fromSpawn = (worldName == "Desert")
     if fromSpawn then
         print("[KILLMOBS] Desert: телепорт на спавн")
         teleportToSpawn()
-        task.wait(1)
+        print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
+        task.wait(MOB_RESPAWN_WAIT)
     end
     while progress.Value < target do
         local mobs = getMobsInRadius(50)
         if #mobs == 0 and fromSpawn then
             print("[KILLMOBS] Desert: мобов рядом нет — возвращаемся на спавн")
             teleportToSpawn()
-            task.wait(2)
+            print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
+            task.wait(MOB_RESPAWN_WAIT)
             if #getMobsInRadius(50) == 0 then
                 print("[KILLMOBS] Desert: на спавне мобов нет — ищу их по случайной еде")
                 for attempt = 1, 15 do
@@ -828,7 +831,8 @@ local function universalKillMobsMission(worldName)
                         print("[KILLMOBS] Еда не найдена")
                         break
                     end
-                    task.wait(1.5)
+                    print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
+                    task.wait(MOB_RESPAWN_WAIT)
                     if #getMobsInRadius(50) > 0 then
                         print(string.format("[KILLMOBS] Мобы найдены (попытка %d)", attempt))
                         break
