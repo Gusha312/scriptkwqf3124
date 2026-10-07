@@ -808,6 +808,22 @@ local function universalKillMobsMission(worldName)
         return true
     end
 
+    -- Все живые мобы на карте, отсортированные по расстоянию до нас
+    local function getAliveMobsSorted()
+        local all = {}
+        local folder = workspace:FindFirstChild("MobFolder")
+        if not folder then return all end
+        for _, m in ipairs(folder:GetChildren()) do
+            local root = m:FindFirstChild(m.Name)
+            if root and root:FindFirstChild("Health") and root.Health.Value > 0 then
+                table.insert(all, root)
+            end
+        end
+        local pos = hrp.Position
+        table.sort(all, function(x, y) return (pos - x.Position).Magnitude < (pos - y.Position).Magnitude end)
+        return all
+    end
+
     local MOB_RESPAWN_WAIT = 10 -- сек ожидания после каждого телепорта (мобы появляются не сразу)
     local fromSpawn = (worldName == "Desert")
     if fromSpawn then
@@ -819,23 +835,31 @@ local function universalKillMobsMission(worldName)
     while progress.Value < target do
         local mobs = getMobsInRadius(50)
         if #mobs == 0 and fromSpawn then
-            print("[KILLMOBS] Desert: мобов рядом нет — возвращаемся на спавн")
-            teleportToSpawn()
-            print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
-            task.wait(MOB_RESPAWN_WAIT)
-            if #getMobsInRadius(50) == 0 then
-                print("[KILLMOBS] Desert: на спавне мобов нет — ищу их по случайной еде")
-                for attempt = 1, 15 do
-                    if progress.Value >= target then break end
-                    if not teleportToRandomFood() then
-                        print("[KILLMOBS] Еда не найдена")
-                        break
-                    end
-                    print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
-                    task.wait(MOB_RESPAWN_WAIT)
-                    if #getMobsInRadius(50) > 0 then
-                        print(string.format("[KILLMOBS] Мобы найдены (попытка %d)", attempt))
-                        break
+            local alive = getAliveMobsSorted()
+            if #alive > 0 then
+                -- Мобы ещё есть на карте (просто дальше радиуса) — идём к ближайшему
+                print(string.format("[KILLMOBS] Desert: живых мобов на карте: %d — телепорт к ближайшему", #alive))
+                hrp.CFrame = CFrame.new(alive[1].Position + Vector3.new(0, 5, 0))
+                task.wait(0.3)
+            else
+                print("[KILLMOBS] Desert: мобов нет совсем — возвращаемся на спавн")
+                teleportToSpawn()
+                print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
+                task.wait(MOB_RESPAWN_WAIT)
+                if #getAliveMobsSorted() == 0 then
+                    print("[KILLMOBS] Desert: на спавне мобов нет — ищу их по случайной еде")
+                    for attempt = 1, 15 do
+                        if progress.Value >= target then break end
+                        if not teleportToRandomFood() then
+                            print("[KILLMOBS] Еда не найдена")
+                            break
+                        end
+                        print(string.format("[KILLMOBS] Жду %d сек, пока появятся мобы", MOB_RESPAWN_WAIT))
+                        task.wait(MOB_RESPAWN_WAIT)
+                        if #getAliveMobsSorted() > 0 then
+                            print(string.format("[KILLMOBS] Мобы найдены (попытка %d)", attempt))
+                            break
+                        end
                     end
                 end
             end
