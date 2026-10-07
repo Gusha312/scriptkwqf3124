@@ -46,6 +46,30 @@ local function getHRP()
     return waitForCharacter():WaitForChild("HumanoidRootPart")
 end
 
+-- СПАВН: точка, где мы оказались при первом запуске (отдельно для каждого мира)
+local spawnByPlace = {}
+
+local function rememberSpawn()
+    if spawnByPlace[game.PlaceId] then return end
+    local ok, cf = pcall(function() return getHRP().CFrame end)
+    if ok and cf then
+        spawnByPlace[game.PlaceId] = cf
+        print("[СПАВН] Точка спавна запомнена: " .. tostring(cf.Position))
+    end
+end
+
+local function teleportToSpawn()
+    local cf = spawnByPlace[game.PlaceId]
+    if not cf then
+        warn("[СПАВН] Точка спавна не запомнена")
+        return false
+    end
+    getHRP().CFrame = cf
+    return true
+end
+
+task.spawn(rememberSpawn)
+
 -- ПОЛЁТ НА ПРОГРУЗКУ КАРТЫ
 local FLY_DIRS = {
     Vector3.new(0, 0, -1),
@@ -97,6 +121,7 @@ local function teleportToWorld(worldName)
     end
     waitForCharacter()
     task.wait(3)
+    rememberSpawn()
     print("[ТЕЛЕПОРТ] Успешно в " .. worldName)
 end
 
@@ -722,9 +747,19 @@ local function universalKillMobsMission(worldName)
         end
         return mobs
     end
+    local fromSpawn = (worldName == "Desert")
+    if fromSpawn then
+        print("[KILLMOBS] Desert: телепорт на спавн")
+        teleportToSpawn()
+        task.wait(1)
+    end
     while progress.Value < target do
         local mobs = getMobsInRadius(50)
-        if #mobs == 0 then
+        if #mobs == 0 and fromSpawn then
+            print("[KILLMOBS] Desert: мобов рядом нет — возвращаемся на спавн")
+            teleportToSpawn()
+            task.wait(2)
+        elseif #mobs == 0 then
             local all = {}
             local folder = workspace:FindFirstChild("MobFolder")
             if folder then
