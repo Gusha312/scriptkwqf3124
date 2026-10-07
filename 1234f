@@ -782,6 +782,32 @@ local function universalKillMobsMission(worldName)
         end
         return mobs
     end
+    -- Телепорт к случайной еде/ресурсам (ищем мобов вокруг неё)
+    local function teleportToRandomFood()
+        local spots = {}
+        local nodes = workspace.Interactions and workspace.Interactions:FindFirstChild("Nodes")
+        if not nodes then return false end
+        local worldNodes = nodes:FindFirstChild(worldName) or nodes:FindFirstChild(dataNameFor(worldName))
+        local roots = {}
+        if worldNodes then table.insert(roots, worldNodes) end
+        table.insert(roots, nodes)
+        for _, root in ipairs(roots) do
+            for _, cat in ipairs({"Food", "Resources"}) do
+                local folder = root:FindFirstChild(cat)
+                if folder then
+                    for _, node in ipairs(folder:GetChildren()) do
+                        local bp = node:FindFirstChild("BillboardPart")
+                        if bp and bp:IsA("BasePart") then table.insert(spots, bp) end
+                    end
+                end
+            end
+        end
+        if #spots == 0 then return false end
+        local spot = spots[math.random(1, #spots)]
+        hrp.CFrame = spot.CFrame * CFrame.new(0, 5, 0)
+        return true
+    end
+
     local fromSpawn = (worldName == "Desert")
     if fromSpawn then
         print("[KILLMOBS] Desert: телепорт на спавн")
@@ -794,6 +820,21 @@ local function universalKillMobsMission(worldName)
             print("[KILLMOBS] Desert: мобов рядом нет — возвращаемся на спавн")
             teleportToSpawn()
             task.wait(2)
+            if #getMobsInRadius(50) == 0 then
+                print("[KILLMOBS] Desert: на спавне мобов нет — ищу их по случайной еде")
+                for attempt = 1, 15 do
+                    if progress.Value >= target then break end
+                    if not teleportToRandomFood() then
+                        print("[KILLMOBS] Еда не найдена")
+                        break
+                    end
+                    task.wait(1.5)
+                    if #getMobsInRadius(50) > 0 then
+                        print(string.format("[KILLMOBS] Мобы найдены (попытка %d)", attempt))
+                        break
+                    end
+                end
+            end
         elseif #mobs == 0 then
             local all = {}
             local folder = workspace:FindFirstChild("MobFolder")
