@@ -544,6 +544,41 @@ local function universalTreasureMission(worldName)
         return result
     end
 
+    -- Случайная точка (еда/ресурсы или моб), чтобы прогрузить карту и появились сундуки
+    local function teleportToRandomLoadSpot()
+        local spots = {}
+        local nodes = workspace.Interactions and workspace.Interactions:FindFirstChild("Nodes")
+        if nodes then
+            local worldNodes = nodes:FindFirstChild(worldName) or nodes:FindFirstChild(dataNameFor(worldName))
+            local roots = {}
+            if worldNodes then table.insert(roots, worldNodes) end
+            table.insert(roots, nodes)
+            for _, root in ipairs(roots) do
+                for _, cat in ipairs({"Food", "Resources"}) do
+                    local folder = root:FindFirstChild(cat)
+                    if folder then
+                        for _, node in ipairs(folder:GetChildren()) do
+                            local bp = node:FindFirstChild("BillboardPart")
+                            if bp and bp:IsA("BasePart") then table.insert(spots, bp) end
+                        end
+                    end
+                end
+            end
+        end
+        local mobFolder = workspace:FindFirstChild("MobFolder")
+        if mobFolder then
+            for _, m in ipairs(mobFolder:GetChildren()) do
+                local root = m:FindFirstChild(m.Name)
+                if root and root:IsA("BasePart") then table.insert(spots, root) end
+            end
+        end
+        if #spots == 0 then return false end
+        local spot = spots[math.random(1, #spots)]
+        hrp.CFrame = spot.CFrame * CFrame.new(0, 5, 0)
+        print(string.format("[TREASURE] Телепорт к %s (вариантов: %d)", spot.Parent and spot.Parent.Name or spot.Name, #spots))
+        return true
+    end
+
     local function teleportToChest(obj)
         local cframe = nil
         if obj:IsA("BasePart") then
@@ -567,11 +602,11 @@ local function universalTreasureMission(worldName)
         local chestsList = getAllChests()
 
         if #chestsList == 0 then
-            print("[TREASURE] Нет сундуков, ищу...")
-            flyUntilFound(function()
-                return (#getAllChests() > 0) and getAllChests() or nil
-            end, 50)
-            task.wait(2)
+            print("[TREASURE] Нет сундуков — телепорт к случайной еде/мобу для прогрузки карты")
+            if not teleportToRandomLoadSpot() then
+                print("[TREASURE] Не нашёл ни еды, ни мобов — жду")
+            end
+            task.wait(3)
         else
             local chest_obj = chestsList[1]
 
