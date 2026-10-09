@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BOT_TOKEN="8634514806:AAFkI2KbnTZ4wSrmvhtrB2QTnud06XNnrDs"
+BOT_TOKEN="8711741431:AAECyvxrKekZjfHytUJOe08dPpEZPvBOg1w"
 CHAT_ID="899435753"
 HOME_DIR="/data/data/com.termux/files/home"
 VIP_FILE="${HOME_DIR}/vip_link.txt"
@@ -234,7 +234,7 @@ ensure_autoexec() {
 list_scripts() {
   local first=$(get_clone_dirs | head -1)
   [ -z "${first}" ] && return
-  ls "${AUTOEXEC_BASE}/${first}/Codex/Autoexec/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
+  ls "${AUTOEXEC_BASE}/${first}/Delta/Autoexec/"*.txt 2>/dev/null | xargs -I{} basename {} .txt 2>/dev/null
 }
 deploy_script() {
   local filename=$1 filepath=$2 count=0
@@ -247,13 +247,13 @@ deploy_script() {
 delete_script() {
   local filename=$1 count=0
   for dir in $(get_clone_dirs); do
-    local path="${AUTOEXEC_BASE}/${dir}/Codex/Autoexec"
+    local path="${AUTOEXEC_BASE}/${dir}/Delta/Autoexec"
     [ -f "${path}/${filename}" ] && rm -f "${path}/${filename}" && count=$((count+1))
   done
   echo "${count}"
 }
 sync_scripts() {
-  local src="${AUTOEXEC_BASE}/RobloxClone001/Codex/Autoexec"
+  local src="${AUTOEXEC_BASE}/RobloxClone001/Delta/Autoexec"
   [ ! -d "${src}" ] && echo "0" && return
   local count=0
   for dir in $(get_clone_dirs); do
