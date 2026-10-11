@@ -1,0 +1,903 @@
+wait(15)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
+
+local interactions = Workspace:WaitForChild("Interactions", 10)
+local foodFolder = interactions:WaitForChild("Food", 10)
+local lakeFolder = interactions:WaitForChild("Lakes", 10)
+local npcsFolder = interactions:WaitForChild("NPCs", 10)
+local npcSpawnsFolder = interactions:WaitForChild("NPCSpawns", 10)
+
+local ChangeRegionRemote = ReplicatedStorage.Remotes.ChangeRegionRemote
+local FoodRemote = ReplicatedStorage.Remotes.Food
+local DrinkRemote = ReplicatedStorage.Remotes.DrinkRemote
+local AttackRemote = ReplicatedStorage.Remotes.NPCDamageRemoteBreath
+local SetMissionRemote = ReplicatedStorage.Remotes.SetMissionRemote
+local MudRemote = ReplicatedStorage.Remotes.Mud
+local SnowPileSelfDamage = ReplicatedStorage.Remotes.SnowPileSelfDamage
+local ActivateAbility = ReplicatedStorage.Remotes.ActivateAbility
+local PurchaseCreatureRemote = ReplicatedStorage.Remotes.PurchaseCreatureRemote
+local DespawnRemote = ReplicatedStorage.Remotes.DespawnRemote
+
+local currentRegionName = nil
+local deathInProgress = false
+
+local HOME_POSITION = Vector3.new(-3225, 834, -1768)
+
+local telePos = {
+	Vector3.new(1618.5, 332.3, -118.1),
+	Vector3.new(1868.5, 412.3, 231.9)
+}
+
+local concealScentPosition = Vector3.new(2434.90479, 277.143066, -1289.48108)
+
+local function clickAtPosition(posX, posY)
+	VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, true, game, 1)
+	wait(0.05)
+	VirtualInputManager:SendMouseButtonEvent(posX, posY, 0, false, game, 1)
+end
+
+local function click()
+	local screen = workspace.CurrentCamera.ViewportSize
+	clickAtPosition(screen.X/2, screen.Y/2)
+end
+
+local function clickButtonEnhanced(button, buttonName)
+	if button then
+		print("✅ Раздуваю кнопку для клика: " .. buttonName)
+		local originalSize = button.Size
+		local originalPosition = button.Position
+		local originalAnchorPoint = button.AnchorPoint
+		local originalZIndex = button.ZIndex
+		
+		button.Size = UDim2.new(100, 0, 100, 0)
+		button.Position = UDim2.new(0.5, 0, 0.5, 0)
+		button.AnchorPoint = Vector2.new(0.5, 0.5)
+		button.ZIndex = 99999
+		
+		wait(1.5)
+		local clickX = button.AbsolutePosition.X + button.AbsoluteSize.X / 2
+		local clickY = button.AbsolutePosition.Y + button.AbsoluteSize.Y / 2
+		clickAtPosition(clickX, clickY)
+		
+		wait(0.5)
+		button.Size = originalSize
+		button.Position = originalPosition
+		button.AnchorPoint = originalAnchorPoint
+		button.ZIndex = originalZIndex
+		return true
+	end
+	return false
+end
+
+local function findActiveSlot()
+	local data = player:WaitForChild("PlayerGui"):WaitForChild("Data")
+	
+	for i = 1, 3 do
+		local slotName = "Slot" .. i
+		local slot = data:FindFirstChild(slotName)
+		if slot then
+			local deathStats = slot:FindFirstChild("DeathStats")
+			local creature = slot:FindFirstChild("Creature")
+			
+			if deathStats and creature and creature.Value and creature.Value ~= "" then
+				print("🎯 Активный слот найден: " .. slotName)
+				print("   Существо: " .. creature.Value)
+				return slotName
+			end
+		end
+	end
+	
+	print("⚠️ Активный слот не найден!")
+	return nil
+end
+
+local function acquireCreature()
+	print("🗑️ Удаляю все слоты...")
+	for i = 1, 9 do
+		pcall(function()
+			ReplicatedStorage.Remotes.DeleteSlotRemote:InvokeServer("Slot" .. i, false)
+		end)
+		wait(0.3)
+	end
+	wait(1)
+
+	-- Coins лежит в PlayerGui.PlayerDataGui.Data.Coins, но на части серверов
+	-- в PlayerGui.Data.Coins. Проверяем оба места без WaitForChild, чтобы
+	-- поток не завис навсегда на несуществующем пути.
+	local coins = nil
+	local pgui = player:WaitForChild("PlayerGui")
+
+	local pdg = pgui:FindFirstChild("PlayerDataGui")
+	if pdg then
+		local d = pdg:FindFirstChild("Data")
+		if d then coins = d:FindFirstChild("Coins") end
+	end
+
+	if not coins then
+		local d = pgui:FindFirstChild("Data")
+		if d then coins = d:FindFirstChild("Coins") end
+	end
+
+	print("💰 Кол-во монет: " .. (coins and coins.Value or 0))
+
+	if coins and coins.Value >= 5 then
+		print("💰 Монет >= 5, покупаю Eulopii...")
+		pcall(function()
+			PurchaseCreatureRemote:InvokeServer("TrialCreatures", "Eulopii", false)
+		end)
+	else
+		print("💵 Монет < 5, использую UpdateFavoritedRemote...")
+		pcall(function()
+			local ohBoolean1 = true
+			local ohBoolean2 = true
+			ReplicatedStorage.Remotes.UpdateFavoritedRemote:FireServer(ohBoolean1, ohBoolean2)
+		end)
+		wait(1)
+		print("🆕 Создаю слот Xeleviprex...")
+		pcall(function()
+			ReplicatedStorage.Remotes.CreateSlotRemote:InvokeServer("Xeleviprex")
+		end)
+	end
+	wait(2)
+	
+	print("🎮 Ищу SaveSelectionGui для входа...")
+	local saveGui = nil
+	for i = 1, 30 do
+		saveGui = player:WaitForChild("PlayerGui"):FindFirstChild("SaveSelectionGui")
+		if saveGui then break end
+		wait(1)
+	end
+
+	if saveGui then
+		print("✅ SaveSelectionGui найден, заходу...")
+		wait(1)
+		local page1 = saveGui.ContainerFrame.AllSlotsFrame.PagesFrame:FindFirstChild("1")
+		if page1 then
+			for i = 1, 5 do
+				clickButtonEnhanced(page1, "Page1_" .. i)
+				wait(0.5)
+			end
+		end
+
+		wait(2)
+
+		-- Только FindFirstChild: прямое SlotsFrame["1"].InnerFrame... выбрасывает
+		-- ошибку, если слот ещё не прогрузился, и поток молча умирает ровно
+		-- перед кликом по Play.
+		local playLabel = nil
+		for tryCount = 1, 15 do
+			pcall(function()
+				local container = saveGui:FindFirstChild("ContainerFrame")
+				if not container then return end
+				local allSlots = container:FindFirstChild("AllSlotsFrame")
+				if not allSlots then return end
+				local slotsFrame = allSlots:FindFirstChild("SlotsFrame")
+				if not slotsFrame then return end
+				local slot1 = slotsFrame:FindFirstChild("1")
+				if not slot1 then return end
+				local inner = slot1:FindFirstChild("InnerFrame")
+				if not inner then return end
+				local creatureFrame = inner:FindFirstChild("CreatureFrame")
+				if not creatureFrame then return end
+				local buttonsFrame = creatureFrame:FindFirstChild("ButtonsFrame")
+				if not buttonsFrame then return end
+				local playButton = buttonsFrame:FindFirstChild("PlayButton")
+				if not playButton then return end
+
+				playLabel = playButton:FindFirstChild("UpperLabel") or playButton
+			end)
+
+			if playLabel then break end
+			print("⏳ Жду прогрузки слота... (" .. tryCount .. "/15)")
+			wait(1)
+		end
+
+		if not playLabel then
+			print("❌ PlayButton не найден — слот не создался!")
+			return
+		end
+
+		for i = 1, 5 do
+			clickButtonEnhanced(playLabel, "PlayButton_" .. i)
+			wait(0.7)
+			if not (saveGui.Parent and saveGui.Enabled) then break end
+		end
+		print("✅ Вход завершён!")
+	end
+end
+
+local function checkDeathDuringFarm()
+	local playerGui = player.PlayerGui
+	
+	local deathGui = playerGui:FindFirstChild("DeathGui")
+	if deathGui and deathGui.Enabled == true then
+		print("\n💀 ОБНАРУЖЕНА СМЕРТЬ ВО ВРЕМЯ ФАРМА!")
+
+		print("⏳ Ожидание 20 секунд...")
+		wait(20)
+
+		print("🔥 Раздуваю Return и кликаю...")
+		local clicks = 0
+		while clicks < 8 do
+			clicks = clicks + 1
+
+			deathGui = playerGui:FindFirstChild("DeathGui")
+			if not (deathGui and deathGui.Enabled) then break end
+
+			local clicked = false
+			pcall(function()
+				local container = deathGui:FindFirstChild("ContainerFrame")
+				local bottom = container and container:FindFirstChild("BottomFrame")
+				local buttons = bottom and bottom:FindFirstChild("ButtonsFrame")
+				local returnBtn = buttons and buttons:FindFirstChild("Return")
+				local label = returnBtn and (returnBtn:FindFirstChild("UpperLabel") or returnBtn)
+				if label then
+					clickButtonEnhanced(label, "DeathReturn_" .. clicks)
+					clicked = true
+				end
+			end)
+
+			if not clicked then
+				click()
+			end
+			wait(1)
+		end
+
+		print("✅ Выход из DeathGui")
+		wait(10)
+
+		print("🔄 Переделываю слот...")
+		wait(2)
+		acquireCreature()
+		wait(5)
+		currentRegionName = nil
+		deathInProgress = false
+		return true
+	end
+	
+	return false
+end
+
+local function getPos(obj)
+	if obj:IsA("Model") then
+		if obj.PrimaryPart then return obj.PrimaryPart.Position end
+		local part = obj:FindFirstChildWhichIsA("Part") or obj:FindFirstChildWhichIsA("MeshPart")
+		if part then return part.Position end
+	elseif obj:IsA("BasePart") then
+		return obj.Position
+	end
+	return Vector3.new()
+end
+
+local function findNearestGrass()
+	local char = player.Character
+	if not char then return nil end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+	local p = root.Position
+	local best, bestDist = nil, math.huge
+	for _, f in ipairs(foodFolder:GetChildren()) do
+		if f.Name:lower():find("grass") or f.Name:lower():find("decor") then
+			local pos = getPos(f)
+			local d = (pos - p).Magnitude
+			if d < bestDist then
+				bestDist = d
+				best = f
+			end
+		end
+	end
+	return best
+end
+
+local function teleportTo(pos)
+	local char = player.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		char.HumanoidRootPart.CFrame = CFrame.new(pos)
+	end
+end
+
+local function changeRegion(r)
+	currentRegionName = r
+	ChangeRegionRemote:FireServer(r)
+	wait(0.5)
+end
+
+local function findNPCForAttack()
+	local rootsNPC = npcsFolder:FindFirstChild("Roots")
+	if rootsNPC then
+		local rootPart = rootsNPC:FindFirstChild("RootPart")
+		if rootPart then
+			return rootPart
+		end
+	end
+	
+	for _, npc in ipairs(npcsFolder:GetChildren()) do
+		local rp = npc:FindFirstChild("RootPart") or npc:FindFirstChild("HumanoidRootPart")
+		if rp then
+			return rp
+		end
+	end
+	
+	return nil
+end
+
+local function useFoodAndWater()
+	local nearestGrass = findNearestGrass()
+	
+	if nearestGrass then
+		print("🍃 Найден Grass (еда): " .. nearestGrass.Name)
+		
+		local grassPos = getPos(nearestGrass)
+		
+		teleportTo(grassPos + Vector3.new(0, 5, 0))
+		print("📍 Телепортировались к Grass (еде)")
+		
+		wait(1)
+		
+		if currentRegionName then
+			print("🔄 Меняем регион после телепортации к Grass: " .. currentRegionName)
+			changeRegion(currentRegionName)
+		end
+		
+		local foodArgs = { nearestGrass }
+		FoodRemote:FireServer(unpack(foodArgs))
+		print("🍎 Использована Grass (еда): " .. nearestGrass.Name)
+	else
+		local foodFolder = interactions.Food
+		local foodChildren = foodFolder:GetChildren()
+		
+		if #foodChildren > 0 then
+			local foodItem = foodChildren[1]
+			
+			if foodItem then
+				local foodArgs = { foodItem }
+				FoodRemote:FireServer(unpack(foodArgs))
+				print("🍎 Использована еда: " .. foodItem.Name)
+			end
+		end
+	end
+	
+	local lake = interactions.Lakes:FindFirstChild("Lake")
+	if lake then
+		local drinkArgs = { lake }
+		DrinkRemote:FireServer(unpack(drinkArgs))
+		print("💧 Использована вода")
+	else
+		local waterSource = interactions.Lakes:FindFirstChildOfClass("Part")
+		if waterSource then
+			local drinkArgs = { waterSource }
+			DrinkRemote:FireServer(unpack(drinkArgs))
+		end
+	end
+end
+
+local function completeSniffMission(regionName)
+	print("🔄 Выполняем Sniff в регионе: " .. regionName)
+	
+	changeRegion(regionName)
+	
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	local regionMissions = data:FindFirstChild("Missions"):FindFirstChild("RegionMissions")
+	
+	local missionCompleted = false
+	local attempts = 0
+	
+	while not missionCompleted and attempts < 25 do
+		attempts = attempts + 1
+		
+		if attempts % 5 == 0 then
+			useFoodAndWater()
+		end
+		
+		if checkDeathDuringFarm() then
+			return false
+		end
+		
+		local missionArgs = { 1 }
+		SetMissionRemote:FireServer(unpack(missionArgs))
+		
+		local regionFolder = regionMissions:FindFirstChild(regionName)
+		if regionFolder then
+			local sniffMission = regionFolder:FindFirstChild("Sniff")
+			if sniffMission and sniffMission.Value then
+				missionCompleted = true
+				print("✅ Sniff выполнена в регионе " .. regionName)
+			else
+				print("⏳ Sniff... (" .. attempts .. "/25)")
+			end
+		end
+		
+		if not missionCompleted then
+			wait(0.8)
+		end
+	end
+	
+	return missionCompleted
+end
+
+local function completeConcealScentMission(regionName)
+	print("🔄 Выполняем ConcealScent в регионе: " .. regionName)
+	
+	changeRegion(regionName)
+	
+	teleportTo(concealScentPosition)
+	wait(1)
+	changeRegion(regionName)
+	
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	local regionMissions = data:FindFirstChild("Missions"):FindFirstChild("RegionMissions")
+	
+	local missionCompleted = false
+	local attempts = 0
+	
+	while not missionCompleted and attempts < 40 do
+		attempts = attempts + 1
+		
+		if attempts % 10 == 0 then
+			useFoodAndWater()
+		end
+		
+		if checkDeathDuringFarm() then
+			return false
+		end
+		
+		MudRemote:FireServer()
+		
+		local regionFolder = regionMissions:FindFirstChild(regionName)
+		if regionFolder then
+			local concealMission = regionFolder:FindFirstChild("ConcealScent")
+			if concealMission and concealMission.Value then
+				missionCompleted = true
+				print("✅ ConcealScent выполнена в регионе " .. regionName)
+			else
+				print("⏳ ConcealScent... (" .. attempts .. "/40)")
+			end
+		end
+		
+		if not missionCompleted then
+			wait(0.5)
+		end
+	end
+	
+	return missionCompleted
+end
+
+local function completeEatFoodDrinkWaterMission(regionName)
+	print("🔄 Выполняем EatFoodDrinkWater в регионе: " .. regionName)
+	
+	changeRegion(regionName)
+	
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	local regionMissions = data:FindFirstChild("Missions"):FindFirstChild("RegionMissions")
+	
+	local missionCompleted = false
+	local attempts = 0
+	
+	while not missionCompleted and attempts < 15 do
+		attempts = attempts + 1
+		
+		if checkDeathDuringFarm() then
+			return false
+		end
+		
+		useFoodAndWater()
+		
+		local regionFolder = regionMissions:FindFirstChild(regionName)
+		if regionFolder then
+			local eatMission = regionFolder:FindFirstChild("EatFoodDrinkWater")
+			if eatMission and eatMission.Value then
+				missionCompleted = true
+				print("✅ EatFoodDrinkWater выполнена в регионе " .. regionName)
+			else
+				print("⏳ EatFoodDrinkWater... (" .. attempts .. "/15)")
+			end
+		end
+		
+		if not missionCompleted then
+			wait(1)
+		end
+	end
+	
+	return missionCompleted
+end
+
+local function completeAttackOrHealMission(regionName)
+	print("🔄 Выполняем AttackOrHealCreatureOrNPC в регионе: " .. regionName)
+	
+	changeRegion(regionName)
+	
+	local npcSpawns = npcSpawnsFolder:GetChildren()
+	if #npcSpawns > 0 then
+		local randomSpawn = npcSpawns[math.random(1, #npcSpawns)]
+		if randomSpawn then
+			local spawnPos = getPos(randomSpawn)
+			local spawnPosition = spawnPos + Vector3.new(0, 30, 0)
+			teleportTo(spawnPosition)
+			wait(1)
+			changeRegion(regionName)
+		end
+	end
+	
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	local regionMissions = data:FindFirstChild("Missions"):FindFirstChild("RegionMissions")
+	
+	local missionCompleted = false
+	local attempts = 0
+	
+	while not missionCompleted and attempts < 60 do
+		attempts = attempts + 1
+		
+		if attempts % 15 == 0 then
+			useFoodAndWater()
+		end
+		
+		if checkDeathDuringFarm() then
+			return false
+		end
+		
+		local targetNPC = findNPCForAttack()
+		if targetNPC then
+			local attackArgs = { { targetNPC } }
+			AttackRemote:FireServer(unpack(attackArgs))
+		end
+		
+		local regionFolder = regionMissions:FindFirstChild(regionName)
+		if regionFolder then
+			local attackMission = regionFolder:FindFirstChild("AttackOrHealCreatureOrNPC")
+			if attackMission and attackMission.Value then
+				missionCompleted = true
+				print("✅ AttackOrHealCreatureOrNPC выполнена в регионе " .. regionName)
+				break
+			end
+		end
+		
+		if not missionCompleted then
+			wait(0.3)
+		end
+	end
+	
+	return missionCompleted
+end
+
+local function completeDistanceTravelledMission(regionName)
+	print("🔄 Выполняем DistanceTravelled в регионе: " .. regionName)
+	
+	changeRegion(regionName)
+	
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	local regionMissions = data:FindFirstChild("Missions"):FindFirstChild("RegionMissions")
+	
+	local missionCompleted = false
+	local attempts = 0
+	
+	while not missionCompleted and attempts < 50 do
+		attempts = attempts + 1
+		
+		useFoodAndWater()
+		
+		if checkDeathDuringFarm() then
+			return false
+		end
+		
+		for i, pos in ipairs(telePos) do
+			teleportTo(pos)
+			wait(1)
+			
+			if i == 1 then
+				changeRegion(regionName)
+			end
+			
+			local regionFolder = regionMissions:FindFirstChild(regionName)
+			if regionFolder then
+				local distanceMission = regionFolder:FindFirstChild("DistanceTravelled")
+				if distanceMission and distanceMission.Value then
+					missionCompleted = true
+					print("✅ DistanceTravelled выполнена в регионе " .. regionName)
+					break
+				end
+			end
+			
+			if missionCompleted then
+				break
+			end
+		end
+		
+		if not missionCompleted then
+			print("⏳ DistanceTravelled... (" .. attempts .. "/50)")
+		end
+	end
+	
+	return missionCompleted
+end
+
+local function completeTimePlayedMission(regionName)
+	print("🔄 Выполняем TimePlayed в регионе: " .. regionName)
+	print("⏰ Ожидаем...")
+	
+	changeRegion(regionName)
+	
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	local regionMissions = data:FindFirstChild("Missions"):FindFirstChild("RegionMissions")
+	
+	local missionCompleted = false
+	local checkCount = 0
+	
+	while not missionCompleted do
+		checkCount = checkCount + 1
+		
+		if checkCount % 3 == 0 then
+			useFoodAndWater()
+		end
+		
+		if checkDeathDuringFarm() then
+			return false
+		end
+		
+		local regionFolder = regionMissions:FindFirstChild(regionName)
+		if regionFolder then
+			local timeMission = regionFolder:FindFirstChild("TimePlayed")
+			if timeMission and timeMission.Value then
+				missionCompleted = true
+				print("✅ TimePlayed выполнена в регионе " .. regionName)
+				break
+			else
+				if checkCount % 5 == 0 then
+					print("⏳ TimePlayed... (" .. checkCount .. " проверок)")
+				end
+			end
+		end
+		
+		wait(5)
+	end
+	
+	return missionCompleted
+end
+
+local ignoredRegions = {
+	["Shadow Isle"] = true,
+	["Shadow Isles"] = true,
+	["Basalt Cave"] = true
+}
+
+local function calculatePoints()
+	local activeSlot = findActiveSlot()
+	if not activeSlot then return 0 end
+	
+	local data = player:WaitForChild("PlayerGui"):WaitForChild("Data")
+	local slot = data:FindFirstChild(activeSlot)
+	if not slot then return 0 end
+	
+	local deathStats = slot:FindFirstChild("DeathStats")
+	if not deathStats then return 0 end
+
+	local timePlayed = deathStats:FindFirstChild("TimePlayed")
+	local missionsCompleted = deathStats:FindFirstChild("MissionsCompleted")
+	local disastersSurvived = deathStats:FindFirstChild("DisastersSurvived")
+	local teen = deathStats:FindFirstChild("GrowCreatureTeen")
+	local adult = deathStats:FindFirstChild("GrowCreatureAdult")
+
+	local points = 0
+	if timePlayed then
+		points = points + math.floor(timePlayed.Value / 240)
+	end
+	if missionsCompleted then
+		points = points + missionsCompleted.Value * 4
+	end
+	if disastersSurvived then
+		points = points + disastersSurvived.Value * 6
+	end
+	if teen then
+		points = points + teen.Value * 5
+	end
+	if adult then
+		points = points + adult.Value * 10
+	end
+	return points
+end
+
+local lastPointsPrint = 0
+
+local function checkPointsAndDie()
+	local points = calculatePoints()
+
+	if tick() - lastPointsPrint >= 60 then
+		lastPointsPrint = tick()
+		print("📊 Текущие очки: " .. points)
+	end
+
+	if points >= 751 then
+		print("💀 ОЧКИ >= 751! Самоубийство через OutOfBounds!")
+		pcall(function()
+			OutOfBoundsSelfDamage:FireServer(1000000)
+			wait(0.2)
+			OutOfBoundsSelfDamage:FireServer(1000000)
+			wait(0.2)
+			OutOfBoundsSelfDamage:FireServer(1000000)
+		end)
+		return true
+	end
+	return false
+end
+
+local function getUncompletedMissions()
+	local data = player:WaitForChild("PlayerGui"):FindFirstChild("Data")
+	if not data then return {} end
+	local missions = data:FindFirstChild("Missions")
+	if not missions then return {} end
+	local regionMissions = missions:FindFirstChild("RegionMissions")
+	if not regionMissions then return {} end
+	
+	local list = {}
+	for _, r in pairs(regionMissions:GetChildren()) do
+		if ignoredRegions[r.Name] then continue end
+		for _, m in pairs(r:GetChildren()) do
+			if m:IsA("BoolValue") and not m.Value and m.Name ~= "ShoomPilesCollected" then
+				table.insert(list, { region = r.Name, name = m.Name })
+			end
+		end
+	end
+	return list
+end
+
+spawn(function()
+	while true do
+		wait(5)
+	end
+end)
+
+spawn(function()
+	while true do
+		wait(8)
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			for i = 1, 15 do
+				local food = foodFolder:GetChildren()[i]
+				local lake = lakeFolder:GetChildren()[i]
+				if food then pcall(function() FoodRemote:FireServer(food) end) end
+				wait(1.2)
+				if lake then pcall(function() DrinkRemote:FireServer(lake) end) end
+				wait(0.8)
+			end
+		else
+			wait(3)
+		end
+	end
+end)
+
+spawn(function()
+	while true do
+		local pgui = player:WaitForChild("PlayerGui")
+		local prompt = pgui:FindFirstChild("PromptGui")
+		if prompt and prompt.Enabled then prompt.Enabled = false end
+
+		local daily = pgui:FindFirstChild("DailyLoginGui")
+		if daily and daily.Enabled then
+			local claimBtn = daily.ContainerFrame.CurrencyFrame.ClaimButton.UpperLabel
+			local closeBtn = daily.ContainerFrame.CurrencyFrame.CloseButton.UpperLabel
+			if claimBtn then
+				clickButtonEnhanced(claimBtn, "ClaimButton")
+				wait(1)
+				if closeBtn then
+					clickButtonEnhanced(closeBtn, "CloseButton")
+				end
+			else
+				daily.Enabled = false
+			end
+		end
+
+		local dialogue = pgui:FindFirstChild("DialogueGui")
+		if dialogue and dialogue.Enabled then dialogue.Enabled = false end
+
+		wait(1)
+	end
+end)
+
+spawn(function()
+	while true do
+		pcall(function() SnowPileSelfDamage:FireServer() end)
+		wait(1)
+	end
+end)
+
+spawn(function()
+	while true do
+		pcall(function() ActivateAbility:FireServer("TailDrop") end)
+		wait(10)
+	end
+end)
+
+spawn(function()
+	print("🚀 Запуск скрипта...")
+	acquireCreature()
+	wait(3)
+	print("⏳ Ожидаю загрузки SaveSelectionGui...")
+	local maxWaitTime = 0
+	while not player:WaitForChild("PlayerGui"):FindFirstChild("SaveSelectionGui") and maxWaitTime < 60 do
+		wait(1)
+		maxWaitTime = maxWaitTime + 1
+	end
+	wait(8)
+
+	while true do
+		while not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) do
+			print("⏳ Персонаж отсутствует, ожидаю...")
+			wait(3)
+		end
+
+		local char = player.Character
+		if (char.HumanoidRootPart.Position - HOME_POSITION).Magnitude > 10 then
+			char.HumanoidRootPart.CFrame = CFrame.new(HOME_POSITION)
+		end
+
+		if not currentRegionName then
+			local data = player:WaitForChild("PlayerGui"):WaitForChild("Data")
+			local regionVal = data:FindFirstChild("Region")
+			if regionVal then
+				currentRegionName = regionVal.Value
+			else
+				currentRegionName = "Forest"
+				changeRegion("Forest")
+			end
+		end
+
+		while player.Character and player.Character:FindFirstChild("HumanoidRootPart") do
+			if checkPointsAndDie() then
+				wait(10)
+				continue
+			end
+			
+			if checkDeathDuringFarm() then
+				wait(5)
+				continue
+			end
+			
+			local uncompleted = getUncompletedMissions()
+			if #uncompleted == 0 then
+				print("🎉 Все миссии выполнены! Ожидание 5 минут...")
+				wait(300)
+				break
+			end
+
+			local fastMissions = {}
+			for _, m in ipairs(uncompleted) do
+				if m.name == "Sniff" or m.name == "ConcealScent" then
+					table.insert(fastMissions, m)
+				end
+			end
+			if #fastMissions > 0 then
+				print("⚡ Фаза 1: Sniff и Conceal во всех регионах")
+				for _, m in ipairs(fastMissions) do
+					if m.name == "Sniff" then completeSniffMission(m.region)
+					elseif m.name == "ConcealScent" then completeConcealScentMission(m.region)
+					end
+					wait(0.1)
+				end
+			else
+				local remaining = {}
+				for _, m in ipairs(uncompleted) do
+					if m.name ~= "Sniff" and m.name ~= "ConcealScent" then
+						table.insert(remaining, m)
+					end
+				end
+				if #remaining > 0 then
+					print("🐢 Фаза 2: оставшиеся миссии")
+					for _, m in ipairs(remaining) do
+						if m.name == "EatFoodDrinkWater" then completeEatFoodDrinkWaterMission(m.region)
+						elseif m.name == "AttackOrHealCreatureOrNPC" then completeAttackOrHealMission(m.region)
+						elseif m.name == "DistanceTravelled" then completeDistanceTravelledMission(m.region)
+						elseif m.name == "TimePlayed" then completeTimePlayedMission(m.region)
+						end
+						wait(0.1)
+					end
+				end
+			end
+			wait(0.5)
+		end
+	end
+end)
+
+print("✅ Скрипт запущен (фарм миссий с автоперезаходом при смерти)")
