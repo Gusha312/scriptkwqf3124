@@ -49,6 +49,64 @@ local function findDataFolder()
 	return direct
 end
 
+-- Поиск значения уровня еды/воды. Точный путь у разных сборок разный,
+-- поэтому ищем по имени в данных слота и в самом персонаже.
+-- Не нашли — возвращаем nil, и скрипт работает по старой схеме.
+local function findStatValue(names)
+	local data = findDataFolder()
+	if data then
+		for i = 1, 9 do
+			local slot = data:FindFirstChild("Slot" .. i)
+			if slot then
+				for _, n in ipairs(names) do
+					local v = slot:FindFirstChild(n)
+					if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then
+						return v
+					end
+				end
+			end
+		end
+		for _, n in ipairs(names) do
+			local v = data:FindFirstChild(n)
+			if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then
+				return v
+			end
+		end
+	end
+
+	local char = player.Character
+	if char then
+		local places = { char, char:FindFirstChild("Stats"), char:FindFirstChild("Status") }
+		for _, place in ipairs(places) do
+			if place then
+				for _, n in ipairs(names) do
+					local v = place:FindFirstChild(n)
+					if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then
+						return v
+					end
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
+local HUNGER_NAMES = { "Hunger", "Food", "Fullness", "Satiety", "CurrentHunger" }
+local HUNGER_MAX_NAMES = { "MaxHunger", "HungerMax", "MaxFood" }
+
+-- Процент еды, или nil если значение не найдено
+local function getHungerPercent()
+	local v = findStatValue(HUNGER_NAMES)
+	if not v then return nil end
+
+	local maxV = findStatValue(HUNGER_MAX_NAMES)
+	local maxNum = maxV and maxV.Value or 100
+	if maxNum <= 0 then maxNum = 100 end
+
+	return (v.Value / maxNum) * 100
+end
+
 -- Сколько слотов реально занято существом
 local function countFilledSlots()
 	local data = findDataFolder()
@@ -497,23 +555,40 @@ local function findNPCForAttack()
 end
 
 local function useFoodAndWater()
-	local nearestGrass = findNearestGrass()
-	
+	-- Запоминаем, откуда улетаем. Без возврата персонаж остаётся
+	-- у травы, миссия ломается и он уходит от точки фарма.
+	local returnPos = nil
+	local startChar = player.Character
+	if startChar and startChar:FindFirstChild("HumanoidRootPart") then
+		returnPos = startChar.HumanoidRootPart.Position
+	end
+
+	-- Если уровень еды известен и он высокий, не улетаем за травой —
+	-- просто жмём ремоуты на месте. Телепорт только когда еды мало.
+	local hungerPct = getHungerPercent()
+	local needGrass = true
+	if hungerPct then
+		print("🍖 Еда: " .. math.floor(hungerPct) .. "%")
+		needGrass = hungerPct <= 60
+	end
+
+	local nearestGrass = needGrass and findNearestGrass() or nil
+
 	if nearestGrass then
 		print("🍃 Найден Grass (еда): " .. nearestGrass.Name)
-		
+
 		local grassPos = getPos(nearestGrass)
-		
+
 		teleportTo(grassPos + Vector3.new(0, 5, 0))
 		print("📍 Телепортировались к Grass (еде)")
-		
+
 		wait(1)
-		
+
 		if currentRegionName then
 			print("🔄 Меняем регион после телепортации к Grass: " .. currentRegionName)
 			changeRegion(currentRegionName)
 		end
-		
+
 		local foodArgs = { nearestGrass }
 		FoodRemote:FireServer(unpack(foodArgs))
 		print("🍎 Использована Grass (еда): " .. nearestGrass.Name)
@@ -543,6 +618,16 @@ local function useFoodAndWater()
 			local drinkArgs = { waterSource }
 			DrinkRemote:FireServer(unpack(drinkArgs))
 		end
+	end
+
+	-- Возврат туда, откуда улетели за едой
+	if returnPos and nearestGrass then
+		wait(0.5)
+		teleportTo(returnPos)
+		if currentRegionName then
+			changeRegion(currentRegionName)
+		end
+		print("↩️ Вернулся на место фарма")
 	end
 end
 
