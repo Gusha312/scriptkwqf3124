@@ -27,13 +27,10 @@ local currentRegionName = nil
 local deathInProgress = false
 local slotBusy = false
 local farmAborted = false
-local feeding = false
 
--- При этом значении еды и ниже летим жрать, какой бы квест ни шёл.
--- Если успевает умереть — поднять тут, например до 20.
+-- Если еда упала до этого значения или ниже — доедаем до FOOD_TARGET,
+-- а не один укус. Успевает умереть — поднять порог, например до 20.
 local FOOD_THRESHOLD = 0
-
--- Едим, пока еда не поднимется до этого значения
 local FOOD_TARGET = 5
 
 local HOME_POSITION = Vector3.new(-3225, 834, -1768)
@@ -526,10 +523,6 @@ local function findNPCForAttack()
 end
 
 local function useFoodAndWater()
-	-- Аварийная еда уже летит — не мешаем, иначе два телепорта
-	-- в разные точки наложатся друг на друга.
-	if feeding then return end
-
 	-- Запоминаем, откуда улетаем. Без возврата персонаж остаётся
 	-- у травы, миссия ломается и он уходит от точки фарма.
 	local returnPos = nil
@@ -558,6 +551,22 @@ local function useFoodAndWater()
 		local foodArgs = { nearestGrass }
 		FoodRemote:FireServer(unpack(foodArgs))
 		print("🍎 Использована Grass (еда): " .. nearestGrass.Name)
+
+		-- Еда на нуле — доедаем до FOOD_TARGET, но не дольше 10 укусов (~4 сек),
+		-- иначе персонаж надолго залипает у травы и квест не идёт.
+		local food = getFoodValue()
+		if food and food <= FOOD_THRESHOLD then
+			print("🚨 Еда " .. food .. " — доедаю до " .. FOOD_TARGET)
+			for i = 1, 10 do
+				wait(0.4)
+				local f = getFoodValue()
+				if f and f >= FOOD_TARGET then
+					print("🍖 Наелся: " .. f)
+					break
+				end
+				FoodRemote:FireServer(unpack(foodArgs))
+			end
+		end
 	else
 		local foodFolder = interactions.Food
 		local foodChildren = foodFolder:GetChildren()
@@ -964,102 +973,6 @@ local function getUncompletedMissions()
 	end
 	return list
 end
-
--- НАБЛЮДАТЕЛЬ ЗА ЕДОЙ.
--- Работает независимо от того, какой квест сейчас идёт: как только
--- Food.Value падает до порога, запоминаем позицию, летим к траве,
--- едим и возвращаемся туда же. Квест продолжается с того же места.
---
--- Ограничители обязательны: без них, если еда не растёт, цикл крутится
--- непрерывно, персонаж всё время летает за травой и миссии не проходятся.
-spawn(function()
-	local lastFeed = 0
-	local failedFeeds = 0
-	local enabled = true
-
-	local FEED_COOLDOWN = 25  -- не чаще одного вылета за столько секунд
-	local MAX_BITES = 12      -- максимум нажатий за один вылет (~5 сек)
-
-	while true do
-		wait(1)
-
-		if enabled and not feeding and not deathInProgress then
-			local food = getFoodValue()
-			local char = player.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-
-			if food and root and food <= FOOD_THRESHOLD and (tick() - lastFeed) >= FEED_COOLDOWN then
-				feeding = true
-				lastFeed = tick()
-
-				local before = food
-				print("🚨 Еда " .. before .. " — лечу жрать")
-
-				pcall(function()
-					local returnPos = root.Position
-					local returnRegion = currentRegionName
-
-					local grass = findNearestGrass()
-					if grass then
-						teleportTo(getPos(grass) + Vector3.new(0, 5, 0))
-						wait(0.8)
-						if returnRegion then changeRegion(returnRegion) end
-					end
-
-					for i = 1, MAX_BITES do
-						local f = getFoodValue()
-						if f and f >= FOOD_TARGET then
-							print("🍎 Наелся, еда: " .. f)
-							break
-						end
-
-						local target = grass
-						if not target then
-							target = foodFolder:GetChildren()[1]
-						end
-						if not target then break end
-
-						FoodRemote:FireServer(target)
-						wait(0.4)
-					end
-
-					local lake = lakeFolder:FindFirstChild("Lake")
-					if lake then
-						DrinkRemote:FireServer(lake)
-						wait(0.2)
-					end
-
-					-- возврат к тому, что делали
-					teleportTo(returnPos)
-					if returnRegion then
-						currentRegionName = returnRegion
-						changeRegion(returnRegion)
-					end
-					print("↩️ Вернулся к действию, которое делал")
-				end)
-
-				-- Проверяем, была ли еда вообще польза. Если FoodRemote
-				-- не поднимает это значение, наблюдатель только мешает
-				-- фарму — выключаем его, чтобы не ломал миссии.
-				local after = getFoodValue() or before
-				if after > before then
-					failedFeeds = 0
-					print("🍖 Еда: " .. before .. " → " .. after)
-				else
-					failedFeeds = failedFeeds + 1
-					print("⚠️ Еда не выросла (" .. before .. " → " .. after .. "), " .. failedFeeds .. "/3")
-
-					if failedFeeds >= 3 then
-						enabled = false
-						print("⛔ Наблюдатель за едой выключен: FoodRemote не меняет Food.Value")
-					end
-				end
-
-				feeding = false
-			end
-		end
-	end
-end)
 
 spawn(function()
 	while true do
