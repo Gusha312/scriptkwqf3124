@@ -6,7 +6,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-
 local oldHook
 local lastMobDamageTick = 0
 oldHook = hookmetamethod(game, "__namecall", function(self, ...)
@@ -23,21 +22,22 @@ oldHook = hookmetamethod(game, "__namecall", function(self, ...)
 end)
 
 -- НАСТРОЙКИ МИРОВ
-local worldsOrder = {"Grassland", "Jungle", "Volcano", "Tundra", "Ocean", "Desert", "Fantasy", "Wasterland", "Prehistoric"}
+local worldsOrder = {"Grassland", "Jungle", "Volcano", "Tundra", "Ocean", "Desert", "Fantasy", "Wasterland", "Prehistoric", "Shinrin"}
 local worldPlaceIds = {
     Grassland = 3475419198, Jungle = 3475422608, Volcano = 3487210751,
     Tundra = 3623549100, Ocean = 3737848045, Desert = 3752680052,
-    Fantasy = 4174118306, Wasterland = 4728805070, Prehistoric = 4869039553
+    Fantasy = 4174118306, Wasterland = 4728805070, Prehistoric = 4869039553,
+    Shinrin = 125804922932357,
 }
 local params = {harvestTarget = 50, chestTarget = 3, eggTarget = 5, killMobsTarget = 15, spendTimeSeconds = 7 * 60 + 30}
 
--- ЧЁРНЫЙ СПИСОК ЕДЫ (Prehistoric): эту еду не фармим
+-- ЧЁРНЫЙ СПИСОК ЕДЫ (Prehistoric)
 local blacklistedCFrames = {
     Vector3.new(-819.596069, 330.706512, -86.8510437),
     Vector3.new(-256.833496, 419.179352, -897.405762),
     Vector3.new(-724.562744, 28.387001, 610.656982),
 }
-local BLACKLIST_RADIUS = 10 -- допуск по расстоянию (studs)
+local BLACKLIST_RADIUS = 10
 
 local function isBlacklistedFood(part, worldName)
     if worldName ~= "Prehistoric" then return false end
@@ -56,9 +56,11 @@ local function isBlacklistedFood(part, worldName)
     end
     return false
 end
+
 local hasBossAndSpend = {
     Grassland = false, Jungle = true, Volcano = true, Tundra = true, Ocean = true,
-    Desert = true, Fantasy = true, Wasterland = true, Prehistoric = true
+    Desert = true, Fantasy = true, Wasterland = true, Prehistoric = true,
+    Shinrin = true,
 }
 
 -- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -72,7 +74,6 @@ local function getHRP()
     return waitForCharacter():WaitForChild("HumanoidRootPart")
 end
 
--- СПАВН: точка, где мы оказались при первом запуске (отдельно для каждого мира)
 local spawnByPlace = {}
 
 local function rememberSpawn()
@@ -96,7 +97,6 @@ end
 
 task.spawn(rememberSpawn)
 
--- ПОЛЁТ НА ПРОГРУЗКУ КАРТЫ
 local FLY_DIRS = {
     Vector3.new(0, 0, -1),
     Vector3.new(0, 0,  1),
@@ -179,6 +179,7 @@ local function isWorldUnlocked(worldName)
     local ok2, val2 = pcall(function() return player.PlayerGui.PlayerDataGui.Data.Worlds[dataNameFor(worldName)].Value end)
     return ok2 and val2 == true
 end
+
 
 -- БЕЗОПАСНЫЙ СБОР (HUMAN-LIKE)
 local rng = Random.new(tick() + math.random(1, 99999))
@@ -300,7 +301,32 @@ local function recordCFrame(cf)
     print("Записано дерево #" .. #discoveredCFrames)
 end
 
--- СБОР РЕСУРСОВ (ОБЫЧНЫЙ)
+local function findNodeInWorld(worldName)
+    local nodes = workspace.Interactions.Nodes
+    local worldNodes = nodes:FindFirstChild(worldName) or nodes:FindFirstChild(dataNameFor(worldName))
+    if worldNodes then
+        for _, cat in ipairs({"Food", "Resources"}) do
+            local folder = worldNodes:FindFirstChild(cat)
+            if folder then
+                for _, node in ipairs(folder:GetChildren()) do
+                    local bp = node:FindFirstChild("BillboardPart")
+                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
+                end
+            end
+        end
+    end
+    for _, cat in ipairs({"Food", "Resources"}) do
+        local folder = nodes:FindFirstChild(cat)
+        if folder then
+            for _, node in ipairs(folder:GetChildren()) do
+                local bp = node:FindFirstChild("BillboardPart")
+                if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
+            end
+        end
+    end
+    return nil
+end
+
 local function universalHarvestMission(worldName)
     local missions = getMissionsFolder(worldName)
     if not missions then return end
@@ -313,31 +339,7 @@ local function universalHarvestMission(worldName)
     local hrp = getHRP()
     local dragonRemote = char:WaitForChild("Dragons"):WaitForChild("1"):WaitForChild("Remotes"):WaitForChild("PlaySoundRemote")
     local dropRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote")
-    local function findNode()
-        local nodes = workspace.Interactions.Nodes
-        local worldNodes = nodes:FindFirstChild(worldName) or nodes:FindFirstChild(dataNameFor(worldName))
-        if worldNodes then
-            for _, cat in ipairs({"Food", "Resources"}) do
-                local folder = worldNodes:FindFirstChild(cat)
-                if folder then
-                    for _, node in ipairs(folder:GetChildren()) do
-                        local bp = node:FindFirstChild("BillboardPart")
-                        if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
-                    end
-                end
-            end
-        end
-        for _, cat in ipairs({"Food", "Resources"}) do
-            local folder = nodes:FindFirstChild(cat)
-            if folder then
-                for _, node in ipairs(folder:GetChildren()) do
-                    local bp = node:FindFirstChild("BillboardPart")
-                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
-                end
-            end
-        end
-        return nil
-    end
+    local function findNode() return findNodeInWorld(worldName) end
     local questDone = false
     harv:GetPropertyChangedSignal("Value"):Connect(function()
         if harv.Value == true then
@@ -383,7 +385,7 @@ local function universalHarvestMission(worldName)
     print("[HARVEST] Готово")
 end
 
--- БЕЗОПАСНЫЙ СБОР ДЛЯ PREHISTORIC
+
 local function safeHarvestMission(worldName)
     local missions = getMissionsFolder(worldName)
     if not missions then return end
@@ -404,37 +406,12 @@ local function safeHarvestMission(worldName)
     local hrp = getHRP()
     local dragonRemote = char:WaitForChild("Dragons"):WaitForChild("1"):WaitForChild("Remotes"):WaitForChild("PlaySoundRemote")
     local dropRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("LargeNodeDropsRemote")
-
-    local function findNode()
-        local nodes = workspace.Interactions.Nodes
-        local worldNodes = nodes:FindFirstChild(worldName) or nodes:FindFirstChild(dataNameFor(worldName))
-        if worldNodes then
-            for _, cat in ipairs({"Food", "Resources"}) do
-                local folder = worldNodes:FindFirstChild(cat)
-                if folder then
-                    for _, node in ipairs(folder:GetChildren()) do
-                        local bp = node:FindFirstChild("BillboardPart")
-                        if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
-                    end
-                end
-            end
-        end
-        for _, cat in ipairs({"Food", "Resources"}) do
-            local folder = nodes:FindFirstChild(cat)
-            if folder then
-                for _, node in ipairs(folder:GetChildren()) do
-                    local bp = node:FindFirstChild("BillboardPart")
-                    if bp and bp:FindFirstChild("Health") and bp.Health.Value > 0 and not isBlacklistedFood(bp, worldName) then return bp end
-                end
-            end
-        end
-        return nil
-    end
+    local function findNode() return findNodeInWorld(worldName) end
 
     local function isMounted()
-        local char = workspace.Characters:FindFirstChild(player.Name)
-        if not char then return false end
-        local neck = char:FindFirstChild("Dragons") and char.Dragons:FindFirstChild("1") and char.Dragons["1"]:FindFirstChild("Neck_Primary")
+        local c = workspace.Characters:FindFirstChild(player.Name)
+        if not c then return false end
+        local neck = c:FindFirstChild("Dragons") and c.Dragons:FindFirstChild("1") and c.Dragons["1"]:FindFirstChild("Neck_Primary")
         return neck ~= nil
     end
 
@@ -519,7 +496,6 @@ local function safeHarvestMission(worldName)
     print("[SAFE HARVEST] Готово")
 end
 
--- СУНДУКИ (TREASURE)
 local function universalTreasureMission(worldName)
     local missions = getMissionsFolder(worldName)
     if not missions then return end
@@ -563,14 +539,12 @@ local function universalTreasureMission(worldName)
             and workspace.Interactions:FindFirstChild("Nodes")
             and workspace.Interactions.Nodes:FindFirstChild("Treasure")
         if not treasureFolder then return result end
-
         for _, obj in ipairs(treasureFolder:GetChildren()) do
             table.insert(result, obj)
         end
         return result
     end
 
-    -- Случайная точка (еда/ресурсы или моб), чтобы прогрузить карту и появились сундуки
     local function teleportToRandomLoadSpot()
         local spots = {}
         local nodes = workspace.Interactions and workspace.Interactions:FindFirstChild("Nodes")
@@ -626,7 +600,6 @@ local function universalTreasureMission(worldName)
 
     while progress.Value < target and chest.Value ~= true do
         local chestsList = getAllChests()
-
         if #chestsList == 0 then
             print("[TREASURE] Нет сундуков — телепорт к случайной еде/мобу для прогрузки карты")
             if not teleportToRandomLoadSpot() then
@@ -635,43 +608,33 @@ local function universalTreasureMission(worldName)
             task.wait(3)
         else
             local chest_obj = chestsList[1]
-
             if chest_obj and chest_obj.Parent then
                 print(string.format("[TREASURE] Сундук #%s: телепорт", chest_obj.Name))
                 teleportToChest(chest_obj)
-
                 print(string.format("[TREASURE] Сундук #%s: используем запросы 1-5", chest_obj.Name))
                 setBreathFire(true)
                 task.wait(0.2)
-
-                -- Вызываем OpenChestRemote от 1 до 5
                 for i = 1, 5 do
                     pcall(function() openRemote:InvokeServer(i, false) end)
                     task.wait(0.2)
                 end
-
                 setBreathFire(false)
                 task.wait(1)
-
                 print(string.format("[TREASURE] Прогресс: %d/%d", progress.Value, target))
-
                 if chest_obj and chest_obj.Parent then
                     chest_obj:Destroy()
                 end
-
                 task.wait(0.5)
             else
                 task.wait(1)
             end
         end
-
         task.wait(1)
     end
-
     print("[TREASURE] Квест завершён!")
 end
 
--- ЯЙЦА (EGG)
+
 local function universalEggMission(worldName, needed)
     local missions = getMissionsFolder(worldName)
     if not missions then return end
@@ -767,7 +730,6 @@ local function universalEggMission(worldName, needed)
     print("[EGG] Завершено")
 end
 
--- МОБЫ (KILLMOBS)
 local function universalKillMobsMission(worldName)
     local missions = getMissionsFolder(worldName)
     if not missions then return end
@@ -808,7 +770,6 @@ local function universalKillMobsMission(worldName)
         end
         return mobs
     end
-    -- Телепорт к случайной еде/ресурсам (ищем мобов вокруг неё)
     local function teleportToRandomFood()
         local spots = {}
         local nodes = workspace.Interactions and workspace.Interactions:FindFirstChild("Nodes")
@@ -834,7 +795,6 @@ local function universalKillMobsMission(worldName)
         return true
     end
 
-    -- Все живые мобы на карте, отсортированные по расстоянию до нас
     local function getAliveMobsSorted()
         local all = {}
         local folder = workspace:FindFirstChild("MobFolder")
@@ -850,7 +810,7 @@ local function universalKillMobsMission(worldName)
         return all
     end
 
-    local MOB_RESPAWN_WAIT = 10 -- сек ожидания после каждого телепорта (мобы появляются не сразу)
+    local MOB_RESPAWN_WAIT = 10
     local fromSpawn = (worldName == "Desert")
     if fromSpawn then
         print("[KILLMOBS] Desert: телепорт на спавн")
@@ -863,7 +823,6 @@ local function universalKillMobsMission(worldName)
         if #mobs == 0 and fromSpawn then
             local alive = getAliveMobsSorted()
             if #alive > 0 then
-                -- Мобы ещё есть на карте (просто дальше радиуса) — идём к ближайшему
                 print(string.format("[KILLMOBS] Desert: живых мобов на карте: %d — телепорт к ближайшему", #alive))
                 hrp.CFrame = CFrame.new(alive[1].Position + Vector3.new(0, 5, 0))
                 task.wait(0.3)
@@ -930,6 +889,7 @@ local function universalKillMobsMission(worldName)
     print("[KILLMOBS] Готово")
 end
 
+
 -- БОСС
 local ok_vim, VIM = pcall(function() return game:GetService("VirtualInputManager") end)
 if not ok_vim then VIM = nil end
@@ -965,7 +925,7 @@ local function getDragonId()
 end
 
 local cachedPlaySound = nil
-local function getPlaySound()
+local function getBossPlaySound()
     if cachedPlaySound and cachedPlaySound.Parent then return cachedPlaySound end
     local char = waitForCharacter()
     local ok1, ps1 = pcall(function()
@@ -994,7 +954,7 @@ local function getPlaySound()
 end
 
 local function fireAttack(attackType, target)
-    local ps = getPlaySound()
+    local ps = getBossPlaySound()
     if ps then
         pcall(function() ps:FireServer("Breath", attackType, target) end)
         return
@@ -1128,6 +1088,7 @@ local function clearMobsAtSpawn(spawnCF, rad, slot)
     hrp.CFrame = CFrame.new(spawnCF.Position + Vector3.new(0, 5, 0))
     task.wait(1)
 end
+
 
 local function clickGuiButton(button)
     if not button then return false end
@@ -1369,6 +1330,7 @@ local function universalKillBossMission(worldName)
     end
 end
 
+
 local function getSpendTimeMission(worldName)
     local missions = getMissionsFolder(worldName)
     if not missions then return nil end
@@ -1408,7 +1370,6 @@ local function universalSpendTimeMission(worldName, nextWorld)
     print("[SPENDTIME] Время ожидания истекло")
 end
 
--- ГЛАВНАЯ ФУНКЦИЯ ДЛЯ ВЫПОЛНЕНИЯ МИССИЙ В МИРЕ
 local function completeWorldMissions(worldName, nextWorld)
     print("\n========== МИР " .. worldName .. " ==========")
     universalHarvestMission(worldName)
@@ -1416,7 +1377,10 @@ local function completeWorldMissions(worldName, nextWorld)
     universalEggMission(worldName, params.eggTarget)
     universalKillMobsMission(worldName)
     if hasBossAndSpend[worldName] then
-        universalKillBossMission(worldName)
+        local missions = getMissionsFolder(worldName)
+        if missions and missions:FindFirstChild("KillBoss") then
+            universalKillBossMission(worldName)
+        end
         universalSpendTimeMission(worldName, nextWorld)
     end
 end
@@ -1436,9 +1400,90 @@ local function waitForMissionsData(worldName, timeout)
     return false
 end
 
--- ПРОХОД МИРА ПОЛНОСТЬЮ (С ОСОБОЙ ОБРАБОТКОЙ PREHISTORIC)
+-- ============================================================
+--  ORIGIN (Lobby) — открывает Trade Realm
+-- ============================================================
+local ORIGIN_WORLD    = "Lobby"
+local ORIGIN_PLACE_ID = 3475397644
+
+local function isTradeRealmUnlocked()
+    local ok, v = pcall(function()
+        return player.PlayerGui.PlayerDataGui.Data.Worlds.TradeRealm.Value
+    end)
+    return ok and v == true
+end
+
+local function flyTo(targetCF, steps, stepTime)
+    local hrp = getHRP()
+    local startCF = hrp.CFrame
+    for i = 1, steps do
+        local p = startCF.Position:Lerp(targetCF.Position, i / steps)
+        hrp.CFrame = CFrame.new(p, targetCF.LookVector * 10 + p)
+        task.wait(stepTime or 0.05)
+    end
+end
+
+local function flyThroughRing(ring)
+    local cf = ring.CFrame
+    flyTo(cf * CFrame.new(0, 0, 40), 12, 0.05)
+    flyTo(cf * CFrame.new(0, 0, -40), 16, 0.06)
+    task.wait(0.6)
+end
+
+local function ridingRingMission()
+    local missions = getMissionsFolder("Lobby")
+    local rr = missions and missions:FindFirstChild("RidingRing")
+    if not rr or rr.Value == true then return end
+
+    mountDragon()
+    task.wait(1)
+
+    local rings = {}
+    for _, fname in ipairs({"CreatedRings", "Ground", "Flying"}) do
+        local f = workspace.Interactions.RidingRings:FindFirstChild(fname)
+        if f then
+            for _, r in ipairs(f:GetChildren()) do
+                if r:IsA("BasePart") then table.insert(rings, r) end
+            end
+        end
+    end
+    print("[ORIGIN] RidingRing: колец " .. #rings .. ", прогресс " .. rr.Progress.Value)
+
+    local deadline = tick() + 180
+    for pass = 1, 2 do
+        for _, ring in ipairs(rings) do
+            if rr.Value == true or tick() > deadline then break end
+            flyThroughRing(ring)
+            pcall(function() ReplicatedStorage.Remotes.RidingRingTouchedRemote:FireServer(ring) end)
+            task.wait(3)
+        end
+        print("[ORIGIN] RidingRing проход " .. pass .. ": " .. rr.Progress.Value)
+        if rr.Value == true then break end
+    end
+end
+
+local function completeOrigin()
+    print("[ORIGIN] Проходим квесты Lobby")
+    waitForMissionsData("Lobby", 30)
+    local missions = getMissionsFolder("Lobby")
+    if not missions then print("[ORIGIN] нет миссий Lobby") return end
+
+    local egg = missions:FindFirstChild("EggQuest")
+    if egg and egg.Value ~= true then
+        universalEggMission("Lobby", 1)
+    end
+
+    local rr = missions:FindFirstChild("RidingRing")
+    if rr and rr.Value ~= true then
+        ridingRingMission()
+    end
+
+    print("[ORIGIN] Готово. EggQuest=" .. tostring(egg and egg.Value) ..
+          ", RidingRing=" .. tostring(rr and rr.Value))
+end
+
+-- ПРОХОД МИРА ПОЛНОСТЬЮ
 local function completeWorldFully(worldName, nextWorld)
-    -- Специальная обработка для Prehistoric
     if worldName == "Prehistoric" then
         print("[PREHISTORIC] Используем безопасный сбор для Harvest, остальные квесты – стандартно")
         waitForMissionsData(worldName, 30)
@@ -1465,7 +1510,6 @@ local function completeWorldFully(worldName, nextWorld)
         return
     end
 
-    -- Для всех остальных миров
     waitForMissionsData(worldName, 30)
     local pass = 0
     while not isWorldComplete(worldName) do
@@ -1511,6 +1555,24 @@ local function main()
         print("[СТАРТ] Ничего не открыто, ждём " .. w)
         while not isWorldUnlocked(w) do task.wait(5) end
         targetWorld = w
+    end
+
+    -- Shinrin открыт, а Trade Realm ещё нет → открываем его через Origin (Lobby)
+    if isWorldUnlocked("Shinrin") and not isTradeRealmUnlocked() then
+        print("[ORIGIN] Shinrin открыт, Trade Realm закрыт → идём в Origin")
+        if game.PlaceId ~= ORIGIN_PLACE_ID then
+            teleportToWorld(ORIGIN_WORLD)
+        end
+
+        completeOrigin()
+
+        print("[ORIGIN] Ждём открытия Trade Realm...")
+        while not isTradeRealmUnlocked() do
+            task.wait(5)
+        end
+        print("[ORIGIN] Trade Realm открыт → идём в Shinrin")
+
+        targetWorld = "Shinrin"
     end
 
     if game.PlaceId ~= worldPlaceIds[targetWorld] then teleportToWorld(targetWorld) end
@@ -1559,3 +1621,4 @@ local success, err = pcall(main)
 if not success then
     warn("[ОШИБКА] " .. tostring(err))
 end
+
