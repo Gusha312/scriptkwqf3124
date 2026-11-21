@@ -9,26 +9,37 @@ local ITEM_NAME = "Saukuryn"
 local MAIN_PLACE = 5233782396
 local TRADE_PLACE = 14119723130
 
--- LocalPlayer может быть nil в момент инъекции, поэтому берём заново каждый раз
 local function LP()
     return Players.LocalPlayer
 end
 
-local PW = nil
-local function loadPW()
-    if PW then return PW end
-    local ok, mod = pcall(function()
-        setthreadidentity(2)
-        return require(RS:WaitForChild("Sonar"))("PlayerWrapper")
-    end)
-    setthreadidentity(8)
-    if ok and mod then PW = mod; return PW end
-    local rep = RS:FindFirstChild("_replicationFolder")
-    if rep and rep:FindFirstChild("PlayerWrapper") then
-        local ok2, mod2 = pcall(function() return require(rep.PlayerWrapper) end)
-        if ok2 then PW = mod2 end
+-- значение PlayerData -> Unlocks -> Saukuryn (0 или 1)
+-- путь одинаковый в главном мире и в трейд-реалме
+local function speciesSaukuryn()
+    local lp = LP()
+    if not lp or not lp.PlayerGui then return nil end
+    local pdg = lp.PlayerGui:FindFirstChild("PlayerDataGui")
+    local data = pdg and pdg:FindFirstChild("Data")
+    if not data then return nil end
+
+    local unlocks = data:FindFirstChild("Unlocks")
+    if unlocks then
+        local sau = unlocks:FindFirstChild("Saukuryn")
+        if sau and sau:IsA("ValueBase") then
+            return sau.Value
+        end
     end
-    return PW
+    -- запасные варианты
+    for _, fn in ipairs({ "species", "Species", "Creatures", "ItemFolders" }) do
+        local folder = data:FindFirstChild(fn)
+        if folder then
+            local sau = folder:FindFirstChild("Saukuryn")
+            if sau and sau:IsA("ValueBase") then
+                return sau.Value
+            end
+        end
+    end
+    return nil
 end
 
 local function waitReady()
@@ -51,57 +62,36 @@ local function waitReady()
     end
 end
 
-local function saukurynCount()
-    if not loadPW() then return -1 end
-    local w = PW.getWrapperFromPlayer(LP())
-    if not w then return -1 end
-    return w:CountOwnedSpecies(ITEM_NAME)
-end
-
+-- получить Saukuryn (SetTutorialStageRemote), вернуть true если species=1
 local function getSaukuryn()
     local st = RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("SetTutorialStageRemote")
     if not st then warn("[cycle] SetTutorialStageRemote missing"); return false end
-    local before = saukurynCount()
     pcall(function() st:InvokeServer("CreatureEditor", ITEM_NAME) end)
     task.wait(1.5)
-    local after = saukurynCount()
-    warn("[cycle] get " .. ITEM_NAME .. ": " .. tostring(before) .. " -> " .. tostring(after))
-    return after > before
+    local v = speciesSaukuryn()
+    warn("[cycle] after get, species." .. ITEM_NAME .. " = " .. tostring(v))
+    return v == 1
 end
 
 local function friendRoot()
     local friend = Players:FindFirstChild(FRIEND_NAME)
-    if not friend then
-        warn("[cycle] friendRoot: friend not in Players")
-        return nil
-    end
+    if not friend then return nil end
     local inter = workspace:FindFirstChild("Interactable")
     local ms = inter and inter:FindFirstChild("MarketStalls")
-    if not ms then
-        warn("[cycle] friendRoot: MarketStalls missing")
-        return nil
-    end
-    local parts = ms:GetChildren()
-    for _, part in ipairs(parts) do
+    if not ms then return nil end
+    for _, part in ipairs(ms:GetChildren()) do
         if tostring(part:GetAttribute("Owner")) == tostring(friend.UserId) then
             return part
         end
     end
-    warn("[cycle] friendRoot: no stall with Owner=" .. tostring(friend.UserId) .. " (checked " .. tostring(#parts) .. " parts)")
     return nil
 end
 
 local function friendOrder()
     local friend = Players:FindFirstChild(FRIEND_NAME)
-    if not friend then
-        warn("[cycle] friendOrder: friend not in Players")
-        return nil
-    end
+    if not friend then return nil end
     local ms = friend:FindFirstChild("PublicData") and friend.PublicData:FindFirstChild("MarketStalls")
-    if not ms then
-        warn("[cycle] friendOrder: PublicData.MarketStalls missing")
-        return nil
-    end
+    if not ms then return nil end
     for i = 1, 30 do
         local l = ms:FindFirstChild("Listing" .. i)
         if l and l:FindFirstChild("ItemName") and l.ItemName.Value == ITEM_NAME
@@ -111,7 +101,6 @@ local function friendOrder()
             return { index = i, price = l.Price.Value }
         end
     end
-    warn("[cycle] friendOrder: no Buying order for " .. ITEM_NAME)
     return nil
 end
 
@@ -139,20 +128,18 @@ local function sellSaukuryn()
     if not root then warn("[cycle] friend stall not found"); return false end
     if not order then warn("[cycle] friend order not found"); return false end
 
-    local before = saukurynCount()
     local l3Before = friendL3Amount(order.index)
-
     for a = 1, 20 do
         pcall(function() buyRemote:FireServer(root, ITEM_NAME, order.price, 1, order.index) end)
         task.wait(3)
-        local after = saukurynCount()
         local l3After = friendL3Amount(order.index)
-        if (after < before) or (l3After ~= nil and l3Before ~= nil and l3After < l3Before) then
-            warn("[cycle] sold " .. ITEM_NAME .. " (sau=" .. tostring(after) .. " L3=" .. tostring(l3After) .. ")")
+        local sv = speciesSaukuryn()
+        if (l3After ~= nil and l3Before ~= nil and l3After < l3Before) or (sv == 0) then
+            warn("[cycle] sold " .. ITEM_NAME .. " (species=" .. tostring(sv) .. " L3=" .. tostring(l3After) .. ")")
             return true
         end
     end
-    warn("[cycle] sell failed (sau=" .. tostring(saukurynCount()) .. " L3=" .. tostring(friendL3Amount(order.index)) .. ")")
+    warn("[cycle] sell failed (species=" .. tostring(speciesSaukuryn()) .. " L3=" .. tostring(friendL3Amount(order.index)) .. ")")
     return false
 end
 
@@ -178,10 +165,9 @@ local function goToFriend()
                 if tok then return true end
                 warn("[cycle] teleport failed: " .. tostring(terr))
                 return false
-            else
-                warn("[cycle] friend has no gameId")
-                return false
             end
+            warn("[cycle] friend has no gameId")
+            return false
         end
     end
     warn("[cycle] friend not online")
@@ -193,10 +179,19 @@ task.spawn(function()
         local shouldBreak = false
         local ok, err = pcall(function()
             if not waitReady() then return end
+
             if game.PlaceId == MAIN_PLACE then
-                if getSaukuryn() then
-                    task.wait(1)
+                local v = speciesSaukuryn()
+                warn("[cycle] main place, species." .. ITEM_NAME .. " = " .. tostring(v))
+                if v == 1 then
                     if goToFriend() then shouldBreak = true end
+                elseif v == 0 then
+                    if getSaukuryn() then
+                        task.wait(1)
+                        if goToFriend() then shouldBreak = true end
+                    end
+                else
+                    warn("[cycle] species." .. ITEM_NAME .. " not found in PlayerData")
                 end
             elseif game.PlaceId == TRADE_PLACE then
                 if Players:FindFirstChild(FRIEND_NAME) then
